@@ -1,0 +1,7 @@
+# Единые окончания строк LF: скрипты платформы запускаются в Linux (в т.ч. при клоне на Windows)
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.zip binary
+*.pdf binary
+*.svg text eol=lf

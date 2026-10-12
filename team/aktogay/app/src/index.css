@@ -1,0 +1,134 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-bg: #0d1013;
+  --color-panel: #14181d;
+  --color-panel-2: #1b2027;
+  --color-line: #2a313a;
+  --color-ink: #e8eaed;
+  --color-ink-2: #a9b0ba;
+  --color-ink-3: #6f7782;
+  --color-accent: #f59e0b;
+  --color-accent-2: #d95926;
+  --color-fixed: #3987e5;
+  --color-smart: #d95926;
+  --color-good: #22c55e;
+  --color-bad: #ef4444;
+  --font-sans: 'Segoe UI', 'Inter', Roboto, system-ui, sans-serif;
+  --font-mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, ui-monospace, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+.panel {
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+}
+
+.scanlines {
+  background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.015) 0 1px, transparent 1px 3px);
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+.blink {
+  animation: blink 0.9s steps(2, start) infinite;
+}
+
+input[type='range'] {
+  accent-color: var(--color-accent);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a313a;
+  border-radius: 4px;
+}
+
+/* Подписи и голографические панели 3D-сцены */
+.lbl3d {
+  font: 600 12px var(--font-mono);
+  color: #e6f1ff;
+  background: rgba(10, 20, 34, 0.82);
+  border: 1px solid rgba(94, 234, 212, 0.28);
+  border-radius: 7px;
+  padding: 3px 9px;
+  white-space: nowrap;
+  text-align: left;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+.lbl3d .dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+.lbl3d.sel {
+  border-color: #fff;
+}
+.lbl3d.bad,
+.holo .bad,
+.lbl3d .bad {
+  color: #f87171;
+}
+.lbl3d .warn {
+  color: #fbbf24;
+}
+.holo {
+  font: 12px var(--font-mono);
+  line-height: 1.45;
+  color: #9fe7c4;
+  background: linear-gradient(180deg, rgba(10, 40, 50, 0.82), rgba(6, 22, 30, 0.82));
+  border: 1px solid rgba(80, 220, 230, 0.55);
+  box-shadow: 0 0 18px rgba(60, 200, 230, 0.25), inset 0 0 12px rgba(60, 200, 230, 0.12);
+  border-radius: 4px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+.holo b {
+  color: #e6fbff;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+.holo .v {
+  color: #fde68a;
+}
+.holo .ok {
+  color: #4ade80;
+}
+
+.lbl3d.alert {
+  color: #67e8f9;
+  border-color: rgba(34, 211, 238, 0.7);
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.45);
+}

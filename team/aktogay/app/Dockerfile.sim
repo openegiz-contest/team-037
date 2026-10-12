@@ -1,0 +1,16 @@
+# Сервис-симулятор рудника «Актогай»: модель (src/sim) + публикация двойников в OpenEgiz.
+FROM docker.io/library/node:22-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY src ./src
+COPY service ./service
+RUN npx esbuild service/main.ts --bundle --platform=node --format=esm --target=node22 \
+      --outfile=dist-service/main.mjs \
+      --banner:js="import { createRequire } from 'module'; const require = createRequire(import.meta.url);"
+
+FROM docker.io/library/node:22-alpine
+WORKDIR /app
+COPY --from=build /app/dist-service/main.mjs ./main.mjs
+USER node
+CMD ["node", "main.mjs"]

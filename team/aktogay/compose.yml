@@ -1,0 +1,50 @@
+# Рудник «Актогай»: надстройка над deploy/compose/docker-compose.yml платформы OpenEgiz.
+# Запускается `make aktogay` из корня репозитория. Пути — относительно deploy/compose/.
+
+services:
+  # Модель карьера: создаёт двойников в Ditto и публикует их состояние по MQTT (telemetry/#),
+  # принимает сценарии «что если» из двойника org.aktogay:control (через opentwins/#).
+  aktogay-sim:
+    build:
+      context: ../../team/aktogay/app
+      dockerfile: Dockerfile.sim
+    image: aktogay/sim:local
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      DITTO_URL: http://ditto-nginx:80
+      DITTO_PASSWORD: ${DITTO_PASSWORD}
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+      SIM_SPEEDUP: ${AKTOGAY_SPEEDUP:-20}
+      SIM_SEED: ${AKTOGAY_SEED:-42}
+      SIM_TRUCKS: ${AKTOGAY_TRUCKS:-20}
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+  # Интерфейс: 3D-карьер, KPI, сравнение стратегий, кнопки сценариев «что если».
+  # Данные берёт только из Ditto (через прокси /ditto/ этого же контейнера).
+  aktogay-ui:
+    build:
+      context: ../../team/aktogay/app
+      dockerfile: Dockerfile.ui
+    image: aktogay/ui:local
+    restart: unless-stopped
+    mem_limit: 64m
+    environment:
+      DITTO_BASIC_AUTH: ${DITTO_BASIC_AUTH}
+    ports:
+      - "${OPENEGIZ_BIND:-127.0.0.1}:${AKTOGAY_UI_PORT:-8095}:80"
+    depends_on:
+      ditto-nginx:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  grafana:
+    volumes:
+      - ../../team/aktogay/grafana/aktogay-dashboard.json:/var/lib/grafana/example-dashboards/aktogay.json:ro
