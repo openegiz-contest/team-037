@@ -31,6 +31,20 @@ import {
   type TruckState,
 } from './types';
 
+/** Хронология смены: строки по минутам (см. TRUCK_CODE, EX_CODE). */
+export interface ShiftTimeline {
+  minutes: number;
+  trucks: string[];
+  excavators: string[];
+  /** Бункер дробилки: '0'…'9' — уровень десятками процентов, 's' — пусто (фабрика стоит). */
+  crusher: string;
+  /** Число перекрытых участков съездов (без оцеплений взрывов). */
+  closures: string;
+}
+
+export const TRUCK_CODE: Record<TruckState, string> = { idle: 'i', empty: 'e', queue: 'q', loading: 'l', loaded: 'L', dumping: 'd', refuel: 'f', service: 's', broken: 'b' };
+export const EX_CODE: Record<Excavator['state'], string> = { working: 'w', waiting: 'i', broken: 'b', blast: 'x' };
+
 export interface SimOptions {
   seed: number;
   truckCount: number;
@@ -67,6 +81,11 @@ export class Simulation {
   readonly loadTotal: number[] = [];
   /** Целевая доля тоннажа каждого экскаватора по плану смены. */
   readonly targetShare: number[];
+  /**
+   * Хронология смены по минутам — для диаграммы Ганта и цепочек последствий.
+   * Один символ на минуту: состояние самосвала / экскаватора, уровень бункера, число перекрытий.
+   */
+  readonly timeline: ShiftTimeline = { minutes: 0, trucks: [], excavators: [], crusher: '', closures: '' };
 
   readonly speedLoaded: number;
   readonly speedEmpty: number;
@@ -171,6 +190,8 @@ export class Simulation {
     this.targetShare = this.excavators.map((e) => this.cfg.planT[e.material] / perMaterial[e.material] / planTotal);
 
     this.createTrucks(opts.truckCount);
+    this.timeline.trucks = this.trucks.map(() => '');
+    this.timeline.excavators = this.excavators.map(() => '');
     this.events = this.generateEvents();
     this.generateBlasts();
     this.recordHistory();
@@ -477,6 +498,18 @@ export class Simulation {
     return this.strategyName === 'smart' && this.cfg.health.enabledInSmart;
   }
 
+  /** Записать минуту хронологии: состояния машин, бункер, перекрытия дорог. */
+  private recordMinute(): void {
+    const tl = this.timeline;
+    this.trucks.forEach((t, i) => (tl.trucks[i] += TRUCK_CODE[t.state]));
+    this.excavators.forEach((e, i) => (tl.excavators[i] += EX_CODE[e.state]));
+    const c = this.crusher;
+    tl.crusher += c.binT <= 0.01 ? 's' : String(Math.min(9, Math.floor((c.binT / c.binCapT) * 10)));
+    const groups = this.layout.closureGroups;
+    tl.closures += String(Math.min(9, this.closures.filter((x) => groups.some((g) => g.label === x.label)).length));
+    tl.minutes++;
+  }
+
   /** Отправить самосвал на ППР: сразу, если он порожний, иначе — после разгрузки. */
   requestService(t: Truck): void {
     t.serviceRequested = true;
@@ -541,6 +574,7 @@ export class Simulation {
   tick(): void {
     const dt = this.cfg.shift.tickSec;
     this.now += dt;
+    if (Math.floor(this.now / 60) > this.timeline.minutes) this.recordMinute();
     for (const t of this.trucks) {
       t.px = t.x;
       t.py = t.y;

@@ -35,6 +35,7 @@ export const thingIds = (v: StrategyName) => {
     garage: `${ns}:garage`,
     roads: `${ns}:roads`,
     blasting: `${ns}:blasting`,
+    shift: `${ns}:shift`,
   };
 };
 
@@ -106,6 +107,17 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
   out[id.garage] = { policyId: POLICY, attributes: { name: 'Гараж, АЗС и стоянка', kind: 'garage', _isType: false, _parents: parent, slots: sim.parking.slots.length, sensors: garageSensorAttributes() }, features: serializeGarage(sim) };
   out[id.roads] = { policyId: POLICY, attributes: { name: 'Дорожная сеть карьера', kind: 'road-network', _isType: false, _parents: parent, edges: sim.layout.graph.edges.length }, features: serializeRoads(sim) };
   out[id.blasting] = { policyId: POLICY, attributes: { name: 'Буровзрывные работы', kind: 'blasting', _isType: false, _parents: parent }, features: serializeBlasting(sim) };
+  out[id.shift] = {
+    policyId: POLICY,
+    attributes: {
+      name: 'Хронология смены',
+      kind: 'shift-log',
+      _isType: false,
+      _parents: parent,
+      encoding: 'символ на минуту; самосвал: i ожидание, e порожний, q очередь, l погрузка, L гружёный, d разгрузка, f заправка, s ППР, b поломка; экскаватор: w работа, i ждёт, b поломка, x взрыв; бункер: 0–9 уровень, s пусто',
+    },
+    features: serializeShift(sim),
+  };
   return out;
 }
 
@@ -303,6 +315,18 @@ export function serializeBlasting(sim: Simulation): Features {
   };
 }
 
+/** Хронология смены (публикуется реже остальных — раз в 15 с). */
+export function serializeShift(sim: Simulation): Features {
+  const tl = sim.timeline;
+  return {
+    minutes: f(tl.minutes, 'min'),
+    trucks: f(tl.trucks.join('|')),
+    excavators: f(tl.excavators.join('|')),
+    crusher: f(tl.crusher),
+    closures: f(tl.closures),
+  };
+}
+
 /** Признаки всех двойников варианта: thingId → features. */
 export function serializeAll(sim: Simulation, v: StrategyName, k: Kpis): Record<string, Features> {
   const id = thingIds(v);
@@ -446,6 +470,19 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     ex.blastSec = num(fs, 'blast_time');
     ex.queueIntegral = num(fs, 'queue_avg') * sim.now;
   });
+
+  // Хронология смены.
+  const sh = things.get(id.shift);
+  if (sh) {
+    const tl = sim.timeline;
+    const tr = str(sh, 'trucks').split('|');
+    const ex = str(sh, 'excavators').split('|');
+    tl.trucks = sim.trucks.map((_, i) => tr[i] ?? '');
+    tl.excavators = sim.excavators.map((_, i) => ex[i] ?? '');
+    tl.crusher = str(sh, 'crusher');
+    tl.closures = str(sh, 'closures');
+    tl.minutes = num(sh, 'minutes');
+  }
 
   const c = sim.crusher;
   const cf = things.get(id.crusher);

@@ -2,15 +2,16 @@
 import type { ReactNode } from 'react';
 import type { ThemeMode } from '../ui/themeMode';
 
-export type Route = 'mine' | 'effect' | 'twins' | 'scenarios' | 'fleet';
+export type Route = 'mine' | 'effect' | 'twins' | 'scenarios' | 'fleet' | 'timeline';
 
-export const ROUTE_HASH: Record<Route, string> = { mine: '#/', effect: '#/effect', twins: '#/twins', scenarios: '#/scenarios', fleet: '#/fleet' };
+export const ROUTE_HASH: Record<Route, string> = { mine: '#/', effect: '#/effect', twins: '#/twins', scenarios: '#/scenarios', fleet: '#/fleet', timeline: '#/timeline' };
 
 export function routeFromHash(h: string): Route {
   if (h.startsWith('#/twins')) return 'twins';
   if (h.startsWith('#/scenarios')) return 'scenarios';
   if (h.startsWith('#/effect')) return 'effect';
   if (h.startsWith('#/fleet')) return 'fleet';
+  if (h.startsWith('#/timeline')) return 'timeline';
   return 'mine';
 }
 
@@ -46,6 +47,13 @@ const ICONS: Record<Route | 'grafana' | 'api' | 'collapse' | 'sun' | 'moon', Rea
       <circle cx="19" cy="5" r="2" />
       <circle cx="19" cy="19" r="2" />
       <path d="M7 12h4l6-6M11 12l6 6" />
+    </Icon>
+  ),
+  // полосы диаграммы Ганта
+  timeline: (
+    <Icon>
+      <path d="M3 4v16h18" />
+      <path d="M7 8h6M10 12h8M7 16h5" />
     </Icon>
   ),
   // самосвал
@@ -98,6 +106,7 @@ const NAV: { route: Route; label: string; hint: string; group: 'ops' | 'analysis
   { route: 'fleet', label: 'Оборудование', hint: 'Парк техники: добавить и вывести самосвалы и экскаваторы', group: 'ops' },
   { route: 'twins', label: 'Двойники', hint: 'Объекты рудника в Eclipse Ditto', group: 'ops' },
   { route: 'scenarios', label: 'Сценарии', hint: 'Запуск и отмена «что если»', group: 'analysis' },
+  { route: 'timeline', label: 'Хронология', hint: 'Цепочки последствий и диаграмма Ганта смены', group: 'analysis' },
   { route: 'effect', label: 'Эффект', hint: 'Реальная работа против теневого расчёта без системы, ₸', group: 'analysis' },
 ];
 

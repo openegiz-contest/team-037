@@ -57,7 +57,7 @@ const GROUPS: { title: string; kinds: string[] }[] = [
   { title: 'Экскаваторы', kinds: ['excavator'] },
   { title: 'Самосвалы', kinds: ['haul-truck'] },
   { title: 'Переработка', kinds: ['crusher', 'concentrator', 'heap-leach', 'waste-dump'] },
-  { title: 'Инфраструктура', kinds: ['garage', 'road-network', 'blasting'] },
+  { title: 'Инфраструктура', kinds: ['garage', 'road-network', 'blasting', 'shift-log'] },
 ];
 
 // ───────────────────────────── данные ─────────────────────────────
@@ -140,6 +140,8 @@ function fmtValue(row: Row | undefined): { text: string; unit: string; json?: un
         /* обычная строка */
       }
     }
+    // Хронология смены: длинные строки по минутам — показываем длину и начало.
+    if (value.length > 60) return { text: `${value.length} симв. · ${value.slice(0, 24)}…`, unit: '' };
     return { text: VALUE_LABEL[value] ?? (value === '' ? '—' : value), unit: '' };
   }
   if (Array.isArray(value)) return { text: value.length ? value.join(' · ') : 'нет', unit: '' };

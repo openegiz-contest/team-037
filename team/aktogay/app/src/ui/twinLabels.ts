@@ -13,6 +13,7 @@ export const KIND_LABEL: Record<string, string> = {
   garage: 'Гараж',
   'road-network': 'Дороги',
   blasting: 'Взрывные работы',
+  'shift-log': 'Хронология смены',
 };
 
 export const FEATURE_LABEL: Record<string, string> = {
@@ -123,6 +124,10 @@ export const FEATURE_LABEL: Record<string, string> = {
   active: 'Идёт оцепление',
   announced: 'Объявлено',
   blasts: 'Взрывы смены',
+  // хронология смены
+  minutes: 'Записано минут',
+  excavators: 'Экскаваторы по минутам',
+  crusher: 'Бункер по минутам',
   // управление
   command: 'Последняя команда',
   status: 'Статус симулятора',

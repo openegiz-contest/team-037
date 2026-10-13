@@ -13,7 +13,7 @@ import mqtt from 'mqtt';
 import { computeKpis, Simulation, type StrategyName } from '../src/sim';
 import { activeScenarioLabels, applyScenario, type Command } from '../src/platform/scenarios';
 import { defaultFleet, fleetConfig, sanitizeFleet, type Fleet } from '../src/platform/fleet';
-import { CONTROL_ID, SITE_NS, serializeAll, siteDefinitions, thingDefinitions, VARIANTS, type Features, type ThingBody } from '../src/platform/twins';
+import { CONTROL_ID, SITE_NS, serializeShift, thingIds, serializeAll, siteDefinitions, thingDefinitions, VARIANTS, type Features, type ThingBody } from '../src/platform/twins';
 
 const env = (k: string, d: string) => process.env[k] ?? d;
 const DITTO_URL = env('DITTO_URL', 'http://localhost:8080').replace(/\/$/, '');
@@ -106,6 +106,11 @@ function publishAll(): void {
   publishStatus();
 }
 
+/** Хронология смены — строки по минутам, публикуется раз в 15 с (не нагружает Ditto и InfluxDB). */
+function publishShift(): void {
+  for (const v of VARIANTS) publishTwin(thingIds(v).shift, serializeShift(sims[v]));
+}
+
 function publishStatus(): void {
   const s = sims.smart;
   const active = activeScenarioLabels(s);
@@ -166,6 +171,7 @@ async function applyCommand(c: Command): Promise<void> {
   }
   log(`команда: ${c.value} ${c.arg ?? ''} → ${lastScenario}`);
   publishAll();
+  publishShift();
 }
 
 client.on('connect', () => {
@@ -227,6 +233,7 @@ async function main(): Promise<void> {
   await setupTwins();
   let last = Date.now();
   let lastPublish = 0;
+  let lastShift = 0;
   setInterval(() => {
     const now = Date.now();
     const dt = Math.min(1, (now - last) / 1000);
@@ -242,6 +249,10 @@ async function main(): Promise<void> {
     if (now - lastPublish >= PUBLISH_MS && client.connected) {
       lastPublish = now;
       publishAll();
+    }
+    if (now - lastShift >= 15000 && client.connected) {
+      lastShift = now;
+      publishShift();
     }
   }, 100);
 }
