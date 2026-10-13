@@ -14,7 +14,7 @@ import type { Kpis } from '../sim/kpi';
 import type { Simulation } from '../sim/engine';
 import { MATERIALS, TRUCK_STATES, type Blast, type Destination, type FailureType, type Material, type StrategyName, type TruckState } from '../sim/types';
 import { gradeAt } from '../sim/ore';
-import { excavatorSensorAttributes, truckSensorAttributes } from './sensors';
+import { crusherSensorAttributes, excavatorSensorAttributes, plantSensorAttributes, truckSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -93,12 +93,12 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
   });
   out[id.crusher] = {
     policyId: POLICY,
-    attributes: { name: 'Первичная дробилка ККД', kind: 'crusher', _isType: false, _parents: parent, bin_capacity_t: cfg.dumps.crusher.binCapT, feeds: id.plant },
+    attributes: { name: 'Первичная дробилка ККД', kind: 'crusher', _isType: false, _parents: parent, bin_capacity_t: cfg.dumps.crusher.binCapT, feeds: id.plant, sensors: crusherSensorAttributes() },
     features: serializeCrusher(sim),
   };
   out[id.plant] = {
     policyId: POLICY,
-    attributes: { name: 'Обогатительная фабрика', kind: 'concentrator', _isType: false, _parents: parent, feed_tpm: cfg.dumps.crusher.plantFeedTpm, target_grade_pct: cfg.grade.targetPct },
+    attributes: { name: 'Обогатительная фабрика', kind: 'concentrator', _isType: false, _parents: parent, feed_tpm: cfg.dumps.crusher.plantFeedTpm, target_grade_pct: cfg.grade.targetPct, sensors: plantSensorAttributes() },
     features: serializePlant(sim),
   };
   out[id.leach] = { policyId: POLICY, attributes: { name: 'Площадка кучного выщелачивания', kind: 'heap-leach', _isType: false, _parents: parent }, features: serializeDump(sim, 1) };

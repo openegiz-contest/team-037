@@ -1,5 +1,5 @@
 /**
- * Паспорт датчиков самосвалов и экскаваторов: какое оборудование стоит на машине, что оно измеряет и какие
+ * Паспорт датчиков техники и переработки (самосвалы, экскаваторы, дробилка, фабрика): какое оборудование стоит на машине, что оно измеряет и какие
  * признаки (features) двойника заполняет. Записывается в attributes.sensors двойников
  * техники и показывается в интерфейсе (карточка самосвала, раздел «Двойники»).
  *
@@ -159,10 +159,108 @@ export const EXCAVATOR_SENSORS: SensorSpec[] = [
   },
 ];
 
+export const CRUSHER_SENSORS: SensorSpec[] = [
+  {
+    id: 'bin_level',
+    name: 'Радарный уровнемер бункера',
+    hardware: 'бесконтактный радар 80 ГГц над бункером',
+    location: 'кровля бункера 1000 т',
+    measures: 'уровень и масса руды в бункере, т',
+    features: ['bin'],
+    periodS: 1,
+    purpose: 'запас руды до остановки фабрики — главный вход для защиты от простоя',
+  },
+  {
+    id: 'dump_station',
+    name: 'Контроль площадки разгрузки',
+    hardware: 'RFID-считыватель номеров самосвалов + лидар присутствия',
+    location: 'площадка разгрузки',
+    measures: 'кто разгружается и кто ждёт',
+    features: ['queue', 'queue_ids', 'dumping_ids'],
+    periodS: 1,
+    purpose: 'очередь у дробилки и учёт рейсов по номерам машин',
+  },
+  {
+    id: 'belt_scale',
+    name: 'Конвейерные весы',
+    hardware: 'тензометрические весы на ленте под дробилкой',
+    location: 'конвейер дробилка → фабрика',
+    measures: 'масса раздробленной руды, т',
+    features: ['tonnes_total'],
+    periodS: 1,
+    purpose: 'сколько руды реально ушло на фабрику',
+  },
+  {
+    id: 'drive',
+    name: 'Датчики привода дробилки',
+    hardware: 'ток двигателя, давление гидросистемы, вибрация и температура подшипников',
+    location: 'привод конусной дробилки',
+    measures: 'режим: дробит, принимает, работает вхолостую',
+    features: ['state', 'starved'],
+    periodS: 1,
+    purpose: 'простой без руды и защита оборудования',
+  },
+  {
+    id: 'soft_grade',
+    name: 'Виртуальный датчик качества в бункере',
+    hardware: 'расчёт двойника: смешение порций по данным XRF ковшей и весов',
+    location: 'модель двойника',
+    measures: 'содержание меди в бункере, % Cu',
+    features: ['bin_grade', 'bin_cu'],
+    periodS: 1,
+    purpose: 'прогноз качества питания фабрики для шихтовки',
+  },
+];
+
+export const PLANT_SENSORS: SensorSpec[] = [
+  {
+    id: 'feed_scale',
+    name: 'Конвейерные весы питания',
+    hardware: 'тензометрические весы на ленте питания',
+    location: 'конвейер на входе фабрики',
+    measures: 'производительность, т/ч',
+    features: ['feed_rate', 'feed_total'],
+    periodS: 1,
+    purpose: 'сколько руды получает фабрика и когда она стоит',
+  },
+  {
+    id: 'pgnaa',
+    name: 'Поточный анализатор руды (PGNAA)',
+    hardware: 'нейтронно-активационный анализатор через ленту',
+    location: 'конвейер питания',
+    measures: 'содержание меди в питании, % Cu',
+    features: ['feed_grade', 'cu_feed'],
+    periodS: 60,
+    purpose: 'держать питание в коридоре 0,35 ± 0,03% Cu',
+  },
+  {
+    id: 'slurry_xrf',
+    name: 'Анализатор пульпы (XRF)',
+    hardware: 'рентгенофлуоресцентный поточный анализатор, пробоотборники',
+    location: 'концентрат и хвосты флотации',
+    measures: 'медь в концентрате и в хвостах',
+    features: ['cu_concentrate', 'cu_loss'],
+    periodS: 300,
+    purpose: 'извлечение меди и потери с хвостами',
+  },
+  {
+    id: 'scada',
+    name: 'АСУ ТП фабрики (SCADA)',
+    hardware: 'контроллеры мельниц и флотации, обмен по OPC UA',
+    location: 'операторская фабрики',
+    measures: 'режим работы, время в коридоре качества',
+    features: ['state', 'feed_time', 'feed_in_band_time'],
+    periodS: 1,
+    purpose: 'работа или простой фабрики, доля времени с нормальным питанием',
+  },
+];
+
 /** Паспорт датчиков по типу двойника (attributes.kind). */
 export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   'haul-truck': TRUCK_SENSORS,
   excavator: EXCAVATOR_SENSORS,
+  crusher: CRUSHER_SENSORS,
+  concentrator: PLANT_SENSORS,
 };
 
 /** Компактная запись для attributes.sensors двойника в Ditto. */
@@ -170,3 +268,5 @@ export const sensorAttributes = (list: SensorSpec[]) =>
   list.map((s) => ({ id: s.id, name: s.name, hardware: s.hardware, location: s.location, features: s.features, period_s: s.periodS }));
 export const truckSensorAttributes = () => sensorAttributes(TRUCK_SENSORS);
 export const excavatorSensorAttributes = () => sensorAttributes(EXCAVATOR_SENSORS);
+export const crusherSensorAttributes = () => sensorAttributes(CRUSHER_SENSORS);
+export const plantSensorAttributes = () => sensorAttributes(PLANT_SENSORS);
