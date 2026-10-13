@@ -255,12 +255,47 @@ export const PLANT_SENSORS: SensorSpec[] = [
   },
 ];
 
+/**
+ * Пункты разгрузки (кучное выщелачивание, отвал). В модели у них только учёт тонн и очередь,
+ * поэтому описаны датчики, которые заполняют эти признаки. Химия раствора (pH, расход) и
+ * устойчивость отвала не моделируются — датчиков под них здесь нет.
+ */
+function dumpSensors(what: 'руда' | 'вскрыша', place: string): SensorSpec[] {
+  return [
+    {
+      id: 'dump_station',
+      name: 'Контроль площадки разгрузки',
+      hardware: 'RFID-считыватель номеров самосвалов + лидар присутствия',
+      location: place,
+      measures: 'кто разгружается и кто ждёт',
+      features: ['queue', 'queue_ids', 'dumping_ids'],
+      periodS: 1,
+      purpose: 'очередь на разгрузке и учёт рейсов по номерам машин',
+    },
+    {
+      id: 'stockpile',
+      name: what === 'руда' ? 'Учёт уложенной руды' : 'Учёт вскрыши в отвале',
+      hardware: 'сумма бортовых весов самосвалов по рейсам + сверка лидарной съёмкой с дрона',
+      location: place,
+      measures: `масса уложенного материала (${what}), т`,
+      features: ['tonnes_total'],
+      periodS: 1,
+      purpose: what === 'руда' ? 'выполнение плана по оксидной руде' : 'выполнение плана по вскрыше',
+    },
+  ];
+}
+
+export const LEACH_SENSORS: SensorSpec[] = dumpSensors('руда', 'площадка кучного выщелачивания');
+export const WASTE_SENSORS: SensorSpec[] = dumpSensors('вскрыша', 'отвал вскрыши');
+
 /** Паспорт датчиков по типу двойника (attributes.kind). */
 export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   'haul-truck': TRUCK_SENSORS,
   excavator: EXCAVATOR_SENSORS,
   crusher: CRUSHER_SENSORS,
   concentrator: PLANT_SENSORS,
+  'heap-leach': LEACH_SENSORS,
+  'waste-dump': WASTE_SENSORS,
 };
 
 /** Компактная запись для attributes.sensors двойника в Ditto. */
@@ -270,3 +305,5 @@ export const truckSensorAttributes = () => sensorAttributes(TRUCK_SENSORS);
 export const excavatorSensorAttributes = () => sensorAttributes(EXCAVATOR_SENSORS);
 export const crusherSensorAttributes = () => sensorAttributes(CRUSHER_SENSORS);
 export const plantSensorAttributes = () => sensorAttributes(PLANT_SENSORS);
+export const leachSensorAttributes = () => sensorAttributes(LEACH_SENSORS);
+export const wasteSensorAttributes = () => sensorAttributes(WASTE_SENSORS);

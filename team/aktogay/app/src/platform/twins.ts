@@ -14,7 +14,7 @@ import type { Kpis } from '../sim/kpi';
 import type { Simulation } from '../sim/engine';
 import { MATERIALS, TRUCK_STATES, type Blast, type Destination, type FailureType, type Material, type StrategyName, type TruckState } from '../sim/types';
 import { gradeAt } from '../sim/ore';
-import { crusherSensorAttributes, excavatorSensorAttributes, plantSensorAttributes, truckSensorAttributes } from './sensors';
+import { crusherSensorAttributes, excavatorSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -101,8 +101,8 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
     attributes: { name: 'Обогатительная фабрика', kind: 'concentrator', _isType: false, _parents: parent, feed_tpm: cfg.dumps.crusher.plantFeedTpm, target_grade_pct: cfg.grade.targetPct, sensors: plantSensorAttributes() },
     features: serializePlant(sim),
   };
-  out[id.leach] = { policyId: POLICY, attributes: { name: 'Площадка кучного выщелачивания', kind: 'heap-leach', _isType: false, _parents: parent }, features: serializeDump(sim, 1) };
-  out[id.waste] = { policyId: POLICY, attributes: { name: 'Отвал вскрыши', kind: 'waste-dump', _isType: false, _parents: parent }, features: serializeDump(sim, 2) };
+  out[id.leach] = { policyId: POLICY, attributes: { name: 'Площадка кучного выщелачивания', kind: 'heap-leach', _isType: false, _parents: parent, sensors: leachSensorAttributes() }, features: serializeDump(sim, 1) };
+  out[id.waste] = { policyId: POLICY, attributes: { name: 'Отвал вскрыши', kind: 'waste-dump', _isType: false, _parents: parent, sensors: wasteSensorAttributes() }, features: serializeDump(sim, 2) };
   out[id.garage] = { policyId: POLICY, attributes: { name: 'Гараж, АЗС и стоянка', kind: 'garage', _isType: false, _parents: parent, slots: sim.parking.slots.length }, features: serializeGarage(sim) };
   out[id.roads] = { policyId: POLICY, attributes: { name: 'Дорожная сеть карьера', kind: 'road-network', _isType: false, _parents: parent, edges: sim.layout.graph.edges.length }, features: serializeRoads(sim) };
   out[id.blasting] = { policyId: POLICY, attributes: { name: 'Буровзрывные работы', kind: 'blasting', _isType: false, _parents: parent }, features: serializeBlasting(sim) };

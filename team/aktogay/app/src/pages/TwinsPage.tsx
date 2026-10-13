@@ -479,7 +479,7 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
             <div className="panel">
               <div className="flex items-center gap-3 border-b border-line px-4 py-2.5">
                 <div className="text-[13px] font-semibold">
-                  Датчики {({ excavator: 'на экскаваторе', 'haul-truck': 'на самосвале', crusher: 'на дробилке', concentrator: 'на фабрике' } as Record<string, string>)[selKind]} <span className="font-normal text-ink-3">· {sensors.length} · attributes.sensors</span>
+                  Датчики {({ excavator: 'на экскаваторе', 'haul-truck': 'на самосвале', crusher: 'на дробилке', concentrator: 'на фабрике', 'heap-leach': 'на площадке выщелачивания', 'waste-dump': 'на отвале' } as Record<string, string>)[selKind]} <span className="font-normal text-ink-3">· {sensors.length} · attributes.sensors</span>
                 </div>
                 <span className="ml-auto text-[11.5px] text-ink-3">клик — показать признаки датчика в таблице ниже</span>
               </div>
