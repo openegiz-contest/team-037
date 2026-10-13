@@ -242,16 +242,12 @@ scripts/bench.ts       прогон стратегий по нескольким
 
 После изменений запустите `npm test` и `npm run bench`.
 
-## Деплой
+## Запуск на платформе OpenEgiz
 
-**GitHub Pages.** В репозитории уже есть `.github/workflows/deploy.yml`.
-1. Создайте репозиторий на GitHub и запушьте в ветку `main`.
-2. В Settings → Pages → Source выберите **GitHub Actions**.
-3. Workflow прогонит тесты, соберёт проект и опубликует его на `https://<user>.github.io/<repo>/`.
-   Благодаря `base: './'` в `vite.config.ts` сайт работает из подпапки.
-
-**Vercel.** Import Project → выбрать репозиторий. Vite определится автоматически
-(Build: `npm run build`, Output: `dist`). Другие настройки не нужны.
+Вместе с платформой приложение запускается из корня репозитория командой `make aktogay`
+(см. корневой README.md). Сервис `service/main.ts` создаёт двойники в Ditto и публикует
+телеметрию, а интерфейс читает состояние из Ditto. `Dockerfile.sim` и `Dockerfile.ui` собирают
+эти два контейнера.
 
 ## 3D-сцена
 

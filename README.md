@@ -1,40 +1,117 @@
-# <Team name>: a digital mine on OpenEgiz
+# Команда 037: цифровой двойник карьера Актогай на OpenEgiz
 
-> Team Repository of the contest “Digital Mine on OpenEgiz”. **Replace the contents of this file with the instructions for your Submission.** The AI Jury runs the Submission strictly by these instructions, from scratch, in the Judge Environment. Accepted languages: English, Kazakh, Russian.
+Цифровой двойник открытого медного карьера (по мотивам открытых данных о месторождении Актогай,
+Восточный Казахстан). В карьере работают 5 экскаваторов и 20 самосвалов. Сульфидная руда идёт
+на дробилку и обогатительную фабрику, оксидная — на кучное выщелачивание, вскрыша — в отвал.
 
-## Running
+Один и тот же карьер работает **в двух вариантах одновременно**, с одинаковыми случайными
+событиями:
 
-Requirements (Docker, `make`, Windows/WSL2 setup) are in [OPENEGIZ.md](OPENEGIZ.md) / [OPENEGIZ.ru.md](OPENEGIZ.ru.md).
+- **фиксированная** диспетчеризация: самосвалы закреплены за экскаваторами на всю смену;
+- **умная** диспетчеризация: каждый рейс назначается заново с учётом очередей, бункера дробилки,
+  качества руды, взрывов и прогноза отказов.
+
+Разница между ними видна в реальном времени на 3D-сцене, в KPI и в Grafana.
+
+Все 68 объектов — двойники в Eclipse Ditto (OpenEgiz). Симулятор публикует их состояние через
+MQTT, интерфейс читает его из Ditto, сценарии «что если» отправляются командой в двойник
+`org.aktogay:control`.
+
+> Модель построена по открытым данным, операционные данные смоделированы.
+> Проект не связан с KAZ Minerals.
+
+## Запуск
+
+Нужны Docker и `make`. Подробные требования, в том числе для Windows/WSL2, описаны в
+[OPENEGIZ.ru.md](OPENEGIZ.ru.md).
 
 ```bash
-sudo apt install -y make   # if make is missing (clean Ubuntu)
-make up            # the OpenEgiz platform
-make example-mine  # the Example Mine: twins, simulator, dashboard
+sudo apt install -y make   # если make нет (чистая Ubuntu)
+make aktogay               # платформа OpenEgiz + двойники карьера + симулятор + 3D-интерфейс + дашборд
 ```
 
-Replace these commands with the commands of your Submission. The Submission must start by following these instructions without manual intervention (Rules, clause 6.4); downloading datasets and models and building are also listed here.
+`make aktogay` выполняет всё сам, вмешательство не нужно:
 
-## What to open
+1. запускает платформу (`make up`): при первом запуске генерирует пароли в
+   `deploy/compose/.env`;
+2. собирает два образа из `team/aktogay/app`: симулятор на Node.js и веб-интерфейс на nginx.
+   Внешние датасеты и модели не скачиваются, нужны только npm-пакеты при сборке;
+3. создаёт двойники в Ditto и запускает смену.
 
-- Grafana: the address and login are printed by `make up`.
-- <where to see the mine visualization, which dashboards>
+В конце печатаются адреса.
 
-## Repository contents
+После этого `make up` / `make down` поднимают и останавливают карьер вместе с платформой.
 
-| Path | Contents |
+| Команда | Что делает |
 |---|---|
-| `team/` | Directory for the Team's code. Using it is optional: any part may be changed, including the platform core |
-| `SUBMISSION.md` | Description of the Submission: **required** |
-| `presentation.pdf` | Presentation: **required**, in the repository root |
-| `examples/mine/` | The Example Mine: shows how a digital mine is built on OpenEgiz. It is not a basis for the Submission |
-| `OPENEGIZ.md`, `OPENEGIZ.ru.md` | Documentation of the OpenEgiz platform v1.0.4 |
+| `make aktogay-stop` | остановить симулятор карьера; двойники и данные остаются |
+| `make down` | остановить всё, данные сохранить |
+| `make clean` | остановить и удалить все данные и пароли |
 
-The Submission is the `main` branch at the moment of the Freeze; other branches are not evaluated.
+Параметры смены можно задать переменными окружения, например
+`AKTOGAY_TRUCKS=25 AKTOGAY_SEED=7 make aktogay`:
 
-## License
+| Переменная | Что задаёт | По умолчанию |
+|---|---|---|
+| `AKTOGAY_TRUCKS` | число самосвалов (5–30) | 20 |
+| `AKTOGAY_SEED` | сценарий случайных событий | 42 |
+| `AKTOGAY_SPEEDUP` | ускорение модельного времени | 20 (12-часовая смена ≈ 36 мин) |
+| `AKTOGAY_UI_PORT` | порт интерфейса | 8095 |
 
-The Submission is distributed under the MIT license, see [LICENSE](LICENSE). Copyright belongs to the Team: add the line `Copyright (c) 2026 <Team members>` to `LICENSE`.
+## Что открыть
+
+| Адрес | Что там |
+|---|---|
+| **http://localhost:8095** | Главный интерфейс: два 3D-карьера рядом, KPI, графики, прогноз отказов, экономический эффект в ₸, кнопки сценариев «что если». Значок «● OpenEgiz · Ditto» в шапке означает, что данные идут из платформы |
+| **http://localhost:3000/d/aktogay-digital-mine** | Дашборд Grafana «Aktogay — цифровой двойник карьера» (Dashboards → OpenEgiz Examples): показатели из InfluxDB, встроенная 3D-сцена с кнопками сценариев, графики по самосвалам и экскаваторам. Логин `admin`, пароль печатает `make up` (он же в `deploy/compose/.env`) |
+| Grafana → приложение **OpenEgiz** → **Twins** | Иерархия двойников: `org.aktogay:aktogay` → два варианта карьера → объекты |
+| http://localhost:8080/api/2/things?namespaces=org.aktogay.smart | Двойники напрямую в Ditto API (логин `ditto`, пароль в `deploy/compose/.env`) |
+
+**Как показать за 2 минуты.** Откройте http://localhost:8095 и нажмите «⚠ Поломка»: экскаватор
+ломается в обоих карьерах.
+
+- В фиксированном варианте самосвалы стоят в очереди к сломанному экскаватору, бункер дробилки
+  пустеет.
+- В умном варианте самосвалы перераспределяются на другие забои.
+
+Нажмите «↶ Отменить сценарии», и экскаватор снова в работе. Все сценарии и модули описаны в
+[SUBMISSION.md](SUBMISSION.md).
+
+## Содержимое репозитория
+
+| Путь | Что там |
+|---|---|
+| `team/aktogay/app/src/sim/` | движок симуляции: граф дорог, стратегии диспетчеризации, качество руды, датчики и прогноз отказов, взрывы, KPI и экономика |
+| `team/aktogay/app/src/platform/twins.ts` | контракт двойников: объекты, признаки (features), сериализация и восстановление состояния |
+| `team/aktogay/app/service/main.ts` | сервис-симулятор: создаёт двойники в Ditto, публикует телеметрию в MQTT, выполняет команды «что если» |
+| `team/aktogay/app/src/` | веб-интерфейс (React + Three.js), читает двойники из Ditto |
+| `team/aktogay/compose.yml` | подключение сервисов карьера к `make up` (overlay) |
+| `team/aktogay/grafana/` | дашборд Grafana и скрипт, который его генерирует |
+| `team/aktogay/app/BENCHMARK.md` | сравнение стратегий на 20 сменах |
+| `SUBMISSION.md` | описание решения для жюри |
+| `presentation.pdf` | презентация |
+| `OPENEGIZ.md`, `OPENEGIZ.ru.md` | документация платформы OpenEgiz v1.0.4 |
+| `examples/mine/` | Пример рудника от организаторов; в нашем решении не используется |
+
+Решение — ветка `main`.
+
+## Разработка без Docker
+
+```bash
+cd team/aktogay/app
+npm install
+npm test           # тесты движка
+npm run dev        # http://localhost:5173 — автономный режим, модель считается в браузере
+npm run bench      # бенчмарк стратегий → BENCHMARK.md
+```
+
+Если платформа запущена, а в окружении задан `DITTO_BASIC_AUTH` из `deploy/compose/.env`,
+`npm run dev` работает с двойниками Ditto.
+
+## Лицензия
+
+MIT, см. [LICENSE](LICENSE).
 
 ---
 
-Platform: [aleka07/openegiz](https://github.com/aleka07/openegiz). If the platform was useful to you, support the project with a star on GitHub.
+Платформа: [aleka07/openegiz](https://github.com/aleka07/openegiz).
