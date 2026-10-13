@@ -31,6 +31,8 @@ import {
 import { blockBounds, buildRoads, buildTerrain, buildWater, makeHeightAt, PIT_DEPTH, scatterRocks, type Block } from './terrain';
 
 export type CameraPreset = 'overview' | 'crusher' | 'bottom' | 'side';
+/** Здания, у которых есть «внутренний двойник» (мнемосхема). */
+export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste';
 
 const BG = '#0a1526';
 
@@ -105,6 +107,8 @@ export class MineScene {
   private perf = { start: 0, frames: 0, fired: false };
   private readonly blk: Block;
   private trail: THREE.Mesh | null = null;
+  /** Здания для выбора кликом. */
+  private readonly buildings: THREE.Object3D[] = [];
   private trailKey = '';
 
   constructor(
@@ -190,6 +194,11 @@ export class MineScene {
     const dump = makeWasteDump();
     place(dump, sim.layout.waste.node, 300, false);
     const garage = makeGarage();
+    this.crusher.root.userData = { building: 'crusher' };
+    leach.userData = { building: 'leach' };
+    dump.userData = { building: 'waste' };
+    garage.userData = { building: 'garage' };
+    this.buildings.push(this.crusher.root, leach, dump, garage);
     // Гараж — сбоку от стоянки, сама стоянка — у въезда (узла гаража).
     {
       const f = sim.parkingFrame();
@@ -201,7 +210,10 @@ export class MineScene {
       garage.position.set(gx, this.heightAt(gx, gy) - 2, gy);
       garage.rotation.y = -Math.atan2(f.oy, f.ox) + Math.PI / 2;
       this.scene.add(garage);
-      this.scene.add(this.buildParking());
+      const parkingLot = this.buildParking();
+      parkingLot.userData = { building: 'garage' };
+      this.buildings.push(parkingLot);
+      this.scene.add(parkingLot);
     }
     const plant = makePlant();
     plant.scale.setScalar(1.3);
@@ -209,6 +221,8 @@ export class MineScene {
     plant.position.set(pp.x, this.heightAt(pp.x, pp.y) - 2, pp.y);
     plant.rotation.y = -Math.atan2(this.crusherPos.z - pp.y, this.crusherPos.x - pp.x);
     this.scene.add(plant);
+    plant.userData = { building: 'plant' };
+    this.buildings.push(plant);
 
     // Россыпь камней (в стороне от дорог и площадок) и мачты освещения по бровке.
     const avoid = [
@@ -298,7 +312,8 @@ export class MineScene {
       const obj = label('holo');
       obj.position.copy(pos);
       this.scene.add(obj);
-      this.panels.push({ obj, render });
+      // Подсказка: по клику на здание открывается его «внутренний двойник».
+      this.panels.push({ obj, render: () => `${render()}<div class="hint">▸ клик по зданию — что внутри</div>` });
     };
     const c = sim.crusher;
     panel(new THREE.Vector3(this.crusherPos.x, this.crusherPos.y + 240, this.crusherPos.z), () => {
@@ -430,6 +445,18 @@ export class MineScene {
       }
     }
     return best;
+  }
+
+  /** Здание под курсором — для «внутреннего двойника». */
+  pickBuilding(clientX: number, clientY: number): BuildingKind | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, this.camera);
+    const hit = ray.intersectObjects(this.buildings, true)[0];
+    let o: THREE.Object3D | null = hit?.object ?? null;
+    while (o && !o.userData.building) o = o.parent;
+    return o ? (o.userData.building as BuildingKind) : null;
   }
 
   get domElement(): HTMLCanvasElement {

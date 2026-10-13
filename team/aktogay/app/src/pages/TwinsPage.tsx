@@ -9,6 +9,7 @@ import type { PlatformBridge } from '../platform/bridge';
 import { SENSORS_BY_KIND } from '../platform/sensors';
 import { serializeMine, siteDefinitions, SITE_ID, thingDefinitions, thingIds, variantNs } from '../platform/twins';
 import type { Selection } from '../render/drawMine';
+import type { BuildingKind } from '../render3d/MineScene';
 import { computeKpis, type Simulation, type StrategyName } from '../sim';
 import { fmtClock } from '../ui/format';
 import { STRATEGY_COLOR } from '../ui/theme';
@@ -47,6 +48,9 @@ const KEY_METRICS: Record<string, string[]> = {
   blasting: ['announced', 'active'],
   control: ['status.value', 'status.speed', 'status.sim_time', 'status.trucks'],
 };
+
+/** Тип двойника → «внутренний двойник» здания (мнемосхема на карте). */
+const INSIDE: Record<string, BuildingKind> = { crusher: 'crusher', concentrator: 'plant', garage: 'garage', 'heap-leach': 'leach', 'waste-dump': 'waste' };
 
 const GROUPS: { title: string; kinds: string[] }[] = [
   { title: 'Карьер', kinds: ['open-pit'] },
@@ -203,9 +207,10 @@ interface PageProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onLocate: (variant: Variant, sel: Selection) => void;
+  onOpenInside: (variant: Variant, kind: BuildingKind) => void;
 }
 
-export function TwinsPage({ bridge, localSims, version, now, running, onToggleRun, selectedId, onSelect, onLocate }: PageProps) {
+export function TwinsPage({ bridge, localSims, version, now, running, onToggleRun, selectedId, onSelect, onLocate, onOpenInside }: PageProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const twins = useMemo(() => (bridge ? platformTwins(bridge) : localTwins(localSims)), [bridge, localSims, version]);
   const byId = useMemo(() => new Map(twins.map((t) => [t.id, t])), [twins]);
@@ -439,6 +444,11 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                {selVariant && INSIDE[selKind] && (
+                  <button onClick={() => onOpenInside(selVariant, INSIDE[selKind])} className="rounded-lg bg-amber-500 px-3 py-1.5 text-[13px] font-bold text-black hover:bg-amber-400">
+                    ▣ Что внутри
+                  </button>
+                )}
                 {locIndex && selVariant && (
                   <button onClick={() => onLocate(selVariant, locIndex)} className="rounded-lg bg-amber-500 px-3 py-1.5 text-[13px] font-bold text-black hover:bg-amber-400">
                     ◎ Показать на карте

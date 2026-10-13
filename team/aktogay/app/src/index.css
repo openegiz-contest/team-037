@@ -209,3 +209,55 @@ input[type='range'] {
   border-color: rgba(34, 211, 238, 0.7);
   box-shadow: 0 0 10px rgba(34, 211, 238, 0.45);
 }
+
+/* Мнемосхемы «внутреннего двойника» зданий */
+@keyframes mn-flow {
+  to {
+    stroke-dashoffset: -28;
+  }
+}
+.mn-flow {
+  stroke-dasharray: 10 18;
+  animation: mn-flow 0.9s linear infinite;
+}
+.mn-flow.slow {
+  animation-duration: 1.8s;
+}
+@keyframes mn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.mn-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mn-spin 3s linear infinite;
+}
+@keyframes mn-bubble {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-34px);
+    opacity: 0;
+  }
+}
+.mn-bubble {
+  animation: mn-bubble 1.6s ease-in infinite;
+}
+.mn-stopped .mn-flow,
+.mn-stopped .mn-spin,
+.mn-stopped .mn-bubble {
+  animation-play-state: paused;
+}
+
+.holo .hint {
+  margin-top: 3px;
+  color: #7dd3fc;
+  font-size: 10.5px;
+  opacity: 0.85;
+}

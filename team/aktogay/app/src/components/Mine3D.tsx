@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Simulation } from '../sim';
 import type { Selection } from '../render/drawMine';
-import { MineScene, type CameraPreset } from '../render3d/MineScene';
+import { MineScene, type BuildingKind, type CameraPreset } from '../render3d/MineScene';
 
 interface Props {
   sim: Simulation;
@@ -13,6 +13,8 @@ interface Props {
   light?: boolean;
   /** Сцена тормозит в полном качестве. */
   onSlow?: () => void;
+  /** Клик по зданию — открыть его «внутренний двойник». */
+  onBuilding?: (kind: BuildingKind) => void;
   children?: React.ReactNode;
 }
 
@@ -24,7 +26,7 @@ const PRESETS: { key: CameraPreset; label: string }[] = [
 ];
 
 /** 3D-вид карьера (Three.js). Камера: ЛКМ — вращение, ПКМ — сдвиг, колесо — масштаб. */
-export function Mine3D({ sim, selection, onSelect, showControls = true, light = false, onSlow, children }: Props) {
+export function Mine3D({ sim, selection, onSelect, showControls = true, light = false, onSlow, onBuilding, children }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<MineScene | null>(null);
   const [orbit, setOrbit] = useState(false);
@@ -50,14 +52,28 @@ export function Mine3D({ sim, selection, onSelect, showControls = true, light = 
       down = { x: e.clientX, y: e.clientY };
     };
     const onUp = (e: PointerEvent) => {
-      if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5) onSelectRef.current(scene.pick(e.clientX, e.clientY));
+      if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5) {
+        const sel = scene.pick(e.clientX, e.clientY);
+        const b = sel ? null : scene.pickBuilding(e.clientX, e.clientY);
+        if (b && onBuildingRef.current) onBuildingRef.current(b);
+        else onSelectRef.current(sel);
+      }
       down = null;
     };
+    // Над зданием — курсор «рука»: его можно открыть.
+    let lastMove = 0;
+    const onMove = (e: PointerEvent) => {
+      if (e.buttons || performance.now() - lastMove < 80) return;
+      lastMove = performance.now();
+      el.style.cursor = onBuildingRef.current && scene.pickBuilding(e.clientX, e.clientY) ? 'pointer' : '';
+    };
+    el.addEventListener('pointermove', onMove);
     el.addEventListener('pointerdown', onDown);
     el.addEventListener('pointerup', onUp);
     return () => {
       el.removeEventListener('pointerdown', onDown);
       el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointermove', onMove);
       scene.dispose();
       sceneRef.current = null;
     };
@@ -65,6 +81,8 @@ export function Mine3D({ sim, selection, onSelect, showControls = true, light = 
 
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
+  const onBuildingRef = useRef(onBuilding);
+  onBuildingRef.current = onBuilding;
 
   useEffect(() => {
     sceneRef.current?.setSelection(selection);

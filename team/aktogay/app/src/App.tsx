@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Charts } from './components/Charts';
 import { InfoCard } from './components/InfoCard';
+import { BuildingView } from './components/BuildingView';
+import type { BuildingKind } from './render3d/MineScene';
 import { DiagnosticsPanel } from './components/DiagnosticsPanel';
 import { KpiPanel } from './components/KpiPanel';
 import { Mine3D } from './components/Mine3D';
@@ -41,6 +43,8 @@ export default function App() {
   const [speed, setSpeed] = useState<Speed>(20);
   const [running, setRunning] = useState(false);
   const [selection, setSelection] = useState<{ v: StrategyName; sel: Selection } | null>(null);
+  /** Открытый «внутренний двойник» здания (мнемосхема). */
+  const [building, setBuilding] = useState<{ v: StrategyName; kind: BuildingKind } | null>(null);
   const [epoch, setEpoch] = useState(0);
   const [, setFrame] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
@@ -317,6 +321,13 @@ export default function App() {
   };
 
   /** Перейти к объекту на карте из раздела «Двойники»: реальный — в «Карьер», теневой — в «Эффект». */
+  /** Открыть «внутренний двойник» здания из раздела «Двойники». */
+  const openInside = (variant: StrategyName, kind: BuildingKind) => {
+    setSelection(null);
+    setBuilding({ v: variant, kind });
+    window.location.hash = variant === 'smart' ? ROUTE_HASH.mine : ROUTE_HASH.effect;
+  };
+
   const locate = (variant: StrategyName, sel: Selection) => {
     setSelection({ v: variant, sel });
     window.location.hash = variant === 'smart' ? ROUTE_HASH.mine : ROUTE_HASH.effect;
@@ -360,6 +371,17 @@ export default function App() {
                   </div>
                   {i === sims.length - 1 && <Legend />}
                   {selection?.v === s.strategyName && <InfoCard sim={s} selection={selection.sel} onClose={() => setSelection(null)} />}
+                  {building?.v === s.strategyName && (
+                    <BuildingView
+                      sim={s}
+                      kind={building.kind}
+                      onClose={() => setBuilding(null)}
+                      onTruck={(id) => {
+                        setBuilding(null);
+                        setSelection({ v: s.strategyName, sel: { kind: 'truck', id } });
+                      }}
+                    />
+                  )}
                     </>
                   );
                   const props = {
@@ -368,7 +390,16 @@ export default function App() {
                     onSelect: (sel: Selection) => setSelection(sel ? { v: s.strategyName, sel } : null),
                   };
                   return view === '3d' ? (
-                    <Mine3D {...props} light={quality === 'light'} onSlow={onSlow3d} showControls={i === sims.length - 1}>
+                    <Mine3D
+                      {...props}
+                      light={quality === 'light'}
+                      onSlow={onSlow3d}
+                      showControls={i === sims.length - 1}
+                      onBuilding={(kind) => {
+                        setSelection(null);
+                        setBuilding({ v: s.strategyName, kind });
+                      }}
+                    >
                       {overlay}
                     </Mine3D>
                   ) : (
@@ -635,6 +666,7 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
             selectedId={twinId}
             onSelect={(id) => (window.location.hash = `#/twins/${encodeURIComponent(id)}`)}
             onLocate={locate}
+            onOpenInside={openInside}
           />
         )}
         {route === 'fleet' && (
