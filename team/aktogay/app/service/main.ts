@@ -194,8 +194,36 @@ client.on('message', (_topic, payload) => {
 
 // ───────────────────────────── главный цикл ─────────────────────────────
 
+/**
+ * Парк техники и seed переживают перезапуск симулятора: они записаны в признак status двойника
+ * управления, поэтому при старте читаем их из Ditto. На чистом стенде двойника ещё нет — берём
+ * значения по умолчанию (SIM_TRUCKS, SIM_SEED).
+ */
+async function restoreState(): Promise<void> {
+  for (let attempt = 0; attempt < 30; attempt++) {
+    try {
+      const r = await fetch(`${DITTO_URL}/api/2/things/${CONTROL_ID}/features/status/properties`, { headers: { Authorization: AUTH } });
+      if (r.status === 404) return; // двойника или статуса ещё нет — первый запуск
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const st = (await r.json()) as { seed?: number; fleet?: unknown };
+      if (Number.isFinite(Number(st.seed))) seed = Number(st.seed);
+      if (st.fleet) fleet = sanitizeFleet(st.fleet, fleet);
+      sims = makeSims();
+      log(`восстановлено из Ditto: seed ${seed}, самосвалов ${fleet.trucks}, экскаваторов ${fleet.excavators.length}`);
+      return;
+    } catch (e) {
+      if (attempt === 29) {
+        log('не удалось прочитать прошлый парк из Ditto, беру значения по умолчанию', e);
+        return;
+      }
+      await new Promise((res) => setTimeout(res, 2000));
+    }
+  }
+}
+
 async function main(): Promise<void> {
   log(`Ditto: ${DITTO_URL}, MQTT: ${MQTT_URL}, скорость x${speed / 10} (${speed} с модели/с), seed ${seed}, самосвалов ${fleet.trucks}, экскаваторов ${fleet.excavators.length}`);
+  await restoreState();
   await setupTwins();
   let last = Date.now();
   let lastPublish = 0;
