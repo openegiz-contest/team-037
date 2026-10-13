@@ -88,7 +88,7 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
               <button
                 key={k.kind}
                 onClick={() => setKind(k.kind)}
-                className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors ${kind === k.kind ? 'bg-white/[0.03]' : 'border-line hover:border-ink-3'}`}
+                className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors ${kind === k.kind ? 'bg-panel-2' : 'border-line hover:border-ink-3'}`}
                 style={kind === k.kind ? { borderColor: k.tone, boxShadow: `inset 0 0 0 1px ${k.tone}` } : undefined}
               >
                 <span className="grid h-8 w-8 place-items-center rounded-lg text-[17px]" style={{ background: `${k.tone}22`, color: k.tone }}>
@@ -199,7 +199,7 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
           <div className="mt-auto flex flex-wrap items-end gap-4 border-t border-line p-4">
             <div className="min-w-[240px] flex-1">
               <div className="mb-1 text-[11px] uppercase tracking-wider text-ink-3">{platform ? 'Команда в Ditto' : 'Команда (автономный режим)'}</div>
-              <pre className="num whitespace-pre-wrap break-all rounded-lg bg-black/40 px-3 py-2 text-[11.5px] leading-relaxed text-ink-2">
+              <pre className="num whitespace-pre-wrap break-all rounded-lg bg-panel-2 px-3 py-2 text-[11.5px] leading-relaxed text-ink-2">
                 <span className="text-sky-300">PUT</span> /api/2/things/{CONTROL_ID}/features/command/properties{'\n'}
                 {preview}
               </pre>

@@ -14,12 +14,89 @@
   --color-smart: #d95926;
   --color-good: #22c55e;
   --color-bad: #ef4444;
+  --color-sidebar: #0a0c0f;
+  --color-popover: #0b0d10;
   --font-sans: 'Segoe UI', 'Inter', Roboto, system-ui, sans-serif;
   --font-mono: 'Cascadia Mono', 'JetBrains Mono', Consolas, ui-monospace, monospace;
 }
 
 :root {
   color-scheme: dark;
+  /* Исходные цвета палитры: внутри «экрана» карты (.scene-ui) они возвращаются и в светлой теме. */
+  --dk-amber-100: var(--color-amber-100);
+  --dk-amber-200: var(--color-amber-200);
+  --dk-amber-300: var(--color-amber-300);
+  --dk-amber-400: var(--color-amber-400);
+  --dk-red-200: var(--color-red-200);
+  --dk-red-300: var(--color-red-300);
+  --dk-red-400: var(--color-red-400);
+  --dk-emerald-300: var(--color-emerald-300);
+  --dk-emerald-400: var(--color-emerald-400);
+  --dk-cyan-300: var(--color-cyan-300);
+  --dk-sky-200: var(--color-sky-200);
+  --dk-sky-300: var(--color-sky-300);
+  --dk-green-400: var(--color-green-400);
+}
+
+/* Светлая тема: светлые панели, тёмный текст; яркие оттенки текста заменены на более тёмные
+   для контраста на белом. */
+body[data-theme='light'] {
+  color-scheme: light;
+  --color-bg: #eef1f4;
+  --color-panel: #ffffff;
+  --color-panel-2: #f1f3f6;
+  --color-line: #d8dde4;
+  --color-ink: #14181d;
+  --color-ink-2: #454e5a;
+  --color-ink-3: #6b7480;
+  --color-sidebar: #f8f9fb;
+  --color-popover: #ffffff;
+  --color-amber-100: #92400e;
+  --color-amber-200: #b45309;
+  --color-amber-300: #b45309;
+  --color-amber-400: #d97706;
+  --color-red-200: #b91c1c;
+  --color-red-300: #b91c1c;
+  --color-red-400: #dc2626;
+  --color-emerald-300: #047857;
+  --color-emerald-400: #059669;
+  --color-cyan-300: #0e7490;
+  --color-sky-200: #0369a1;
+  --color-sky-300: #0369a1;
+  --color-green-400: #16a34a;
+}
+body[data-theme='light'] .scanlines {
+  background-image: none;
+}
+body[data-theme='light'] ::-webkit-scrollbar-thumb {
+  background: #c3c9d1;
+}
+
+/* 3D-сцена и 2D-схема — «экран диспетчерской»: тёмные в обеих темах. */
+.scene-ui {
+  color-scheme: dark;
+  color: var(--color-ink);
+  --color-bg: #0d1013;
+  --color-panel: #14181d;
+  --color-panel-2: #1b2027;
+  --color-line: #2a313a;
+  --color-ink: #e8eaed;
+  --color-ink-2: #a9b0ba;
+  --color-ink-3: #6f7782;
+  --color-popover: #0b0d10;
+  --color-amber-100: var(--dk-amber-100);
+  --color-amber-200: var(--dk-amber-200);
+  --color-amber-300: var(--dk-amber-300);
+  --color-amber-400: var(--dk-amber-400);
+  --color-red-200: var(--dk-red-200);
+  --color-red-300: var(--dk-red-300);
+  --color-red-400: var(--dk-red-400);
+  --color-emerald-300: var(--dk-emerald-300);
+  --color-emerald-400: var(--dk-emerald-400);
+  --color-cyan-300: var(--dk-cyan-300);
+  --color-sky-200: var(--dk-sky-200);
+  --color-sky-300: var(--dk-sky-300);
+  --color-green-400: var(--dk-green-400);
 }
 
 html,
@@ -69,7 +146,7 @@ input[type='range'] {
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2a313a;
+  background: var(--color-line);
   border-radius: 4px;
 }
 

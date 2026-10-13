@@ -19,7 +19,7 @@ export function DiagnosticsPanel({ sim, onPick }: { sim: Simulation; onPick: (tr
       {rows.length === 0 && <div className="text-[12.5px] text-ink-3">Все самосвалы в норме — признаков деградации нет.</div>}
       {rows.map((t) => {
         const h = t.health;
-        const color = t.state === 'service' ? '#22d3ee' : h.risk >= 60 ? '#f87171' : h.risk >= 25 ? '#fbbf24' : '#a9b0ba';
+        const color = t.state === 'service' ? 'var(--color-cyan-300)' : h.risk >= 60 ? 'var(--color-red-400)' : h.risk >= 25 ? 'var(--color-amber-300)' : 'var(--color-ink-2)';
         return (
           <button key={t.id} onClick={() => onPick(t.id)} className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-[12.5px] hover:bg-panel-2">
             <span className="num w-12 font-semibold">{t.name}</span>

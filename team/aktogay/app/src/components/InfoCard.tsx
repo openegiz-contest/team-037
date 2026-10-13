@@ -228,7 +228,7 @@ export function InfoCard({ sim, selection, onClose }: { sim: Simulation; selecti
   }
 
   return (
-    <div className="absolute right-3 top-[76px] z-20 max-h-[calc(100%-90px)] w-[290px] overflow-y-auto rounded-lg border border-line bg-[#0b0d10]/95 p-3 text-[13px] shadow-2xl backdrop-blur">
+    <div className="absolute right-3 top-[76px] z-20 max-h-[calc(100%-90px)] w-[290px] overflow-y-auto rounded-lg border border-line bg-popover/95 p-3 text-[13px] shadow-2xl backdrop-blur">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2 font-semibold">
           <span className="inline-block h-3 w-3 rounded-full" style={{ background: color }} />

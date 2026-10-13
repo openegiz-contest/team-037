@@ -2,16 +2,24 @@ import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ReferenceArea, R
 import { STRATEGY_LABEL, type Simulation, type TruckState } from '../sim';
 import { fmt1, fmtInt } from '../ui/format';
 import { EXCAVATOR_SERIES, STATE_GROUPS, STRATEGY_COLOR } from '../ui/theme';
+import { chartColors } from '../ui/themeMode';
 
-const AXIS = { stroke: '#6f7782', fontSize: 11, tickLine: false };
-const GRID = <CartesianGrid stroke="#2a313a" strokeDasharray="2 4" vertical={false} />;
-const TOOLTIP = {
-  contentStyle: { background: '#0b0d10', border: '1px solid #2a313a', borderRadius: 8, fontSize: 12 },
-  labelStyle: { color: '#e8eaed', marginBottom: 4 },
-  itemStyle: { padding: 0 },
-  cursor: { stroke: '#a9b0ba', strokeWidth: 1, fill: 'rgba(255,255,255,0.04)' },
-};
-const LEGEND = { wrapperStyle: { fontSize: 12, color: '#a9b0ba' }, iconSize: 10 };
+/** Оформление графиков под текущую тему (тёмная / светлая). */
+function chartStyle() {
+  const c = chartColors();
+  return {
+    AXIS: { stroke: c.axis, fontSize: 11, tickLine: false },
+    GRID: <CartesianGrid stroke={c.grid} strokeDasharray="2 4" vertical={false} />,
+    TOOLTIP: {
+      contentStyle: { background: c.tooltipBg, border: `1px solid ${c.tooltipBorder}`, borderRadius: 8, fontSize: 12 },
+      labelStyle: { color: c.label, marginBottom: 4 },
+      itemStyle: { padding: 0 },
+      cursor: { stroke: c.legend, strokeWidth: 1, fill: c.cursor },
+    },
+    LEGEND: { wrapperStyle: { fontSize: 12, color: c.legend }, iconSize: 10 },
+    BAR_STROKE: c.barStroke,
+  };
+}
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -24,6 +32,7 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 
 export function Charts({ sims }: { sims: Simulation[] }) {
   const compare = sims.length === 2;
+  const { AXIS, GRID, TOOLTIP, LEGEND, BAR_STROKE } = chartStyle();
 
   // 1. Темп добычи (скользящее окно 1 ч).
   const tphData = sims[0].history.map((h, i) => {
@@ -174,7 +183,7 @@ export function Charts({ sims }: { sims: Simulation[] }) {
                 name={g.label}
                 stackId="s"
                 fill={g.color}
-                stroke="#14181d"
+                stroke={BAR_STROKE}
                 strokeWidth={1}
                 isAnimationActive={false}
               />

@@ -311,7 +311,7 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
       <button
         key={t.id}
         onClick={() => onSelect(t.id)}
-        className={`flex w-full items-center gap-2 rounded-md py-1.5 pr-2 text-left text-[13px] ${active ? 'bg-amber-500/12 text-ink ring-1 ring-amber-500/40' : 'text-ink-2 hover:bg-white/[0.04]'}`}
+        className={`flex w-full items-center gap-2 rounded-md py-1.5 pr-2 text-left text-[13px] ${active ? 'bg-amber-500/12 text-ink ring-1 ring-amber-500/40' : 'text-ink-2 hover:bg-panel-2'}`}
         style={{ paddingLeft: 8 + indent * 14 }}
       >
         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: TONE_COLOR[tone], boxShadow: fresh ? `0 0 0 3px ${TONE_COLOR[tone]}33` : undefined }} />
@@ -369,7 +369,7 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
                     onSelect(pair && byId.has(pair) ? pair : thingIds(v).mine);
                   }}
                   className="flex-1 px-2 py-1.5 font-semibold"
-                  style={variant === v ? { background: STRATEGY_COLOR[v], color: '#fff' } : { color: '#a9b0ba' }}
+                  style={variant === v ? { background: STRATEGY_COLOR[v], color: '#fff' } : { color: 'var(--color-ink-2)' }}
                 >
                   {v === 'smart' ? 'Реальный карьер' : 'Теневой: без системы'}
                 </button>
@@ -670,7 +670,7 @@ function FeatureRow({
 }) {
   return (
     <>
-      <tr className="border-t border-line/60 hover:bg-white/[0.02]">
+      <tr className="border-t border-line/60 hover:bg-panel-2/60">
         <td className="px-4 py-1.5">
           <div className="text-ink-2">{label}</div>
           <div className="num text-[11px] text-ink-3">{code}</div>
@@ -709,7 +709,7 @@ function JsonView({ data }: { data: unknown[] | Props }) {
   // Журнал событий: [время, уровень, текст].
   if (Array.isArray(data) && data.every((d) => Array.isArray(d) && d.length === 3)) {
     return (
-      <div className="flex flex-col gap-0.5 rounded-md bg-black/30 p-2 text-[12px]">
+      <div className="flex flex-col gap-0.5 rounded-md bg-panel-2 p-2 text-[12px]">
         {(data as [number, string, string][]).map(([t, lvl, text], i) => (
           <div key={i} className="flex gap-2">
             <span className="num text-ink-3">{fmtClock(t)}</span>
@@ -719,7 +719,7 @@ function JsonView({ data }: { data: unknown[] | Props }) {
       </div>
     );
   }
-  return <pre className="num max-h-56 overflow-auto rounded-md bg-black/30 p-2 text-[11.5px] leading-relaxed text-ink-2">{JSON.stringify(data, null, 1)}</pre>;
+  return <pre className="num max-h-56 overflow-auto rounded-md bg-panel-2 p-2 text-[11.5px] leading-relaxed text-ink-2">{JSON.stringify(data, null, 1)}</pre>;
 }
 
 function Relation({ label, items, onSelect }: { label: string; items: TwinRecord[]; onSelect: (id: string) => void }) {

@@ -10,6 +10,7 @@ import { TwinsPage } from './pages/TwinsPage';
 import { ScenariosPage } from './pages/ScenariosPage';
 import { PlatformBridge } from './platform/bridge';
 import { activeDeviations, applyScenario, type Command } from './platform/scenarios';
+import { applyTheme, loadTheme, saveTheme, type ThemeMode } from './ui/themeMode';
 import { glRenderer, loadQualityMode, resolveQuality, saveQualityMode, softwareGL, webglAvailable, type QualityMode } from './render3d/quality';
 import type { Selection } from './render/drawMine';
 import { computeEffect, computeKpis, deltaPct, MATERIAL_SHORT, Simulation, type StrategyName } from './sim';
@@ -29,6 +30,7 @@ export default function App() {
   // Без WebGL сразу показываем 2D-схему.
   const [view, setView] = useState<View>(() => (webglAvailable() ? '3d' : '2d'));
   const [qualityMode, setQualityMode] = useState<QualityMode>(loadQualityMode);
+  const [theme, setTheme] = useState<ThemeMode>(loadTheme);
   const [slow3d, setSlow3d] = useState(false);
   const quality = resolveQuality(qualityMode, slow3d);
   const [seed, setSeed] = useState(42);
@@ -82,6 +84,14 @@ export default function App() {
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
+
+  const toggleTheme = () =>
+    setTheme((t) => {
+      const next: ThemeMode = t === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+      saveTheme(next);
+      return next;
+    });
 
   const toggleNav = () =>
     setNavCollapsed((c) => {
@@ -330,7 +340,7 @@ export default function App() {
   const mapsGrid = (
           <div className={`grid min-h-0 flex-1 ${embed ? 'gap-1.5' : 'gap-3'} ${sims.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
             {sims.map((s, i) => (
-              <div key={`${epoch}-${i}-${view}`} className="panel relative min-h-0 overflow-hidden" style={{ borderColor: `${STRATEGY_COLOR[s.strategyName]}66` }}>
+              <div key={`${epoch}-${i}-${view}`} className="scene-ui panel relative min-h-0 overflow-hidden" style={{ borderColor: `${STRATEGY_COLOR[s.strategyName]}66` }}>
                 {(() => {
                   const overlay = (
                     <>
@@ -564,7 +574,7 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
 
 
       {finished && isEffect && effect && (
-        <div className="fixed left-1/2 top-1/3 z-40 w-[560px] -translate-x-1/2 rounded-xl border border-amber-500/50 bg-[#0b0d10]/95 p-5 text-center shadow-2xl">
+        <div className="fixed left-1/2 top-1/3 z-40 w-[560px] -translate-x-1/2 rounded-xl border border-amber-500/50 bg-popover/95 p-5 text-center shadow-2xl">
           <div className="text-[13px] uppercase tracking-widest text-ink-3">Смена завершена · seed {seed}</div>
           <div className="mt-2 text-[20px] font-semibold">Реальная работа с системой против расчёта без неё</div>
           <div className="mt-3 grid grid-cols-3 gap-3">
@@ -608,6 +618,8 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
         connected={!!bridge?.connected}
         twinCount={bridge ? platformTwinCount : 0}
         activeCount={activeCount}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
       <main className="h-full min-w-0 flex-1">
         {(route === 'mine' || route === 'effect') && dashboard}
@@ -640,7 +652,7 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
         )}
       </main>
       {toast && (
-        <div className="fixed left-1/2 top-6 z-40 -translate-x-1/2 rounded-lg border border-amber-500/50 bg-[#14110a]/95 px-4 py-2 text-[15px] font-semibold text-amber-100 shadow-2xl">
+        <div className="fixed left-1/2 top-6 z-40 -translate-x-1/2 rounded-lg border border-amber-500/50 bg-popover/95 px-4 py-2 text-[15px] font-semibold text-amber-100 shadow-2xl">
           {toast}
         </div>
       )}

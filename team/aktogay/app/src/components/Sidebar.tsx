@@ -1,5 +1,6 @@
 /** Боковое меню разделов: Карьер · Двойники · Сценарии + ссылки на платформу. */
 import type { ReactNode } from 'react';
+import type { ThemeMode } from '../ui/themeMode';
 
 export type Route = 'mine' | 'effect' | 'twins' | 'scenarios';
 
@@ -18,7 +19,7 @@ const Icon = ({ children }: { children: ReactNode }) => (
   </svg>
 );
 
-const ICONS: Record<Route | 'grafana' | 'api' | 'collapse', ReactNode> = {
+const ICONS: Record<Route | 'grafana' | 'api' | 'collapse' | 'sun' | 'moon', ReactNode> = {
   // чаша карьера с уступами
   mine: (
     <Icon>
@@ -70,6 +71,17 @@ const ICONS: Record<Route | 'grafana' | 'api' | 'collapse', ReactNode> = {
       <path d="m14 6-6 6 6 6" />
     </Icon>
   ),
+  sun: (
+    <Icon>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </Icon>
+  ),
+  moon: (
+    <Icon>
+      <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />
+    </Icon>
+  ),
 };
 
 const NAV: { route: Route; label: string; hint: string; group: 'ops' | 'analysis' }[] = [
@@ -87,19 +99,21 @@ interface Props {
   connected: boolean;
   twinCount: number;
   activeCount: number;
+  theme: ThemeMode;
+  onToggleTheme: () => void;
 }
 
-export function Sidebar({ route, collapsed, onToggle, platform, connected, twinCount, activeCount }: Props) {
+export function Sidebar({ route, collapsed, onToggle, platform, connected, twinCount, activeCount, theme, onToggleTheme }: Props) {
   const grafana = `${window.location.protocol}//${window.location.hostname}:3000/d/aktogay-digital-mine`;
   const item = (active: boolean) =>
     `group relative flex items-center gap-3 rounded-lg px-2.5 py-2 text-[13.5px] transition-colors ${
-      active ? 'bg-amber-500/10 text-amber-200' : 'text-ink-2 hover:bg-white/[0.04] hover:text-ink'
+      active ? 'bg-amber-500/10 text-amber-200' : 'text-ink-2 hover:bg-panel-2 hover:text-ink'
     }`;
   const badge = (n: number, tone: string) => (
     <span className={`num ml-auto rounded px-1.5 text-[11px] font-semibold ${tone} ${collapsed ? 'absolute -right-0.5 -top-0.5 px-1 text-[9.5px]' : ''}`}>{n}</span>
   );
   return (
-    <aside className={`flex shrink-0 flex-col border-r border-line bg-[#0a0c0f] transition-[width] duration-200 ${collapsed ? 'w-[58px]' : 'w-[214px]'}`}>
+    <aside className={`flex shrink-0 flex-col border-r border-line bg-sidebar transition-[width] duration-200 ${collapsed ? 'w-[58px]' : 'w-[214px]'}`}>
       <div className={`flex items-center gap-2.5 px-3 pb-3 pt-3.5 ${collapsed ? 'justify-center px-0' : ''}`}>
         <img src="./favicon.svg" alt="" className="h-8 w-8 shrink-0" />
         {!collapsed && (
@@ -156,7 +170,15 @@ export function Sidebar({ route, collapsed, onToggle, platform, connected, twinC
             </span>
           )}
         </div>
-        <button onClick={onToggle} className="flex items-center justify-center rounded-lg py-1.5 text-ink-3 hover:bg-white/[0.04] hover:text-ink" title={collapsed ? 'Развернуть меню' : 'Свернуть меню'}>
+        <button
+          onClick={onToggleTheme}
+          className={`flex items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] text-ink-2 hover:bg-panel-2 hover:text-ink ${collapsed ? 'justify-center px-0' : ''}`}
+          title={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}
+        >
+          {theme === 'dark' ? ICONS.sun : ICONS.moon}
+          {!collapsed && <span>{theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}</span>}
+        </button>
+        <button onClick={onToggle} className="flex items-center justify-center rounded-lg py-1.5 text-ink-3 hover:bg-panel-2 hover:text-ink" title={collapsed ? 'Развернуть меню' : 'Свернуть меню'}>
           <span className={`transition-transform ${collapsed ? 'rotate-180' : ''}`}>{ICONS.collapse}</span>
         </button>
       </div>
