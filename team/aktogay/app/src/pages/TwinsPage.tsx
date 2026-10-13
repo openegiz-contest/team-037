@@ -116,6 +116,15 @@ function fmtValue(row: Row | undefined): { text: string; unit: string; json?: un
   if (!row) return { text: '—', unit: '' };
   const { key, value, unit } = row;
   const base = key.split('.').pop() ?? key;
+  // Стоянка: «-1,-1,4,…» → «место 3 — №105 · …» (номер самосвала = 101 + индекс).
+  if (base === 'slots' && typeof value === 'string') {
+    const taken = value
+      .split(',')
+      .map((v, i) => [i + 1, Number(v)] as const)
+      .filter(([, t]) => Number.isFinite(t) && t >= 0)
+      .map(([slot, t]) => `место ${slot} — №${101 + t}`);
+    return { text: taken.length ? taken.join(' · ') : 'все места свободны', unit: '' };
+  }
   if (typeof value === 'string') {
     const t = value.trim();
     if ((t.startsWith('[') || t.startsWith('{')) && t.length > 1) {
@@ -479,7 +488,7 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
             <div className="panel">
               <div className="flex items-center gap-3 border-b border-line px-4 py-2.5">
                 <div className="text-[13px] font-semibold">
-                  Датчики {({ excavator: 'на экскаваторе', 'haul-truck': 'на самосвале', crusher: 'на дробилке', concentrator: 'на фабрике', 'heap-leach': 'на площадке выщелачивания', 'waste-dump': 'на отвале' } as Record<string, string>)[selKind]} <span className="font-normal text-ink-3">· {sensors.length} · attributes.sensors</span>
+                  Датчики {({ excavator: 'на экскаваторе', 'haul-truck': 'на самосвале', crusher: 'на дробилке', concentrator: 'на фабрике', 'heap-leach': 'на площадке выщелачивания', 'waste-dump': 'на отвале', garage: 'в гараже' } as Record<string, string>)[selKind]} <span className="font-normal text-ink-3">· {sensors.length} · attributes.sensors</span>
                 </div>
                 <span className="ml-auto text-[11.5px] text-ink-3">клик — показать признаки датчика в таблице ниже</span>
               </div>

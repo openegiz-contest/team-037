@@ -288,6 +288,39 @@ function dumpSensors(what: 'руда' | 'вскрыша', place: string): Sensor
 export const LEACH_SENSORS: SensorSpec[] = dumpSensors('руда', 'площадка кучного выщелачивания');
 export const WASTE_SENSORS: SensorSpec[] = dumpSensors('вскрыша', 'отвал вскрыши');
 
+export const GARAGE_SENSORS: SensorSpec[] = [
+  {
+    id: 'parking',
+    name: 'Датчики занятости стояночных мест',
+    hardware: 'индуктивные петли в покрытии + RFID-метка самосвала на въезде',
+    location: 'стоянка у гаража, каждое место',
+    measures: 'какое место занято и каким самосвалом',
+    features: ['occupied', 'slots'],
+    periodS: 1,
+    purpose: 'свободные места для заезда и где стоит каждая машина',
+  },
+  {
+    id: 'fuel_station',
+    name: 'Топливораздаточная колонка с учётом',
+    hardware: 'массовый расходомер + RFID-идентификация самосвала у колонки',
+    location: 'АЗС',
+    measures: 'кто заправляется и сколько литров выдано',
+    features: ['refueling'],
+    periodS: 1,
+    purpose: 'очередь на заправку и учёт топлива по машинам',
+  },
+  {
+    id: 'service_bay',
+    name: 'Учёт ремонтных боксов',
+    hardware: 'RFID-считыватели на воротах боксов + терминал механика',
+    location: 'ремонтные боксы',
+    measures: 'какие самосвалы в плановом или аварийном ремонте',
+    features: ['in_service'],
+    periodS: 1,
+    purpose: 'сколько машин выбыло из работы и когда вернутся',
+  },
+];
+
 /** Паспорт датчиков по типу двойника (attributes.kind). */
 export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   'haul-truck': TRUCK_SENSORS,
@@ -296,6 +329,7 @@ export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   concentrator: PLANT_SENSORS,
   'heap-leach': LEACH_SENSORS,
   'waste-dump': WASTE_SENSORS,
+  garage: GARAGE_SENSORS,
 };
 
 /** Компактная запись для attributes.sensors двойника в Ditto. */
@@ -307,3 +341,4 @@ export const crusherSensorAttributes = () => sensorAttributes(CRUSHER_SENSORS);
 export const plantSensorAttributes = () => sensorAttributes(PLANT_SENSORS);
 export const leachSensorAttributes = () => sensorAttributes(LEACH_SENSORS);
 export const wasteSensorAttributes = () => sensorAttributes(WASTE_SENSORS);
+export const garageSensorAttributes = () => sensorAttributes(GARAGE_SENSORS);
