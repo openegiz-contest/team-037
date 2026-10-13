@@ -1,6 +1,7 @@
 import { FAILURE_LABEL, gradeAt, MATERIAL_LABEL, TRUCK_STATE_LABEL, type Simulation, type Truck } from '../sim';
 import type { Selection } from '../render/drawMine';
 import { fmt1, fmtClock, fmtInt } from '../ui/format';
+import { TRUCK_SENSORS } from '../platform/sensors';
 import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
 
 function Row({ k, v }: { k: string; v: React.ReactNode }) {
@@ -85,6 +86,41 @@ function SensorBlock({ sim, t }: { sim: Simulation; t: Truck }) {
   );
 }
 
+/** Какое оборудование стоит на самосвале и что оно сейчас показывает. */
+function SensorList({ t }: { t: Truck }) {
+  const now: Record<string, string> = {
+    gnss: `${Math.round(t.x)}, ${Math.round(t.y)} м`,
+    payload: `${fmtInt(t.loadT)} т`,
+    fuel: `${fmtInt(t.fuelL)} л`,
+    engine_temp: `${t.sensors.tempC.toFixed(1)} °C`,
+    vibration: `${t.sensors.vibration.toFixed(1)} мм/с`,
+    tpms: `${t.sensors.tyreBar.toFixed(2)} бар`,
+    ecu: `${fmt1(t.engineH)} мч`,
+  };
+  return (
+    <details className="mt-2 border-t border-line pt-2" open>
+      <summary className="cursor-pointer select-none text-[11px] font-semibold uppercase tracking-wider text-cyan-300">
+        Установленные датчики · {TRUCK_SENSORS.length}
+      </summary>
+      <div className="mt-1.5 flex flex-col gap-1.5">
+        {TRUCK_SENSORS.map((s) => (
+          <div key={s.id} className="rounded-md bg-panel-2/70 px-2 py-1.5" title={`${s.hardware}
+Где: ${s.location}
+Зачем: ${s.purpose}`}>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[12px] font-semibold leading-tight text-ink">{s.name}</span>
+              <span className="num shrink-0 text-[12px] text-amber-300">{now[s.id]}</span>
+            </div>
+            <div className="text-[10.5px] leading-snug text-ink-3">
+              {s.hardware} · раз в {s.periodS} с
+            </div>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 export function InfoCard({ sim, selection, onClose }: { sim: Simulation; selection: Selection; onClose: () => void }) {
   if (!selection) return null;
   let body: React.ReactNode;
@@ -148,6 +184,7 @@ export function InfoCard({ sim, selection, onClose }: { sim: Simulation; selecti
         {t.state === 'broken' && <Row k="Ремонт ещё" v={`${Math.ceil(t.timer / 60)} мин`} />}
         {t.state === 'service' && <Row k="ППР ещё" v={`${Math.ceil(t.timer / 60)} мин`} />}
         <SensorBlock sim={sim} t={t} />
+        <SensorList t={t} />
       </>
     );
   } else {

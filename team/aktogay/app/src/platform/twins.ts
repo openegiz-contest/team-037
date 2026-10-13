@@ -14,6 +14,7 @@ import type { Kpis } from '../sim/kpi';
 import type { Simulation } from '../sim/engine';
 import { MATERIALS, TRUCK_STATES, type Blast, type Destination, type FailureType, type Material, type StrategyName, type TruckState } from '../sim/types';
 import { gradeAt } from '../sim/ore';
+import { truckSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -86,7 +87,7 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
   sim.trucks.forEach((t, i) => {
     out[id.truck(i)] = {
       policyId: POLICY,
-      attributes: { name: `Самосвал ${t.name}`, kind: 'haul-truck', _isType: false, _parents: parent, capacity_t: cfg.truck.payloadT, model_class: '220 t (БелАЗ-75306 class)' },
+      attributes: { name: `Самосвал ${t.name}`, kind: 'haul-truck', _isType: false, _parents: parent, capacity_t: cfg.truck.payloadT, model_class: '220 t (БелАЗ-75306 class)', sensors: truckSensorAttributes() },
       features: serializeTruck(sim, i),
     };
   });

@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader, Sparkline } from '../components/PageHeader';
 import type { PlatformBridge } from '../platform/bridge';
+import { TRUCK_SENSORS } from '../platform/sensors';
 import { serializeMine, siteDefinitions, SITE_ID, thingDefinitions, thingIds, variantNs } from '../platform/twins';
 import type { Selection } from '../render/drawMine';
 import { computeKpis, type Simulation, type StrategyName } from '../sim';
@@ -206,6 +207,8 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
   const [query, setQuery] = useState('');
   const [compare, setCompare] = useState(false);
   const [fFilter, setFFilter] = useState('');
+  /** Признаки выбранного датчика — точный фильтр таблицы. */
+  const [sensorId, setSensorId] = useState<string | null>(null);
   const [openJson, setOpenJson] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -277,7 +280,7 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
   const children = twins.filter((t) => t.attrs._parents === sel.id);
   const feeds = sel.attrs.feeds ? byId.get(String(sel.attrs.feeds)) : undefined;
   const fedBy = twins.filter((t) => t.attrs.feeds === sel.id);
-  const attrRows = Object.entries(sel.attrs).filter(([k]) => k !== 'name' && k !== '_parents' && k !== '_isType');
+  const attrRows = Object.entries(sel.attrs).filter(([k]) => k !== 'name' && k !== '_parents' && k !== '_isType' && k !== 'sensors');
 
   const locIndex = (() => {
     const m = /:(excavator|truck)-(\d+)$/.exec(sel.id);
@@ -287,7 +290,8 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
   const selVariant = variantOf(sel.id);
 
   const fq = fFilter.trim().toLowerCase();
-  const shownRows = selRows.filter((r) => !fq || r.key.toLowerCase().includes(fq) || labelOf(r.key).toLowerCase().includes(fq));
+  const sensorKeys = sensorId && selKind === 'haul-truck' ? new Set(TRUCK_SENSORS.find((x) => x.id === sensorId)?.features ?? []) : null;
+  const shownRows = selRows.filter((r) => (sensorKeys ? sensorKeys.has(r.key) : !fq || r.key.toLowerCase().includes(fq) || labelOf(r.key).toLowerCase().includes(fq)));
 
   const treeRow = (t: TwinRecord, indent = 0) => {
     const [txt, tone] = summary(t);
@@ -469,6 +473,53 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
             </div>
           </div>
 
+          {/* Датчики самосвала: какое оборудование заполняет признаки двойника */}
+          {selKind === 'haul-truck' && (
+            <div className="panel">
+              <div className="flex items-center gap-3 border-b border-line px-4 py-2.5">
+                <div className="text-[13px] font-semibold">
+                  Датчики на самосвале <span className="font-normal text-ink-3">· {TRUCK_SENSORS.length} · attributes.sensors</span>
+                </div>
+                <span className="ml-auto text-[11.5px] text-ink-3">клик — показать признаки датчика в таблице ниже</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2 p-3 md:grid-cols-2 2xl:grid-cols-4">
+                {TRUCK_SENSORS.map((s) => {
+                  const main = selMap.get(s.features[0]);
+                  const fv =
+                    s.id === 'gnss'
+                      ? { text: `${Math.round(Number(selMap.get('x')?.value ?? 0))}; ${Math.round(Number(selMap.get('y')?.value ?? 0))}`, unit: 'м' }
+                      : fmtValue(main);
+                  const h = hist.current.get(`${sel.id}|${s.features[0]}`);
+                  const active = sensorId === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => setSensorId(active ? null : s.id)}
+                      className={`flex flex-col gap-1 rounded-lg border px-3 py-2.5 text-left ${active ? 'border-amber-500 bg-amber-500/10' : 'border-line bg-panel-2/50 hover:border-ink-3'}`}
+                      title={`Зачем: ${s.purpose}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-[13px] font-semibold leading-tight">{s.name}</span>
+                        <span className="num shrink-0 text-[14px] font-bold text-amber-300">
+                          {fv.text}
+                          {fv.unit && <span className="ml-0.5 text-[11px] font-normal text-ink-3">{fv.unit}</span>}
+                        </span>
+                      </div>
+                      <span className="text-[11.5px] leading-snug text-ink-3">{s.hardware}</span>
+                      <div className="mt-auto flex items-end justify-between gap-2 pt-1">
+                        <span className="text-[11px] text-ink-3">
+                          {s.location} · раз в {s.periodS} с ·{' '}
+                          <span className="num text-ink-2">{s.features.join(', ')}</span>
+                        </span>
+                        {h && h.vals.length > 1 && typeof main?.value === 'number' && <Sparkline values={h.vals} width={56} height={18} />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="grid min-h-0 grid-cols-1 gap-3 2xl:grid-cols-[minmax(0,1fr)_340px]">
             {/* Признаки */}
             <div className="panel min-w-0">
@@ -476,9 +527,17 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
                 <div className="text-[13px] font-semibold">
                   Признаки <span className="font-normal text-ink-3">(features) · {selRows.length}</span>
                 </div>
+                {sensorKeys && (
+                  <button onClick={() => setSensorId(null)} className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[12px] text-amber-200 hover:bg-amber-500/25">
+                    датчик: {TRUCK_SENSORS.find((x) => x.id === sensorId)?.name} ✕
+                  </button>
+                )}
                 <input
                   value={fFilter}
-                  onChange={(e) => setFFilter(e.target.value)}
+                  onChange={(e) => {
+                    setSensorId(null);
+                    setFFilter(e.target.value);
+                  }}
                   placeholder="фильтр"
                   className="ml-auto w-40 rounded-md border border-line bg-panel-2 px-2 py-1 text-[12.5px] outline-none placeholder:text-ink-3 focus:border-amber-500"
                 />
