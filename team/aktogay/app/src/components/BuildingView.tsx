@@ -3,7 +3,9 @@
  * что происходит внутри дробилки, фабрики, гаража, площадки выщелачивания и отвала.
  * Все значения — из того же двойника (локальной модели, восстановленной из Ditto).
  */
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { Interior3D } from './Interior3D';
+import { webglAvailable } from '../render3d/quality';
 import { SENSORS_BY_KIND } from '../platform/sensors';
 import type { BuildingKind } from '../render3d/MineScene';
 import { TRUCK_STATE_LABEL, type Simulation } from '../sim';
@@ -38,23 +40,44 @@ interface Props {
   kind: BuildingKind;
   onClose: () => void;
   onTruck: (id: number) => void;
+  /** Лёгкая графика для 3D-цеха. */
+  light?: boolean;
 }
 
-export function BuildingView({ sim, kind, onClose, onTruck }: Props) {
+export function BuildingView({ sim, kind, onClose, onTruck, light = false }: Props) {
   const sensors = SENSORS_BY_KIND[TWIN_KIND[kind]] ?? [];
+  /** У дробилки и фабрики есть 3D-цех; без WebGL — только схема. */
+  const has3d = (kind === 'crusher' || kind === 'plant') && webglAvailable();
+  const [tab, setTab] = useState<'3d' | 'scheme'>(has3d ? '3d' : 'scheme');
+  const show3d = has3d && tab === '3d';
   return (
     <div className="absolute inset-2 z-30 flex flex-col overflow-hidden rounded-lg border border-line bg-popover shadow-2xl" onPointerDown={(e) => e.stopPropagation()}>
       <div className="flex items-center gap-3 border-b border-line px-4 py-2.5">
         <span className="rounded bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-amber-300">Внутри</span>
         <span className="truncate text-[15px] font-semibold">{TITLE[kind]}</span>
-        <span className="hidden shrink-0 text-[12px] text-ink-3 2xl:inline">мнемосхема процесса · данные двойника · {sensors.length} датчиков</span>
-        <button onClick={onClose} className="ml-auto shrink-0 whitespace-nowrap rounded px-2 py-0.5 text-ink-3 hover:bg-panel-2 hover:text-ink" aria-label="Закрыть">
+        <span className={`hidden shrink-0 text-[12px] text-ink-3 ${has3d ? "" : "2xl:inline"}`}>мнемосхема процесса · данные двойника · {sensors.length} датчиков</span>
+        {has3d && (
+          <div className="ml-auto flex shrink-0 overflow-hidden rounded-md border border-line text-[12.5px]">
+            {(['3d', 'scheme'] as const).map((t) => (
+              <button key={t} onClick={() => setTab(t)} className={`px-2.5 py-1 font-semibold ${tab === t ? 'bg-amber-500 text-black' : 'text-ink-2 hover:bg-panel-2'}`}>
+                {t === '3d' ? '3D внутри' : 'Схема'}
+              </button>
+            ))}
+          </div>
+        )}
+        <button onClick={onClose} className={`${has3d ? '' : 'ml-auto '}shrink-0 whitespace-nowrap rounded px-2 py-0.5 text-ink-3 hover:bg-panel-2 hover:text-ink`} aria-label="Закрыть">
           ✕ Закрыть
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto p-3">
-        {kind === 'crusher' && <Crusher sim={sim} onTruck={onTruck} />}
-        {kind === 'plant' && <Plant sim={sim} />}
+      <div className={`min-h-0 flex-1 p-3 ${show3d ? 'flex flex-col' : 'overflow-auto'}`}>
+        {show3d && (
+          <div className="relative min-h-0 flex-1">
+            <Interior3D sim={sim} kind={kind as 'crusher' | 'plant'} light={light} />
+            <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 text-[11.5px] text-ink-2">ЛКМ — вращение · ПКМ — сдвиг · колесо — масштаб</div>
+          </div>
+        )}
+        {!show3d && kind === 'crusher' && <Crusher sim={sim} onTruck={onTruck} />}
+        {!show3d && kind === 'plant' && <Plant sim={sim} />}
         {kind === 'garage' && <Garage sim={sim} onTruck={onTruck} />}
         {(kind === 'leach' || kind === 'waste') && <Dump sim={sim} kind={kind} onTruck={onTruck} />}
         {sensors.length > 0 && (

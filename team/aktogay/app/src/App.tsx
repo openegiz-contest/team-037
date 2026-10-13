@@ -375,6 +375,7 @@ export default function App() {
                     <BuildingView
                       sim={s}
                       kind={building.kind}
+                      light={quality === 'light'}
                       onClose={() => setBuilding(null)}
                       onTruck={(id) => {
                         setBuilding(null);
