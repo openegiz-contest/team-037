@@ -19,7 +19,7 @@ def both(name: str, feature: str) -> str:
         "  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n"
         f'  |> filter(fn: (r) => r._measurement == "mqtt_consumer" and (r.thingId == "{SMART}:{name}" or r.thingId == "{FIXED}:{name}") '
         f'and r._field == "value_{feature}_properties_value")\n'
-        f'  |> map(fn: (r) => ({{r with _field: if r.thingId == "{SMART}:{name}" then "Умная" else "Фиксированная"}}))\n'
+        f'  |> map(fn: (r) => ({{r with _field: if r.thingId == "{SMART}:{name}" then "Реальная работа" else "Без системы (расчёт)"}}))\n'
         '  |> keep(columns: ["_time", "_value", "_field"])'
     )
 
@@ -37,8 +37,8 @@ def per_thing(prefix: str, feature: str, ns: str = SMART) -> str:
 
 
 COLORS = [
-    {"matcher": {"id": "byName", "options": "Умная"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "#d95926"}}]},
-    {"matcher": {"id": "byName", "options": "Фиксированная"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "#3987e5"}}]},
+    {"matcher": {"id": "byName", "options": "Реальная работа"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "#d95926"}}]},
+    {"matcher": {"id": "byName", "options": "Без системы (расчёт)"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "#3987e5"}}]},
 ]
 
 panels = []
@@ -74,9 +74,9 @@ def series(title, query, x, y, unit="none", w=12, h=8, legend=True):
 add({
     "type": "text", "title": "", "gridPos": {"x": 0, "y": 0, "w": 24, "h": 2}, "datasource": None,
     "options": {"mode": "markdown", "content": (
-        "### Цифровой двойник карьера Актогай — умная диспетчеризация против фиксированного закрепления\n"
-        "3D-сцена ниже читает двойников из Ditto; полный интерфейс с KPI и графиками: **[http://localhost:8095](http://localhost:8095)**. "
-        "Двойники: приложение **OpenEgiz → Twins**, пространства имён `org.aktogay`, `org.aktogay.smart`, `org.aktogay.fixed`. "
+        "### Цифровой двойник карьера Актогай — реальная работа и эффект системы диспетчеризации\n"
+        "3D-сцена ниже — реальный карьер, данные из Ditto. Показатели: «Реальная работа» против «Без системы (расчёт)» — теневого расчёта той же смены. Полный интерфейс: **[http://localhost:8095](http://localhost:8095)**. "
+        "Двойники: приложение **OpenEgiz → Twins**; `org.aktogay.smart` — реальный карьер, `org.aktogay.fixed` — теневой расчёт. "
         "Модель построена по открытым данным, операционные данные смоделированы."
     )},
 })
@@ -88,7 +88,7 @@ stat("Аварийные отказы самосвалов", both("mine", "unpla
 stat("Отказов предотвращено (ППР)", both("mine", "prevented_failures"), 20, 2, "none", 0)
 # 3D-сцена рудника: интерфейс aktogay-ui в компактном режиме (?embed=1); данные — из Ditto.
 add({
-    "type": "text", "title": "3D-карьер: умная диспетчеризация (справа) против фиксированного закрепления (слева)",
+    "type": "text", "title": "3D-карьер Актогай: реальная работа",
     "gridPos": {"x": 0, "y": 6, "w": 24, "h": 18}, "datasource": None, "transparent": False,
     "options": {"mode": "html", "content": (
         '<iframe src="http://localhost:8095/?embed=1" title="3D-карьер Актогай" '
@@ -99,8 +99,8 @@ series("Темп добычи, т/ч", both("mine", "tph"), 0, 24, "none")
 series("Бункер дробилки, т (пусто = фабрика стоит)", both("crusher", "bin"), 12, 24, "none")
 series("Содержание меди в питании фабрики, % Cu (цель 0,35 ± 0,03)", both("plant", "feed_grade"), 0, 32, "none")
 series("Средняя очередь у экскаватора, мин", both("mine", "avg_queue_min"), 12, 32, "m")
-series("Риск отказа самосвалов (умная стратегия), %", per_thing("truck-", "failure_risk"), 0, 40, "percent", 12, 8, False)
-series("Очередь у экскаваторов (умная стратегия), самосвалов", per_thing("excavator-", "queue"), 12, 40, "none")
+series("Риск отказа самосвалов (реальная работа), %", per_thing("truck-", "failure_risk"), 0, 40, "percent", 12, 8, False)
+series("Очередь у экскаваторов (реальная работа), самосвалов", per_thing("excavator-", "queue"), 12, 40, "none")
 
 dash = {
     "uid": "aktogay-digital-mine",

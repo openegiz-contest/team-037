@@ -1,13 +1,14 @@
 /** Боковое меню разделов: Карьер · Двойники · Сценарии + ссылки на платформу. */
 import type { ReactNode } from 'react';
 
-export type Route = 'mine' | 'twins' | 'scenarios';
+export type Route = 'mine' | 'effect' | 'twins' | 'scenarios';
 
-export const ROUTE_HASH: Record<Route, string> = { mine: '#/', twins: '#/twins', scenarios: '#/scenarios' };
+export const ROUTE_HASH: Record<Route, string> = { mine: '#/', effect: '#/effect', twins: '#/twins', scenarios: '#/scenarios' };
 
 export function routeFromHash(h: string): Route {
   if (h.startsWith('#/twins')) return 'twins';
   if (h.startsWith('#/scenarios')) return 'scenarios';
+  if (h.startsWith('#/effect')) return 'effect';
   return 'mine';
 }
 
@@ -45,6 +46,14 @@ const ICONS: Record<Route | 'grafana' | 'api' | 'collapse', ReactNode> = {
       <path d="M7 12h4l6-6M11 12l6 6" />
     </Icon>
   ),
+  // столбики роста и стрелка вверх
+  effect: (
+    <Icon>
+      <path d="M4 20V14M9 20v-8M14 20v-5M19 20V9" />
+      <path d="m4 9 5-4 4 3 7-5" />
+      <path d="M16 3h4v4" />
+    </Icon>
+  ),
   grafana: (
     <Icon>
       <path d="M3 20h18" />
@@ -63,10 +72,11 @@ const ICONS: Record<Route | 'grafana' | 'api' | 'collapse', ReactNode> = {
   ),
 };
 
-const NAV: { route: Route; label: string; hint: string }[] = [
-  { route: 'mine', label: 'Карьер', hint: '3D-сцена, KPI, сравнение стратегий' },
-  { route: 'twins', label: 'Двойники', hint: 'Объекты рудника в Eclipse Ditto' },
-  { route: 'scenarios', label: 'Сценарии', hint: 'Запуск и отмена «что если»' },
+const NAV: { route: Route; label: string; hint: string; group: 'ops' | 'analysis' }[] = [
+  { route: 'mine', label: 'Карьер', hint: 'Реальная работа карьера: 3D, показатели, прогноз отказов', group: 'ops' },
+  { route: 'twins', label: 'Двойники', hint: 'Объекты рудника в Eclipse Ditto', group: 'ops' },
+  { route: 'scenarios', label: 'Сценарии', hint: 'Запуск и отмена «что если»', group: 'analysis' },
+  { route: 'effect', label: 'Эффект', hint: 'Реальная работа против теневого расчёта без системы, ₸', group: 'analysis' },
 ];
 
 interface Props {
@@ -100,18 +110,22 @@ export function Sidebar({ route, collapsed, onToggle, platform, connected, twinC
         )}
       </div>
 
-      <SectionLabel collapsed={collapsed}>Рудник</SectionLabel>
-      <nav className="flex flex-col gap-0.5 px-2">
-        {NAV.map((n) => (
-          <a key={n.route} href={ROUTE_HASH[n.route]} className={item(route === n.route)} title={collapsed ? `${n.label} — ${n.hint}` : n.hint}>
-            {route === n.route && <span className="absolute -left-2 top-1.5 bottom-1.5 w-[3px] rounded-r bg-amber-400" />}
-            {ICONS[n.route]}
-            {!collapsed && <span className="font-medium">{n.label}</span>}
-            {n.route === 'twins' && twinCount > 0 && badge(twinCount, 'bg-panel-2 text-ink-2')}
-            {n.route === 'scenarios' && activeCount > 0 && badge(activeCount, 'bg-red-500/20 text-red-300')}
-          </a>
-        ))}
-      </nav>
+      {(['ops', 'analysis'] as const).map((grp) => (
+        <div key={grp}>
+          <SectionLabel collapsed={collapsed}>{grp === 'ops' ? 'Рудник' : 'Анализ'}</SectionLabel>
+          <nav className="flex flex-col gap-0.5 px-2">
+            {NAV.filter((n) => n.group === grp).map((n) => (
+              <a key={n.route} href={ROUTE_HASH[n.route]} className={item(route === n.route)} title={collapsed ? `${n.label} — ${n.hint}` : n.hint}>
+                {route === n.route && <span className="absolute -left-2 top-1.5 bottom-1.5 w-[3px] rounded-r bg-amber-400" />}
+                {ICONS[n.route]}
+                {!collapsed && <span className="font-medium">{n.label}</span>}
+                {n.route === 'twins' && twinCount > 0 && badge(twinCount, 'bg-panel-2 text-ink-2')}
+                {n.route === 'scenarios' && activeCount > 0 && badge(activeCount, 'bg-red-500/20 text-red-300')}
+              </a>
+            ))}
+          </nav>
+        </div>
+      ))}
 
       {platform && (
         <>

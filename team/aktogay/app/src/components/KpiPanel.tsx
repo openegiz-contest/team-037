@@ -122,7 +122,7 @@ export function KpiPanel({ labels, kpis, effect, pending }: Props) {
                 </div>
                 <div className="mt-1 flex items-center justify-between gap-1">
                   <span className="num text-[13px]" style={{ color: STRATEGY_COLOR.fixed }}>
-                    фикс. {t.fmt(t.value(kpis[0]))}
+                    без системы {t.fmt(t.value(kpis[0]))}
                   </span>
                   <Delta a={t.value(kpis[0])} b={t.value(kpis[1])} better={t.better} />
                 </div>
@@ -143,7 +143,7 @@ export function KpiPanel({ labels, kpis, effect, pending }: Props) {
       {compare && effect && <EffectBlock effect={effect} />}
       {pending && (
         <div className="panel border-amber-500/30 px-3 py-3">
-          <div className="text-[12px] uppercase tracking-wider text-amber-400">Экономический эффект умной диспетчеризации</div>
+          <div className="text-[12px] uppercase tracking-wider text-amber-400">Экономический эффект системы диспетчеризации</div>
           <div className="mt-1 text-[15px] text-ink-2">Накапливаем статистику — оценка появится после первого часа смены…</div>
         </div>
       )}
@@ -153,10 +153,10 @@ export function KpiPanel({ labels, kpis, effect, pending }: Props) {
           <div className="mb-1 grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 border-b border-line pb-1.5 text-[11px] uppercase tracking-wider text-ink-3">
             <span>Показатель</span>
             <span className="w-[78px] text-right" style={{ color: STRATEGY_COLOR.fixed }}>
-              Фикс.
+              Без сист.
             </span>
             <span className="w-[78px] text-right" style={{ color: STRATEGY_COLOR.smart }}>
-              Умная
+              С сист.
             </span>
             <span className="w-[72px] text-right">Δ</span>
           </div>
@@ -197,7 +197,7 @@ function EffectBlock({ effect }: { effect: Effect }) {
       onClick={() => setOpen((o) => !o)}
     >
       <div className="flex items-center justify-between text-[12px] uppercase tracking-wider text-amber-400">
-        <span>Экономический эффект умной диспетчеризации</span>
+        <span>Экономический эффект системы диспетчеризации</span>
         <span className="text-ink-3 normal-case">ⓘ формула</span>
       </div>
       <div className={`num mt-1 text-[34px] font-extrabold leading-tight ${positive ? 'text-amber-300' : 'text-red-400'}`}>

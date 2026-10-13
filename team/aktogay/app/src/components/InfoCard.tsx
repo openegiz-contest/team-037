@@ -1,4 +1,4 @@
-import { FAILURE_LABEL, gradeAt, MATERIAL_LABEL, STRATEGY_LABEL, TRUCK_STATE_LABEL, type Simulation, type Truck } from '../sim';
+import { FAILURE_LABEL, gradeAt, MATERIAL_LABEL, TRUCK_STATE_LABEL, type Simulation, type Truck } from '../sim';
 import type { Selection } from '../render/drawMine';
 import { fmt1, fmtClock, fmtInt } from '../ui/format';
 import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
@@ -186,7 +186,7 @@ export function InfoCard({ sim, selection, onClose }: { sim: Simulation; selecti
       </div>
       {body}
       <div className="mt-2 border-t border-line pt-1.5 text-[11px] text-ink-3">
-        {STRATEGY_LABEL[sim.strategyName]} диспетчеризация · {fmtClock(sim.now)}
+        {sim.strategyName === 'smart' ? 'Реальная работа' : 'Теневой расчёт без системы'} · {fmtClock(sim.now)}
       </div>
     </div>
   );

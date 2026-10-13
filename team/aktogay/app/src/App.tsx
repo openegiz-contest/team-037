@@ -11,11 +11,10 @@ import { ScenariosPage } from './pages/ScenariosPage';
 import { PlatformBridge } from './platform/bridge';
 import { activeDeviations, applyScenario, type Command } from './platform/scenarios';
 import type { Selection } from './render/drawMine';
-import { computeEffect, computeKpis, deltaPct, MATERIAL_SHORT, Simulation, STRATEGY_LABEL, type StrategyName } from './sim';
+import { computeEffect, computeKpis, deltaPct, MATERIAL_SHORT, Simulation, type StrategyName } from './sim';
 import { fmtClock, fmtDelta, fmtInt, fmtKzt } from './ui/format';
 import { MATERIAL_COLOR, STATE_GROUPS, STRATEGY_COLOR } from './ui/theme';
 
-type Mode = 'compare' | 'single';
 type View = '3d' | '2d';
 type Speed = 1 | 5 | 20 | 50 | 'max';
 
@@ -26,14 +25,12 @@ const SPEEDS: Speed[] = [1, 5, 20, 50, 'max'];
 export default function App() {
   /** ?embed=1 — компактный вид для панели Grafana. */
   const embed = useMemo(() => new URLSearchParams(window.location.search).get('embed') === '1', []);
-  const [mode, setMode] = useState<Mode>('compare');
   const [view, setView] = useState<View>('3d');
-  const [strategy, setStrategy] = useState<StrategyName>('smart');
   const [seed, setSeed] = useState(42);
   const [trucks, setTrucks] = useState(20);
   const [speed, setSpeed] = useState<Speed>(20);
   const [running, setRunning] = useState(false);
-  const [selection, setSelection] = useState<{ sim: number; sel: Selection } | null>(null);
+  const [selection, setSelection] = useState<{ v: StrategyName; sel: Selection } | null>(null);
   const [epoch, setEpoch] = useState(0);
   const [, setFrame] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
@@ -64,13 +61,14 @@ export default function App() {
   speedRef.current = speed;
 
   const createSims = useCallback(() => {
-    const strategies: StrategyName[] = mode === 'compare' ? ['fixed', 'smart'] : [strategy];
+    // Всегда два варианта: реальная работа (умная диспетчеризация) и теневой расчёт без системы.
+    const strategies: StrategyName[] = ['fixed', 'smart'];
     simsRef.current = strategies.map((s) => new Simulation({ seed, truckCount: trucks, strategy: s }));
     breakIdx.current = 0;
     closeIdx.current = 0;
     setSelection(null);
     setEpoch((e) => e + 1);
-  }, [mode, strategy, seed, trucks]);
+  }, [seed, trucks]);
 
   useEffect(createSims, [createSims]);
 
@@ -245,8 +243,13 @@ export default function App() {
   }, [triggerBreakdown, triggerClosure, triggerBlast, createSims]);
 
   const platformSims = bridge?.sims ?? null;
-  const sims = platformSims ? (mode === 'compare' ? [platformSims.fixed, platformSims.smart] : [platformSims[strategy]]) : simsRef.current;
-  const kpis = sims.map((s) => bridge?.kpis[s.strategyName] ?? computeKpis(s));
+  /** Оба варианта: [теневой без системы, реальный]. */
+  const allSims = platformSims ? [platformSims.fixed, platformSims.smart] : simsRef.current;
+  const kpisAll = allSims.map((s) => bridge?.kpis[s.strategyName] ?? computeKpis(s));
+  /** «Карьер» показывает только реальный карьер, «Эффект» — оба варианта рядом. */
+  const isEffect = route === 'effect' && !embed;
+  const sims = isEffect ? allSims : allSims.filter((s) => s.strategyName === 'smart');
+  const kpis = isEffect ? kpisAll : kpisAll.filter((_, i) => allSims[i].strategyName === 'smart');
   const pStatus = bridge?.status ?? null;
   const isRunning = bridge ? pStatus?.value === 'running' : running;
   const toggleRun = () => {
@@ -292,20 +295,16 @@ export default function App() {
     if (!runningRef.current && value !== 'cancel_all') setRunning(true);
   };
 
-  /** Перейти к объекту на карте из раздела «Двойники». */
+  /** Перейти к объекту на карте из раздела «Двойники»: реальный — в «Карьер», теневой — в «Эффект». */
   const locate = (variant: StrategyName, sel: Selection) => {
-    const select = () => setSelection({ sim: variant === 'fixed' ? 0 : 1, sel });
-    if (mode !== 'compare') {
-      setMode('compare');
-      window.setTimeout(select, 60);
-    } else select();
-    window.location.hash = ROUTE_HASH.mine;
+    setSelection({ v: variant, sel });
+    window.location.hash = variant === 'smart' ? ROUTE_HASH.mine : ROUTE_HASH.effect;
   };
 
   // Эффект показываем после первого часа: раньше экстраполяция на смену слишком шумная.
-  const effect = sims.length === 2 && sims[1].now >= 3600 ? computeEffect(kpis[0], kpis[1], sims[1]) : null;
-  const main = sims[sims.length - 1];
-  const finished = sims.length > 0 && sims.every((s) => s.finished);
+  const effect = allSims.length === 2 && allSims[1].now >= 3600 ? computeEffect(kpisAll[0], kpisAll[1], allSims[1]) : null;
+  const main = allSims[allSims.length - 1];
+  const finished = allSims.length > 0 && allSims.every((s) => s.finished);
   const progress = main ? main.now / main.cfg.shift.durationSec : 0;
   const log = useMemo(() => (main ? [...main.log].reverse().slice(0, 7) : []), [main, main?.log.length, epoch]);
 
@@ -321,20 +320,20 @@ export default function App() {
                     <>
                   <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2">
                     <span className="rounded-md px-2.5 py-1 text-[13px] font-bold uppercase tracking-wider text-white" style={{ background: STRATEGY_COLOR[s.strategyName] }}>
-                      {s.strategyName === 'smart' ? 'Умная диспетчеризация' : 'Фиксированное закрепление'}
+                      {s.strategyName === 'smart' ? (sims.length === 2 ? 'Реальная работа · с системой' : 'Реальная работа · умная диспетчеризация') : 'Без системы · теневой расчёт'}
                     </span>
                     <span className="num rounded-md bg-black/60 px-2 py-1 text-[13px] text-ink">
                       {fmtInt(kpis[i].minedTotal)} т · {fmtInt(kpis[i].tph)} т/ч
                     </span>
                   </div>
                   {i === sims.length - 1 && <Legend />}
-                  {selection?.sim === i && <InfoCard sim={s} selection={selection.sel} onClose={() => setSelection(null)} />}
+                  {selection?.v === s.strategyName && <InfoCard sim={s} selection={selection.sel} onClose={() => setSelection(null)} />}
                     </>
                   );
                   const props = {
                     sim: s,
-                    selection: selection?.sim === i ? selection.sel : null,
-                    onSelect: (sel: Selection) => setSelection(sel ? { sim: i, sel } : null),
+                    selection: selection?.v === s.strategyName ? selection.sel : null,
+                    onSelect: (sel: Selection) => setSelection(sel ? { v: s.strategyName, sel } : null),
                   };
                   return view === '3d' ? <Mine3D {...props}>{overlay}</Mine3D> : <MineCanvas {...props}>{overlay}</MineCanvas>;
                 })()}
@@ -387,8 +386,12 @@ export default function App() {
       <header className="flex items-center gap-4">
         <div className="flex items-center gap-3">
           <div>
-            <h1 className="text-[22px] font-bold leading-tight tracking-tight">Цифровой двойник карьера Актогай</h1>
-            <div className="text-[12px] text-ink-3">Интеллектуальная диспетчеризация самосвалов · медь · Восточный Казахстан</div>
+            <h1 className="text-[22px] font-bold leading-tight tracking-tight">{isEffect ? 'Эффект системы диспетчеризации' : 'Цифровой двойник карьера Актогай'}</h1>
+            <div className="text-[12px] text-ink-3">
+              {isEffect
+                ? 'Реальная работа с системой против теневого расчёта той же смены без неё: одинаковые поломки, дороги и взрывы'
+                : 'Реальная работа карьера в реальном времени · умная диспетчеризация самосвалов · медь · Восточный Казахстан'}
+            </div>
           </div>
         </div>
         <div className="ml-auto flex items-center gap-4">
@@ -416,17 +419,6 @@ export default function App() {
                 className={`px-3 py-1.5 text-[13px] font-semibold ${view === v ? 'bg-sky-500 text-black' : 'bg-panel text-ink-2 hover:bg-panel-2'}`}
               >
                 {v === '3d' ? '3D' : '2D схема'}
-              </button>
-            ))}
-          </div>
-          <div className="flex overflow-hidden rounded-lg border border-line">
-            {(['compare', 'single'] as Mode[]).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`px-3 py-1.5 text-[13px] font-semibold ${mode === m ? 'bg-amber-500 text-black' : 'bg-panel text-ink-2 hover:bg-panel-2'}`}
-              >
-                {m === 'compare' ? 'Сравнение' : 'Один карьер'}
               </button>
             ))}
           </div>
@@ -472,20 +464,6 @@ export default function App() {
           <input type="range" min={10} max={30} value={trucks} onChange={(e) => setTrucks(Number(e.target.value))} className="w-28" />
           <span className="num w-6 font-semibold">{trucks}</span>
         </label>
-        {mode === 'single' && (
-          <div className="flex overflow-hidden rounded-md border border-line">
-            {(['fixed', 'smart'] as StrategyName[]).map((s) => (
-              <button
-                key={s}
-                onClick={() => setStrategy(s)}
-                className="px-2.5 py-1 font-semibold"
-                style={strategy === s ? { background: STRATEGY_COLOR[s], color: '#fff' } : { color: '#a9b0ba' }}
-              >
-                {STRATEGY_LABEL[s]}
-              </button>
-            ))}
-          </div>
-        )}
         <div className="ml-auto flex items-center gap-2">
           <button onClick={triggerBreakdown} className="rounded-md bg-red-600/90 px-3 py-1.5 font-bold text-white hover:bg-red-500" title="Клавиша B. Если выбран экскаватор — ломается он.">
             ⚠ Вызвать поломку
@@ -525,14 +503,14 @@ export default function App() {
 
         <div className="flex min-h-0 flex-col gap-3">
           <div className="min-h-0 flex-1">
-            <KpiPanel labels={sims.map((s) => s.strategyName)} kpis={kpis} effect={effect} pending={sims.length === 2 && !effect} />
+            <KpiPanel labels={sims.map((s) => s.strategyName)} kpis={kpis} effect={isEffect ? effect : null} pending={isEffect && !effect} />
           </div>
           {main.predictive && (
-            <DiagnosticsPanel sim={main} onPick={(id) => setSelection({ sim: sims.length - 1, sel: { kind: 'truck', id } })} />
+            <DiagnosticsPanel sim={main} onPick={(id) => setSelection({ v: main.strategyName, sel: { kind: 'truck', id } })} />
           )}
           <div className="panel h-[130px] shrink-0 overflow-hidden px-3 py-2 2xl:h-[168px]">
             <div className="mb-1 text-[12px] font-semibold uppercase tracking-wider text-ink-2">Журнал событий</div>
-            {log.length === 0 && <div className="text-[13px] text-ink-3">Событий пока нет. Нажмите «▶ Старт».</div>}
+            {log.length === 0 && <div className="text-[13px] text-ink-3">{isRunning ? 'Событий пока нет.' : 'Событий пока нет. Нажмите «▶ Старт».'}</div>}
             {log.map((l, k) => (
               <div key={`${l.t}-${k}`} className="flex gap-2 py-0.5 text-[12.5px]">
                 <span className="num text-ink-3">{fmtClock(l.t)}</span>
@@ -551,10 +529,10 @@ export default function App() {
       </footer>
 
 
-      {finished && sims.length === 2 && effect && (
+      {finished && isEffect && effect && (
         <div className="fixed left-1/2 top-1/3 z-40 w-[560px] -translate-x-1/2 rounded-xl border border-amber-500/50 bg-[#0b0d10]/95 p-5 text-center shadow-2xl">
           <div className="text-[13px] uppercase tracking-widest text-ink-3">Смена завершена · seed {seed}</div>
-          <div className="mt-2 text-[20px] font-semibold">Умная диспетчеризация против фиксированной</div>
+          <div className="mt-2 text-[20px] font-semibold">Реальная работа с системой против расчёта без неё</div>
           <div className="mt-3 grid grid-cols-3 gap-3">
             <Summary label="Добыча" value={fmtDelta(deltaPct(kpis[0].minedTotal, kpis[1].minedTotal))} good={kpis[1].minedTotal >= kpis[0].minedTotal} />
             <Summary
@@ -585,7 +563,7 @@ export default function App() {
   const activeCount = activeDeviations(main).length;
   const pageNow = main.now;
   // Раздел «Сценарии» на стенде всегда сравнивает оба варианта.
-  const scSims = platformSims ? [platformSims.fixed, platformSims.smart] : sims;
+  const scSims = allSims;
   return (
     <div className="flex h-full">
       <Sidebar
@@ -598,7 +576,7 @@ export default function App() {
         activeCount={activeCount}
       />
       <main className="h-full min-w-0 flex-1">
-        {route === 'mine' && dashboard}
+        {(route === 'mine' || route === 'effect') && dashboard}
         {route === 'twins' && (
           <TwinsPage
             bridge={bridge}
@@ -615,7 +593,7 @@ export default function App() {
         {route === 'scenarios' && (
           <ScenariosPage
             sims={scSims}
-            kpis={scSims.map((s) => bridge?.kpis[s.strategyName] ?? computeKpis(s))}
+            kpis={kpisAll}
             platform={!!bridge}
             now={pageNow}
             running={isRunning}

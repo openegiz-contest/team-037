@@ -18,8 +18,8 @@ export const MATERIAL_SHORT: Record<Material, string> = {
 export type StrategyName = 'fixed' | 'smart';
 
 export const STRATEGY_LABEL: Record<StrategyName, string> = {
-  fixed: 'Фиксированная',
-  smart: 'Умная',
+  fixed: 'Без системы',
+  smart: 'С системой',
 };
 
 /**

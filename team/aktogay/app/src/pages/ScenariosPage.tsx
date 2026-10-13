@@ -63,7 +63,7 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
         subtitle={
           <>
             Меняем условия работы рудника без изменения кода. Команда записывается в двойник <code className="num text-ink-2">{CONTROL_ID}</code>, симулятор
-            применяет её сразу к обоим вариантам — так видно, какая диспетчеризация лучше справляется.
+            применяет её к реальному карьеру и к его теневому расчёту без системы — так видно, сколько система спасает.
           </>
         }
         now={now}
@@ -241,7 +241,7 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
           {sims.length === 2 && (
             <section className="panel">
               <div className="flex items-center border-b border-line px-4 py-3">
-                <h3 className="text-[14px] font-semibold">Как справляются стратегии</h3>
+                <h3 className="text-[14px] font-semibold">Что было бы без системы</h3>
                 <span className="ml-auto text-[12px] text-ink-3">с начала смены</span>
               </div>
               <ImpactTable sims={sims} kpis={kpis} />
@@ -333,8 +333,8 @@ function ImpactTable({ sims, kpis }: { sims: Simulation[]; kpis: Kpis[] }) {
       <thead>
         <tr className="text-[11px] uppercase tracking-wider text-ink-3">
           <th className="px-4 py-2 text-left font-medium">Показатель</th>
-          {head('Фикс.', STRATEGY_COLOR.fixed)}
-          {head('Умная', STRATEGY_COLOR.smart)}
+          {head('Без системы', STRATEGY_COLOR.fixed)}
+          {head('С системой', STRATEGY_COLOR.smart)}
           <th className="px-4 py-2 text-right font-medium">Разница</th>
         </tr>
       </thead>

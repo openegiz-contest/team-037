@@ -357,7 +357,7 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
                   className="flex-1 px-2 py-1.5 font-semibold"
                   style={variant === v ? { background: STRATEGY_COLOR[v], color: '#fff' } : { color: '#a9b0ba' }}
                 >
-                  {v === 'smart' ? 'Умная' : 'Фиксированная'}
+                  {v === 'smart' ? 'Реальный карьер' : 'Теневой: без системы'}
                 </button>
               ))}
             </div>
@@ -413,7 +413,7 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
                   </span>
                   {selVariant && (
                     <span className="rounded-md px-2 py-0.5 text-[11.5px] font-semibold text-white" style={{ background: STRATEGY_COLOR[selVariant] }}>
-                      {selVariant === 'smart' ? 'умная диспетчеризация' : 'фиксированное закрепление'}
+                      {selVariant === 'smart' ? 'реальная работа' : 'теневой расчёт без системы'}
                     </span>
                   )}
                 </div>
@@ -435,7 +435,7 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
                     onClick={() => setCompare((c) => !c)}
                     className={`rounded-lg px-3 py-1.5 text-[13px] font-semibold ring-1 ${compare ? 'bg-sky-500/15 text-sky-200 ring-sky-500/50' : 'bg-panel-2 text-ink-2 ring-line hover:text-ink'}`}
                   >
-                    ⇄ Сравнить с {selVariant === 'smart' ? 'фиксированной' : 'умной'}
+                    ⇄ Сравнить {selVariant === 'smart' ? 'с расчётом без системы' : 'с реальным'}
                   </button>
                 )}
                 {bridge && (
@@ -488,7 +488,7 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
                   <tr className="text-left text-[11px] uppercase tracking-wider text-ink-3">
                     <th className="px-4 py-2 font-medium">Признак</th>
                     <th className="px-2 py-2 text-right font-medium">Значение</th>
-                    {pairRows && <th className="px-2 py-2 text-right font-medium" style={{ color: STRATEGY_COLOR[other(selVariant ?? 'smart')] }}>{selVariant === 'smart' ? 'Фикс.' : 'Умная'}</th>}
+                    {pairRows && <th className="px-2 py-2 text-right font-medium" style={{ color: STRATEGY_COLOR[other(selVariant ?? 'smart')] }}>{selVariant === 'smart' ? 'Без системы' : 'Реальный'}</th>}
                     <th className="px-4 py-2 font-medium">Динамика</th>
                   </tr>
                 </thead>

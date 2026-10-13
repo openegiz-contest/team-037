@@ -7,8 +7,8 @@
  *
  * Пространства имён:
  *   org.aktogay           — площадка и двойник управления (команды «что если»)
- *   org.aktogay.smart     — рудник с умной диспетчеризацией
- *   org.aktogay.fixed     — тот же рудник с фиксированным закреплением (для сравнения)
+ *   org.aktogay.smart     — реальная работа рудника (умная диспетчеризация)
+ *   org.aktogay.fixed     — теневой расчёт той же смены без системы (фиксированное закрепление)
  */
 import type { Kpis } from '../sim/kpi';
 import type { Simulation } from '../sim/engine';
@@ -66,7 +66,7 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
   out[id.mine] = {
     policyId: POLICY,
     attributes: {
-      name: v === 'smart' ? 'Карьер Актогай — умная диспетчеризация' : 'Карьер Актогай — фиксированное закрепление',
+      name: v === 'smart' ? 'Карьер Актогай — реальная работа' : 'Теневой расчёт — без системы диспетчеризации',
       kind: 'open-pit',
       _isType: false,
       _parents: SITE_ID,
