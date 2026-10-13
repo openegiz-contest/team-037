@@ -16,6 +16,8 @@ export interface Command {
   seq?: number;
   seed?: number;
   trucks?: number;
+  /** Новый парк техники (reset): см. platform/fleet.ts. */
+  fleet?: unknown;
 }
 
 export const DEFAULT_DUR = { breakdown: 50, close_road: 40 } as const;

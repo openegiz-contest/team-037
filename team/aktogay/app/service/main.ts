@@ -12,6 +12,7 @@
 import mqtt from 'mqtt';
 import { computeKpis, Simulation, type StrategyName } from '../src/sim';
 import { activeScenarioLabels, applyScenario, type Command } from '../src/platform/scenarios';
+import { defaultFleet, fleetConfig, sanitizeFleet, type Fleet } from '../src/platform/fleet';
 import { CONTROL_ID, SITE_NS, serializeAll, siteDefinitions, thingDefinitions, VARIANTS, type Features, type ThingBody } from '../src/platform/twins';
 
 const env = (k: string, d: string) => process.env[k] ?? d;
@@ -22,7 +23,8 @@ const MQTT_URL = `mqtt://${env('MQTT_HOST', 'localhost')}:${env('MQTT_PORT', '18
 /** Секунд модельного времени за секунду реального (x1 в интерфейсе = 10). */
 let speed = Number(env('SIM_SPEEDUP', '20'));
 let seed = Number(env('SIM_SEED', '42'));
-let truckCount = Number(env('SIM_TRUCKS', '20'));
+/** Парк техники: самосвалы и состав экскаваторов (меняется командой reset { fleet }). */
+let fleet: Fleet = defaultFleet(Math.max(5, Math.min(30, Number(env('SIM_TRUCKS', '20')))));
 /** Как часто публиковать состояние двойников, мс реального времени. */
 const PUBLISH_MS = Number(env('PUBLISH_MS', '1000'));
 
@@ -38,8 +40,8 @@ const history: [number, string][] = [];
 
 function makeSims(): Record<StrategyName, Simulation> {
   return {
-    fixed: new Simulation({ seed, truckCount, strategy: 'fixed' }),
-    smart: new Simulation({ seed, truckCount, strategy: 'smart' }),
+    fixed: new Simulation({ seed, truckCount: fleet.trucks, strategy: 'fixed', config: fleetConfig(fleet) }),
+    smart: new Simulation({ seed, truckCount: fleet.trucks, strategy: 'smart', config: fleetConfig(fleet) }),
   };
 }
 
@@ -66,8 +68,8 @@ async function deleteThing(id: string): Promise<void> {
   await fetch(`${DITTO_URL}/api/2/things/${id}`, { method: 'DELETE', headers: { Authorization: AUTH } }).catch(() => undefined);
 }
 
-/** Самосвалы, которых больше нет после уменьшения парка, удаляются из Ditto. */
-async function setupTwins(prevTrucks = 0): Promise<void> {
+/** Самосвалы и экскаваторы, которых больше нет после изменения парка, удаляются из Ditto. */
+async function setupTwins(prevTrucks = 0, prevExcavators = 0): Promise<void> {
   for (const [id, body] of Object.entries(siteDefinitions())) {
     if (id === CONTROL_ID) {
       // Двойник управления создаём, только если его ещё нет, — чтобы не затереть команду.
@@ -79,7 +81,8 @@ async function setupTwins(prevTrucks = 0): Promise<void> {
   for (const v of VARIANTS) {
     const defs = thingDefinitions(sims[v], v);
     for (const [id, body] of Object.entries(defs)) await putThing(id, body);
-    for (let i = truckCount; i < prevTrucks; i++) await deleteThing(`${SITE_NS}.${v}:truck-${101 + i}`);
+    for (let i = fleet.trucks; i < prevTrucks; i++) await deleteThing(`${SITE_NS}.${v}:truck-${101 + i}`);
+    for (let i = fleet.excavators.length; i < prevExcavators; i++) await deleteThing(`${SITE_NS}.${v}:excavator-${i + 1}`);
   }
   log(`двойники готовы: ${Object.keys(thingDefinitions(sims.smart, 'smart')).length * 2 + 2} шт.`);
 }
@@ -115,7 +118,8 @@ function publishStatus(): void {
         value: running ? 'running' : 'paused',
         speed,
         seed,
-        trucks: truckCount,
+        trucks: fleet.trucks,
+        fleet,
         sim_time: Math.round(s.now),
         finished: s.finished,
         active_scenarios: active,
@@ -143,12 +147,14 @@ async function applyCommand(c: Command): Promise<void> {
       speed = Math.max(1, Math.min(2000, Number(c.arg) || 20));
       break;
     case 'reset': {
-      const prev = truckCount;
+      const prevTrucks = fleet.trucks;
+      const prevExcavators = fleet.excavators.length;
       if (c.seed !== undefined) seed = Number(c.seed);
-      if (c.trucks !== undefined) truckCount = Math.max(5, Math.min(30, Number(c.trucks)));
+      if (c.fleet !== undefined) fleet = sanitizeFleet(c.fleet, fleet);
+      if (c.trucks !== undefined) fleet = sanitizeFleet({ ...fleet, trucks: Number(c.trucks) }, fleet);
       sims = makeSims();
-      lastScenario = `новая смена (seed ${seed}, ${truckCount} самосвалов)`;
-      await setupTwins(prev);
+      lastScenario = `новая смена (seed ${seed}, ${fleet.trucks} самосвалов, ${fleet.excavators.length} экскаваторов)`;
+      await setupTwins(prevTrucks, prevExcavators);
       break;
     }
     default:
@@ -189,7 +195,7 @@ client.on('message', (_topic, payload) => {
 // ───────────────────────────── главный цикл ─────────────────────────────
 
 async function main(): Promise<void> {
-  log(`Ditto: ${DITTO_URL}, MQTT: ${MQTT_URL}, скорость x${speed / 10} (${speed} с модели/с), seed ${seed}, самосвалов ${truckCount}`);
+  log(`Ditto: ${DITTO_URL}, MQTT: ${MQTT_URL}, скорость x${speed / 10} (${speed} с модели/с), seed ${seed}, самосвалов ${fleet.trucks}, экскаваторов ${fleet.excavators.length}`);
   await setupTwins();
   let last = Date.now();
   let lastPublish = 0;

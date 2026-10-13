@@ -7,6 +7,7 @@ import { Simulation } from '../sim/engine';
 import type { Kpis } from '../sim/kpi';
 import type { StrategyName } from '../sim/types';
 import { CONTROL_ID, hydrate, SITE_NS, VARIANTS, variantNs } from './twins';
+import { defaultFleet, fleetConfig, fleetKey, sanitizeFleet, type Fleet } from './fleet';
 
 type Props = Record<string, unknown>;
 
@@ -21,6 +22,8 @@ export interface ControlStatus {
   last_scenario: string;
   /** Последние команды: [время модели, с; описание]. */
   history?: [number, string][];
+  /** Текущий парк техники на стенде. */
+  fleet?: Fleet;
 }
 
 const BASE = 'ditto/api/2';
@@ -46,6 +49,8 @@ export class PlatformBridge {
   private es: EventSource | null = null;
   private seq = Date.now();
   onReset: (() => void) | null = null;
+  /** Парк, по которому построены локальные модели. */
+  fleet: Fleet = defaultFleet();
 
   /** Есть ли платформа: двойник управления доступен через прокси. */
   static async detect(): Promise<PlatformBridge | null> {
@@ -142,10 +147,13 @@ export class PlatformBridge {
     this.status = this.readStatus();
     const seed = this.status?.seed ?? 42;
     const trucks = this.status?.trucks ?? 20;
-    if (!this.sims || this.sims.smart.seed !== seed || this.sims.smart.trucks.length !== trucks) {
+    const fleet = sanitizeFleet(this.status?.fleet ?? { ...defaultFleet(trucks) }, defaultFleet(trucks));
+    if (!this.sims || this.sims.smart.seed !== seed || fleetKey(fleet) !== fleetKey(this.fleet)) {
+      this.fleet = fleet;
+      const config = fleetConfig(fleet);
       this.sims = {
-        fixed: new Simulation({ seed, truckCount: trucks, strategy: 'fixed' }),
-        smart: new Simulation({ seed, truckCount: trucks, strategy: 'smart' }),
+        fixed: new Simulation({ seed, truckCount: fleet.trucks, strategy: 'fixed', config }),
+        smart: new Simulation({ seed, truckCount: fleet.trucks, strategy: 'smart', config }),
       };
       this.onReset?.();
       this.scheduleSnapshot();
@@ -162,7 +170,7 @@ export class PlatformBridge {
   }
 
   /** Отправить команду симулятору: меняем признак command двойника управления в Ditto. */
-  async send(value: string, arg?: number, extra: Record<string, number> = {}): Promise<boolean> {
+  async send(value: string, arg?: number, extra: Record<string, unknown> = {}): Promise<boolean> {
     const body = { value, arg: arg ?? 0, seq: ++this.seq, ...extra };
     try {
       const r = await fetch(`${BASE}/things/${CONTROL_ID}/features/command/properties`, {

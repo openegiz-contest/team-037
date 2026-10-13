@@ -8,6 +8,8 @@ import { MineCanvas } from './components/MineCanvas';
 import { Sidebar, routeFromHash, ROUTE_HASH, type Route } from './components/Sidebar';
 import { TwinsPage } from './pages/TwinsPage';
 import { ScenariosPage } from './pages/ScenariosPage';
+import { FleetPage } from './pages/FleetPage';
+import { defaultFleet, fleetConfig, type Fleet } from './platform/fleet';
 import { PlatformBridge } from './platform/bridge';
 import { activeDeviations, applyScenario, type Command } from './platform/scenarios';
 import { applyTheme, loadTheme, saveTheme, type ThemeMode } from './ui/themeMode';
@@ -34,7 +36,8 @@ export default function App() {
   const [slow3d, setSlow3d] = useState(false);
   const quality = resolveQuality(qualityMode, slow3d);
   const [seed, setSeed] = useState(42);
-  const [trucks, setTrucks] = useState(20);
+  /** Парк техники в автономном режиме (на стенде — из статуса двойника управления). */
+  const [fleet, setFleet] = useState<Fleet>(() => defaultFleet(20));
   const [speed, setSpeed] = useState<Speed>(20);
   const [running, setRunning] = useState(false);
   const [selection, setSelection] = useState<{ v: StrategyName; sel: Selection } | null>(null);
@@ -70,12 +73,13 @@ export default function App() {
   const createSims = useCallback(() => {
     // Всегда два варианта: реальная работа (умная диспетчеризация) и теневой расчёт без системы.
     const strategies: StrategyName[] = ['fixed', 'smart'];
-    simsRef.current = strategies.map((s) => new Simulation({ seed, truckCount: trucks, strategy: s }));
+    const config = fleetConfig(fleet);
+    simsRef.current = strategies.map((s) => new Simulation({ seed, truckCount: fleet.trucks, strategy: s, config }));
     breakIdx.current = 0;
     closeIdx.current = 0;
     setSelection(null);
     setEpoch((e) => e + 1);
-  }, [seed, trucks]);
+  }, [seed, fleet]);
 
   useEffect(createSims, [createSims]);
 
@@ -266,6 +270,8 @@ export default function App() {
   const sims = isEffect ? allSims : allSims.filter((s) => s.strategyName === 'smart');
   const kpis = isEffect ? kpisAll : kpisAll.filter((_, i) => allSims[i].strategyName === 'smart');
   const pStatus = bridge?.status ?? null;
+  /** Парк, который работает сейчас: на стенде — из двойника управления. */
+  const currentFleet = bridge ? bridge.fleet : fleet;
   const isRunning = bridge ? pStatus?.value === 'running' : running;
   const toggleRun = () => {
     if (bridge) void bridge.send(isRunning ? 'pause' : 'resume');
@@ -280,27 +286,27 @@ export default function App() {
   };
   const doReset = () => {
     if (bridge) {
-      void bridge.send('reset', 0, { seed, trucks });
-      flash(`↺ Новая смена в OpenEgiz: seed ${seed}, ${trucks} самосвалов`);
+      void bridge.send('reset', 0, { seed });
+      flash(`↺ Новая смена в OpenEgiz: seed ${seed}`);
     } else createSims();
   };
   /** Выполнить команду «что если»: на стенде — через двойник управления, иначе — в локальной модели. */
   const act = (c: Command) => {
     const { value, arg, ...extra } = c;
     if (bridge) {
-      void bridge.send(value, arg, extra as Record<string, number>);
+      void bridge.send(value, arg, extra as Record<string, unknown>);
       flash(`→ OpenEgiz: ${COMMAND_LABEL[value] ?? value}`);
       return;
     }
     if (value === 'pause' || value === 'resume') return setRunning(value === 'resume');
     if (value === 'reset') {
       const ns = c.seed ?? seed;
-      const nt = c.trucks ?? trucks;
-      if (ns === seed && nt === trucks) createSims();
+      const nf = (c.fleet as Fleet | undefined) ?? fleet;
+      if (ns === seed && nf === fleet) createSims();
       setSeed(ns);
-      setTrucks(nt);
-      setLocalHistory([[0, `новая смена (seed ${ns}, ${nt} самосвалов)`]]);
-      flash(`↺ Новая смена: seed ${ns}, ${nt} самосвалов`);
+      setFleet(nf);
+      setLocalHistory([[0, `новая смена (seed ${ns}, ${nf.trucks} самосвалов, ${nf.excavators.length} экскаваторов)`]]);
+      flash(`↺ Новая смена: seed ${ns}, ${nf.trucks} самосвалов, ${nf.excavators.length} экскаваторов`);
       return;
     }
     const text = applyScenario(simsRef.current, c);
@@ -503,11 +509,6 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
             ⚄
           </button>
         </label>
-        <label className="flex items-center gap-2">
-          <span className="text-ink-3">Самосвалов</span>
-          <input type="range" min={10} max={30} value={trucks} onChange={(e) => setTrucks(Number(e.target.value))} className="w-28" />
-          <span className="num w-6 font-semibold">{trucks}</span>
-        </label>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={triggerBreakdown} className="rounded-md bg-red-600/90 px-3 py-1.5 font-bold text-white hover:bg-red-500" title="Клавиша B. Если выбран экскаватор — ломается он.">
             ⚠ Вызвать поломку
@@ -568,7 +569,7 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
       <footer className="flex items-center justify-between text-[11px] text-ink-3">
         <span>Модель построена по открытым данным. Операционные данные смоделированы. Проект не связан с KAZ Minerals.</span>
         <span>
-          seed {seed} · {trucks} самосвалов · Пробел — пауза, B — поломка, E — взрыв, C — перекрыть съезд, R — сброс
+          seed {seed} · {currentFleet.trucks} самосвалов, {currentFleet.excavators.length} экскаваторов · Пробел — пауза, B — поломка, E — взрыв, C — перекрыть съезд, R — сброс
         </span>
       </footer>
 
@@ -636,6 +637,18 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
             onLocate={locate}
           />
         )}
+        {route === 'fleet' && (
+          <FleetPage
+            fleet={currentFleet}
+            sim={main}
+            platform={!!bridge}
+            now={pageNow}
+            running={isRunning}
+            onToggleRun={toggleRun}
+            onApply={(f) => act({ value: 'reset', seed: pStatus?.seed ?? seed, fleet: f })}
+            onLocate={(sel) => locate('smart', sel)}
+          />
+        )}
         {route === 'scenarios' && (
           <ScenariosPage
             sims={scSims}
@@ -645,7 +658,7 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
             running={isRunning}
             onToggleRun={toggleRun}
             seed={pStatus?.seed ?? seed}
-            trucks={pStatus?.trucks ?? trucks}
+            fleet={currentFleet}
             history={bridge ? (pStatus?.history ?? []) : localHistory}
             act={act}
           />

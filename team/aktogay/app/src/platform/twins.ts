@@ -80,7 +80,7 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
   sim.excavators.forEach((ex, i) => {
     out[id.excavator(i)] = {
       policyId: POLICY,
-      attributes: { name: `Экскаватор ${ex.name}`, kind: 'excavator', _isType: false, _parents: parent, material: ex.material, rate_tpm: ex.rateTpm, sensors: excavatorSensorAttributes(), feeds: ex.material === 'sulfide' ? id.crusher : ex.material === 'oxide' ? id.leach : id.waste },
+      attributes: { name: `Экскаватор ${ex.name}`, kind: 'excavator', _isType: false, _parents: parent, material: ex.material, rate_tpm: ex.rateTpm, ring: cfg.excavators[i].ring, angle_deg: cfg.excavators[i].angleDeg, sensors: excavatorSensorAttributes(), feeds: ex.material === 'sulfide' ? id.crusher : ex.material === 'oxide' ? id.leach : id.waste },
       features: serializeExcavator(sim, i),
     };
   });

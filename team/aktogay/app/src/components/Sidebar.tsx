@@ -2,14 +2,15 @@
 import type { ReactNode } from 'react';
 import type { ThemeMode } from '../ui/themeMode';
 
-export type Route = 'mine' | 'effect' | 'twins' | 'scenarios';
+export type Route = 'mine' | 'effect' | 'twins' | 'scenarios' | 'fleet';
 
-export const ROUTE_HASH: Record<Route, string> = { mine: '#/', effect: '#/effect', twins: '#/twins', scenarios: '#/scenarios' };
+export const ROUTE_HASH: Record<Route, string> = { mine: '#/', effect: '#/effect', twins: '#/twins', scenarios: '#/scenarios', fleet: '#/fleet' };
 
 export function routeFromHash(h: string): Route {
   if (h.startsWith('#/twins')) return 'twins';
   if (h.startsWith('#/scenarios')) return 'scenarios';
   if (h.startsWith('#/effect')) return 'effect';
+  if (h.startsWith('#/fleet')) return 'fleet';
   return 'mine';
 }
 
@@ -45,6 +46,14 @@ const ICONS: Record<Route | 'grafana' | 'api' | 'collapse' | 'sun' | 'moon', Rea
       <circle cx="19" cy="5" r="2" />
       <circle cx="19" cy="19" r="2" />
       <path d="M7 12h4l6-6M11 12l6 6" />
+    </Icon>
+  ),
+  // самосвал
+  fleet: (
+    <Icon>
+      <path d="M2 16V8h11v8M13 11h4l3 3v2h-7" />
+      <circle cx="6" cy="17" r="2" />
+      <circle cx="17" cy="17" r="2" />
     </Icon>
   ),
   // столбики роста и стрелка вверх
@@ -86,6 +95,7 @@ const ICONS: Record<Route | 'grafana' | 'api' | 'collapse' | 'sun' | 'moon', Rea
 
 const NAV: { route: Route; label: string; hint: string; group: 'ops' | 'analysis' }[] = [
   { route: 'mine', label: 'Карьер', hint: 'Реальная работа карьера: 3D, показатели, прогноз отказов', group: 'ops' },
+  { route: 'fleet', label: 'Оборудование', hint: 'Парк техники: добавить и вывести самосвалы и экскаваторы', group: 'ops' },
   { route: 'twins', label: 'Двойники', hint: 'Объекты рудника в Eclipse Ditto', group: 'ops' },
   { route: 'scenarios', label: 'Сценарии', hint: 'Запуск и отмена «что если»', group: 'analysis' },
   { route: 'effect', label: 'Эффект', hint: 'Реальная работа против теневого расчёта без системы, ₸', group: 'analysis' },

@@ -5,6 +5,7 @@
  */
 import { useState, type ReactNode } from 'react';
 import { PageHeader } from '../components/PageHeader';
+import type { Fleet } from '../platform/fleet';
 import { activeDeviations, DEFAULT_DUR, DUR_RANGE, type ActiveDeviation, type Command } from '../platform/scenarios';
 import { CONTROL_ID } from '../platform/twins';
 import { MATERIAL_SHORT, type Kpis, type Simulation } from '../sim';
@@ -18,7 +19,7 @@ const KINDS: { kind: Kind; icon: string; title: string; text: string; tone: stri
   { kind: 'breakdown', icon: '⚠', title: 'Поломка экскаватора', text: 'Экскаватор встаёт на ремонт. Кто перевезёт его самосвалы?', tone: '#ef4444' },
   { kind: 'close_road', icon: '⊘', title: 'Перекрытие съезда', text: 'Участок спирального съезда закрыт: маршруты идут в объезд.', tone: '#f97316' },
   { kind: 'blast', icon: '✸', title: 'Внеплановый взрыв', text: 'Предупреждение 15 мин, затем оцепление 30 мин вокруг забоя.', tone: '#f59e0b' },
-  { kind: 'reset', icon: '↺', title: 'Новая смена', text: 'Другой парк самосвалов и другой сценарий случайных событий.', tone: '#38bdf8' },
+  { kind: 'reset', icon: '↺', title: 'Новая смена', text: 'Та же техника, другой сценарий случайных поломок и закрытий дорог.', tone: '#38bdf8' },
 ];
 
 interface Props {
@@ -29,18 +30,17 @@ interface Props {
   running: boolean;
   onToggleRun: () => void;
   seed: number;
-  trucks: number;
+  fleet: Fleet;
   history: [number, string][];
   act: (c: Command) => void;
 }
 
-export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun, seed, trucks, history, act }: Props) {
+export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun, seed, fleet, history, act }: Props) {
   const ref = sims[sims.length - 1];
   const [kind, setKind] = useState<Kind>('breakdown');
   const [target, setTarget] = useState<Record<Kind, number>>({ breakdown: 0, close_road: 0, blast: 1, reset: 0 });
   const [dur, setDur] = useState<Record<'breakdown' | 'close_road', number>>({ ...DEFAULT_DUR });
   const [newSeed, setNewSeed] = useState(seed);
-  const [newTrucks, setNewTrucks] = useState(trucks);
   if (!ref) return null;
 
   const deviations = activeDeviations(ref);
@@ -48,7 +48,7 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
 
   const cmd: Command =
     kind === 'reset'
-      ? { value: 'reset', seed: newSeed, trucks: newTrucks }
+      ? { value: 'reset', seed: newSeed }
       : kind === 'blast'
         ? { value: 'blast', arg: target.blast }
         : { value: kind, arg: target[kind], dur: dur[kind] };
@@ -149,14 +149,19 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
             )}
             {kind === 'reset' && (
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[12px] text-ink-3">Самосвалов в смене</span>
-                  <div className="flex items-center gap-3">
-                    <input type="range" min={5} max={30} value={newTrucks} onChange={(e) => setNewTrucks(Number(e.target.value))} className="flex-1 accent-amber-500" />
-                    <span className="num w-8 text-[18px] font-bold">{newTrucks}</span>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[12px] text-ink-3">Парк техники</span>
+                  <div className="text-[18px] font-bold">
+                    {fleet.trucks} самосвалов · {fleet.excavators.length} экскаваторов
                   </div>
-                  <span className="text-[11.5px] text-ink-3">Мало самосвалов — умный диспетчер выигрывает больше всего; с запасом — узкое место в экскаваторах.</span>
-                </label>
+                  <span className="text-[11.5px] text-ink-3">
+                    Состав парка меняется в разделе{' '}
+                    <a href="#/fleet" className="font-semibold text-amber-300 hover:underline">
+                      «Оборудование»
+                    </a>
+                    . Здесь — новая смена с тем же парком и другим сценарием событий.
+                  </span>
+                </div>
                 <label className="flex flex-col gap-1.5">
                   <span className="text-[12px] text-ink-3">Сценарий случайных событий (seed)</span>
                   <div className="flex gap-2">
@@ -170,7 +175,7 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
                       ⚄
                     </button>
                   </div>
-                  <span className="text-[11.5px] text-ink-3">Сейчас: seed {seed}, {trucks} самосвалов.</span>
+                  <span className="text-[11.5px] text-ink-3">Сейчас: seed {seed}.</span>
                 </label>
               </div>
             )}
