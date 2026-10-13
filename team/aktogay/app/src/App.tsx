@@ -43,7 +43,8 @@ export default function App() {
   /** Парк техники в автономном режиме (на стенде — из статуса двойника управления). */
   const [fleet, setFleet] = useState<Fleet>(() => defaultFleet(20));
   const [speed, setSpeed] = useState<Speed>(20);
-  const [running, setRunning] = useState(false);
+  // Рудник работает непрерывно: смена стартует сама, по окончании начинается следующая.
+  const [running, setRunning] = useState(true);
   const [selection, setSelection] = useState<{ v: StrategyName; sel: Selection } | null>(null);
   /** Открытый «внутренний двойник» здания (мнемосхема). */
   const [building, setBuilding] = useState<{ v: StrategyName; kind: BuildingKind } | null>(null);
@@ -69,6 +70,8 @@ export default function App() {
   const [bridge, setBridge] = useState<PlatformBridge | null>(null);
   const bridgeRef = useRef<PlatformBridge | null>(null);
   const runningRef = useRef(running);
+  const restartAt = useRef(0);
+  const nextShift = useRef<() => void>(() => undefined);
   const speedRef = useRef(speed);
   const breakIdx = useRef(0);
   const closeIdx = useRef(0);
@@ -82,6 +85,7 @@ export default function App() {
     const config = fleetConfig(fleet);
     simsRef.current = strategies.map((s) => new Simulation({ seed, truckCount: fleet.trucks, strategy: s, config }));
     breakIdx.current = 0;
+    restartAt.current = 0;
     closeIdx.current = 0;
     setSelection(null);
     setEpoch((e) => e + 1);
@@ -153,7 +157,12 @@ export default function App() {
           const simSec = dt * BASE_RATE * sp;
           for (const s of sims) s.advance(simSec);
         }
-        if (sims.every((s) => s.finished)) setRunning(false);
+        if (sims.every((s) => s.finished) && !restartAt.current) restartAt.current = now + 8000;
+      }
+      // Новая смена через 8 с после окончания (успеваем показать итог смены).
+      if (!b && restartAt.current && now >= restartAt.current) {
+        restartAt.current = 0;
+        nextShift.current();
       }
       if (now - lastUi > 200) {
         lastUi = now;
@@ -244,13 +253,7 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === 'INPUT') return;
-      if (e.code === 'Space') {
-        e.preventDefault();
-        if (bridgeRef.current) {
-          const st = bridgeRef.current.status;
-          void bridgeRef.current.send(st?.value === 'running' ? 'pause' : 'resume');
-        } else setRunning((r) => !r);
-      } else if (e.code === 'KeyB') triggerBreakdown();
+      if (e.code === 'KeyB') triggerBreakdown();
       else if (e.code === 'KeyC') triggerClosure();
       else if (e.code === 'KeyE') triggerBlast();
       else if (e.code === 'KeyR') createSims();
@@ -278,14 +281,10 @@ export default function App() {
   const pStatus = bridge?.status ?? null;
   /** Парк, который работает сейчас: на стенде — из двойника управления. */
   const currentFleet = bridge ? bridge.fleet : fleet;
-  const isRunning = bridge ? pStatus?.value === 'running' : running;
-  const toggleRun = () => {
-    if (bridge) void bridge.send(isRunning ? 'pause' : 'resume');
-    else if (finished) {
-      createSims();
-      setRunning(true);
-    } else setRunning((r) => !r);
-  };
+  const isRunning = true;
+  /** Паузы нет: рудник работает непрерывно. Оставлено для совместимости разделов. */
+  const toggleRun = () => undefined;
+  nextShift.current = createSims;
   const chooseSpeed = (s: Speed) => {
     setSpeed(s);
     if (bridge) void bridge.send('speed', s === 'max' ? 2000 : BASE_RATE * s);
@@ -304,7 +303,7 @@ export default function App() {
       flash(`→ OpenEgiz: ${COMMAND_LABEL[value] ?? value}`);
       return;
     }
-    if (value === 'pause' || value === 'resume') return setRunning(value === 'resume');
+    if (value === 'pause' || value === 'resume') return; // паузы нет
     if (value === 'reset') {
       const ns = c.seed ?? seed;
       const nf = (c.fleet as Fleet | undefined) ?? fleet;
@@ -430,9 +429,6 @@ export default function App() {
             </span>
           )}
           <div className="ml-auto flex flex-wrap gap-1">
-            <button onClick={toggleRun} className={`${ebtn} ${isRunning ? 'bg-panel-2 text-amber-300' : 'bg-amber-500 text-black'}`}>
-              {isRunning ? '❚❚' : '▶'}
-            </button>
             <button onClick={triggerBreakdown} className={`${ebtn} bg-red-600/90 text-white`}>⚠ Поломка</button>
             <button onClick={triggerBlast} className={`${ebtn} bg-orange-600/90 text-white`}>✸ Взрыв</button>
             <button onClick={triggerClosure} className={`${ebtn} bg-panel-2 text-red-300`}>⊘ Съезд</button>
@@ -511,13 +507,9 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
 
       {/* Панель управления */}
       <div className="panel flex flex-wrap items-center gap-x-5 gap-y-2 px-3 py-2 text-[13px]">
-        <button
-          onClick={toggleRun}
-          className={`min-w-[112px] rounded-md px-3 py-1.5 font-bold ${isRunning ? 'bg-panel-2 text-amber-300 ring-1 ring-amber-500/50' : 'bg-amber-500 text-black hover:bg-amber-400'}`}
-          title="Пробел"
-        >
-          {isRunning ? '❚❚ Пауза' : finished && !bridge ? '↻ Заново' : '▶ Старт'}
-        </button>
+        <span className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-2 text-[12.5px] font-semibold text-emerald-300" title="Рудник работает непрерывно: смена за сменой">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />в работе
+        </span>
         <div className="flex items-center gap-1">
           <span className="mr-1 text-ink-3">Скорость</span>
           {SPEEDS.map((s) => (
@@ -589,7 +581,7 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
           )}
           <div className="panel h-[130px] shrink-0 overflow-hidden px-3 py-2 2xl:h-[168px]">
             <div className="mb-1 text-[12px] font-semibold uppercase tracking-wider text-ink-2">Журнал событий</div>
-            {log.length === 0 && <div className="text-[13px] text-ink-3">{isRunning ? 'Событий пока нет.' : 'Событий пока нет. Нажмите «▶ Старт».'}</div>}
+            {log.length === 0 && <div className="text-[13px] text-ink-3">Событий пока нет.</div>}
             {log.map((l, k) => (
               <div key={`${l.t}-${k}`} className="flex gap-2 py-0.5 text-[12.5px]">
                 <span className="num text-ink-3">{fmtClock(l.t)}</span>
@@ -603,14 +595,14 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
       <footer className="flex items-center justify-between text-[11px] text-ink-3">
         <span>Модель построена по открытым данным. Операционные данные смоделированы. Проект не связан с KAZ Minerals.</span>
         <span>
-          seed {seed} · {currentFleet.trucks} самосвалов, {currentFleet.excavators.length} экскаваторов · Пробел — пауза, B — поломка, E — взрыв, C — перекрыть съезд, R — сброс
+          seed {seed} · {currentFleet.trucks} самосвалов, {currentFleet.excavators.length} экскаваторов · рудник работает непрерывно · B — поломка, E — взрыв, C — перекрыть съезд, R — сброс
         </span>
       </footer>
 
 
       {finished && isEffect && effect && (
         <div className="fixed left-1/2 top-1/3 z-40 w-[560px] -translate-x-1/2 rounded-xl border border-amber-500/50 bg-popover/95 p-5 text-center shadow-2xl">
-          <div className="text-[13px] uppercase tracking-widest text-ink-3">Смена завершена · seed {seed}</div>
+          <div className="text-[13px] uppercase tracking-widest text-ink-3">Смена завершена · seed {seed} · следующая начнётся автоматически</div>
           <div className="mt-2 text-[20px] font-semibold">Реальная работа с системой против расчёта без неё</div>
           <div className="mt-3 grid grid-cols-3 gap-3">
             <Summary label="Добыча" value={fmtDelta(deltaPct(kpis[0].minedTotal, kpis[1].minedTotal))} good={kpis[1].minedTotal >= kpis[0].minedTotal} />

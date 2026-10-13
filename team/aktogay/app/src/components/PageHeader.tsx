@@ -1,20 +1,19 @@
 import type { ReactNode } from 'react';
 import { fmtClock } from '../ui/format';
 
-/** Шапка разделов «Двойники» и «Сценарии»: заголовок, время смены и пуск/пауза. */
+/** Шапка разделов: заголовок и время смены. Рудник работает непрерывно — паузы нет. */
 export function PageHeader({
   title,
   subtitle,
   now,
-  running,
-  onToggleRun,
   children,
 }: {
   title: string;
   subtitle: ReactNode;
   now: number;
-  running: boolean;
-  onToggleRun: () => void;
+  /** Устарело: рудник работает непрерывно. */
+  running?: boolean;
+  onToggleRun?: () => void;
   children?: ReactNode;
 }) {
   return (
@@ -33,12 +32,9 @@ export function PageHeader({
               <span className="text-[12px] text-ink-3"> / 12:00</span>
             </div>
           </div>
-          <button
-            onClick={onToggleRun}
-            className={`rounded-lg px-3 py-2 text-[13px] font-bold ${running ? 'bg-panel-2 text-amber-300 ring-1 ring-amber-500/40' : 'bg-amber-500 text-black hover:bg-amber-400'}`}
-          >
-            {running ? '❚❚ Пауза' : '▶ Пуск'}
-          </button>
+          <span className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-2 text-[12.5px] font-semibold text-emerald-300" title="Рудник работает непрерывно: смена за сменой">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />в работе
+          </span>
         </div>
       </div>
     </header>

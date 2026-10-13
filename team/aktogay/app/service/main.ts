@@ -143,7 +143,8 @@ async function applyCommand(c: Command): Promise<void> {
   if (text) lastScenario = text;
   switch (c.value) {
     case 'pause':
-      running = false;
+      // Рудник работает непрерывно — пауза не поддерживается (команда игнорируется).
+      running = true;
       break;
     case 'resume':
       running = true;
