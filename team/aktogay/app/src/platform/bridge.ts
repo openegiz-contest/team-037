@@ -19,6 +19,8 @@ export interface ControlStatus {
   finished: boolean;
   active_scenarios: string[];
   last_scenario: string;
+  /** Последние команды: [время модели, с; описание]. */
+  history?: [number, string][];
 }
 
 const BASE = 'ditto/api/2';
@@ -26,6 +28,12 @@ const NAMESPACES = [SITE_NS, ...VARIANTS.map(variantNs)].join(',');
 
 export class PlatformBridge {
   readonly things = new Map<string, Props>();
+  /** Атрибуты двойников (имя, тип, связи) — меняются только при создании. */
+  readonly attrs = new Map<string, Props>();
+  /** Когда приходило последнее изменение каждого двойника (performance.now()). */
+  readonly updatedAt = new Map<string, number>();
+  /** Счётчик полученных событий — для показателя «обновлений в секунду». */
+  events = 0;
   sims: Record<StrategyName, Simulation> | null = null;
   kpis: Record<StrategyName, Kpis | null> = { fixed: null, smart: null };
   status: ControlStatus | null = null;
@@ -59,14 +67,28 @@ export class PlatformBridge {
 
   private async snapshot(): Promise<void> {
     let cursor: string | null = null;
+    const seen = new Set<string>();
+    let complete = true;
     do {
       const opts: string = cursor ? `size(200),cursor(${cursor})` : 'size(200)';
-      const r = await fetch(`${BASE}/search/things?namespaces=${NAMESPACES}&option=${opts}&fields=thingId,features`);
-      if (!r.ok) break;
-      const body = (await r.json()) as { items: { thingId: string; features?: Props }[]; cursor?: string };
-      for (const it of body.items) this.things.set(it.thingId, it.features ?? {});
+      const r = await fetch(`${BASE}/search/things?namespaces=${NAMESPACES}&option=${opts}&fields=thingId,attributes,features`);
+      if (!r.ok) {
+        complete = false;
+        break;
+      }
+      const body = (await r.json()) as { items: { thingId: string; attributes?: Props; features?: Props }[]; cursor?: string };
+      for (const it of body.items) {
+        seen.add(it.thingId);
+        this.things.set(it.thingId, it.features ?? {});
+        this.attrs.set(it.thingId, it.attributes ?? {});
+      }
       cursor = body.cursor ?? null;
     } while (cursor);
+    // Двойники, удалённые после уменьшения парка, убираем из карты.
+    if (complete) {
+      for (const id of [...this.things.keys()]) if (!seen.has(id)) this.things.delete(id);
+      for (const id of [...this.attrs.keys()]) if (!seen.has(id)) this.attrs.delete(id);
+    }
     this.dirtySince = performance.now();
   }
 
@@ -85,11 +107,24 @@ export class PlatformBridge {
         if (!d.thingId || !d.features) return;
         const cur = this.things.get(d.thingId) ?? {};
         this.things.set(d.thingId, { ...cur, ...d.features });
+        this.updatedAt.set(d.thingId, performance.now());
+        this.events++;
+        if (!this.attrs.has(d.thingId)) this.scheduleSnapshot();
         if (!this.dirtySince) this.dirtySince = performance.now();
       } catch {
         /* пропускаем повреждённое событие */
       }
     };
+  }
+
+  private snapshotTimer = 0;
+  /** Перечитать всех двойников (появились новые или сменился состав парка). */
+  private scheduleSnapshot(): void {
+    if (this.snapshotTimer) return;
+    this.snapshotTimer = window.setTimeout(() => {
+      this.snapshotTimer = 0;
+      void this.snapshot();
+    }, 1500);
   }
 
   private readStatus(): ControlStatus | null {
@@ -113,6 +148,7 @@ export class PlatformBridge {
         smart: new Simulation({ seed, truckCount: trucks, strategy: 'smart' }),
       };
       this.onReset?.();
+      this.scheduleSnapshot();
     }
     for (const v of VARIANTS) this.kpis[v] = hydrate(this.sims[v], v, this.things);
     if (this.lastHydrate) this.interval = Math.min(3000, Math.max(300, 0.7 * this.interval + 0.3 * (now - this.lastHydrate)));

@@ -11,6 +11,7 @@
  */
 import mqtt from 'mqtt';
 import { computeKpis, Simulation, type StrategyName } from '../src/sim';
+import { activeScenarioLabels, applyScenario, type Command } from '../src/platform/scenarios';
 import { CONTROL_ID, SITE_NS, serializeAll, siteDefinitions, thingDefinitions, VARIANTS, type Features, type ThingBody } from '../src/platform/twins';
 
 const env = (k: string, d: string) => process.env[k] ?? d;
@@ -32,6 +33,8 @@ let sims: Record<StrategyName, Simulation> = makeSims();
 let running = true;
 let commandSeq = -1;
 let lastScenario = 'нет';
+/** Последние выполненные команды для раздела «Сценарии»: [время модели, с; описание]. */
+const history: [number, string][] = [];
 
 function makeSims(): Record<StrategyName, Simulation> {
   return {
@@ -101,11 +104,8 @@ function publishAll(): void {
 }
 
 function publishStatus(): void {
-  const active: string[] = [];
   const s = sims.smart;
-  s.excavators.forEach((ex) => ex.state === 'broken' && active.push(`поломка ${ex.name}`));
-  s.closures.forEach((c) => active.push(`закрыт: ${c.label}`));
-  s.blasts.filter((b) => b.phase === 'warning' || b.phase === 'active').forEach((b) => active.push(`взрыв #${b.id} у ${b.label.replace('Взрывные работы у ', '')} (${b.phase === 'active' ? 'оцепление' : 'объявлен'})`));
+  const active = activeScenarioLabels(s);
   // Статус пишем в признак status двойника управления (без перезаписи признака command).
   const msg = {
     topic: `${SITE_NS}/control/things/twin/commands/modify`,
@@ -120,6 +120,7 @@ function publishStatus(): void {
         finished: s.finished,
         active_scenarios: active,
         last_scenario: lastScenario,
+        history,
       },
     },
   };
@@ -128,50 +129,10 @@ function publishStatus(): void {
 
 // ───────────────────────────── сценарии «что если» ─────────────────────────────
 
-interface Command {
-  value: string;
-  arg?: number;
-  seq?: number;
-  seed?: number;
-  trucks?: number;
-}
-
 async function applyCommand(c: Command): Promise<void> {
-  const both = (fn: (s: Simulation) => unknown) => VARIANTS.map((v) => fn(sims[v]));
-  const a = Number(c.arg ?? 0);
+  const text = applyScenario(VARIANTS.map((v) => sims[v]), c);
+  if (text) lastScenario = text;
   switch (c.value) {
-    case 'breakdown': // поломка экскаватора a на 50 мин; отмена — 'repair'
-      both((s) => s.injectExcavatorBreakdown(a, 50 * 60));
-      lastScenario = `поломка экскаватора Э-${a + 1}`;
-      break;
-    case 'repair':
-      both((s) => s.repairExcavator(a));
-      lastScenario = `отмена поломки Э-${a + 1}`;
-      break;
-    case 'close_road': // закрыть участок съезда a на 40 мин; отмена — 'open_road'
-      both((s) => s.injectRoadClosure(a, 40 * 60));
-      lastScenario = `закрыт участок #${a}`;
-      break;
-    case 'open_road':
-      both((s) => s.openRoad(a));
-      lastScenario = `открыт участок #${a}`;
-      break;
-    case 'blast': // взрыв у экскаватора a через 15 мин; отмена — 'cancel_blast' (id из двойника blasting)
-      both((s) => s.scheduleBlast(a, s.cfg.blasting.warnMin * 60));
-      lastScenario = `объявлен взрыв у Э-${a + 1}`;
-      break;
-    case 'cancel_blast':
-      both((s) => s.cancelBlast(a));
-      lastScenario = `отменён взрыв #${a}`;
-      break;
-    case 'cancel_all': // отменить все активные сценарии
-      both((s) => {
-        s.excavators.forEach((ex) => s.repairExcavator(ex.id));
-        s.layout.closureGroups.forEach((_, g) => s.openRoad(g));
-        s.blasts.filter((b) => b.phase === 'warning' || b.phase === 'active').forEach((b) => s.cancelBlast(b.id));
-      });
-      lastScenario = 'все сценарии отменены';
-      break;
     case 'pause':
       running = false;
       break;
@@ -179,7 +140,7 @@ async function applyCommand(c: Command): Promise<void> {
       running = true;
       break;
     case 'speed':
-      speed = Math.max(1, Math.min(2000, a || 20));
+      speed = Math.max(1, Math.min(2000, Number(c.arg) || 20));
       break;
     case 'reset': {
       const prev = truckCount;
@@ -191,7 +152,11 @@ async function applyCommand(c: Command): Promise<void> {
       break;
     }
     default:
-      return;
+      if (!text) return;
+  }
+  if (text || c.value === 'reset') {
+    history.push([Math.round(sims.smart.now), lastScenario]);
+    if (history.length > 30) history.shift();
   }
   log(`команда: ${c.value} ${c.arg ?? ''} → ${lastScenario}`);
   publishAll();

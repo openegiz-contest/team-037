@@ -5,7 +5,11 @@ import { DiagnosticsPanel } from './components/DiagnosticsPanel';
 import { KpiPanel } from './components/KpiPanel';
 import { Mine3D } from './components/Mine3D';
 import { MineCanvas } from './components/MineCanvas';
+import { Sidebar, routeFromHash, ROUTE_HASH, type Route } from './components/Sidebar';
+import { TwinsPage } from './pages/TwinsPage';
+import { ScenariosPage } from './pages/ScenariosPage';
 import { PlatformBridge } from './platform/bridge';
+import { activeDeviations, applyScenario, type Command } from './platform/scenarios';
 import type { Selection } from './render/drawMine';
 import { computeEffect, computeKpis, deltaPct, MATERIAL_SHORT, Simulation, STRATEGY_LABEL, type StrategyName } from './sim';
 import { fmtClock, fmtDelta, fmtInt, fmtKzt } from './ui/format';
@@ -33,6 +37,19 @@ export default function App() {
   const [epoch, setEpoch] = useState(0);
   const [, setFrame] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
+  /** Раздел из адреса: #/ — карьер, #/twins/<thingId> — двойники, #/scenarios — сценарии. */
+  const [hash, setHash] = useState(() => window.location.hash);
+  const route: Route = routeFromHash(hash);
+  const twinId = hash.startsWith('#/twins/') ? decodeURIComponent(hash.slice('#/twins/'.length)) : null;
+  const [navCollapsed, setNavCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('aktogay.nav') === 'collapsed';
+    } catch {
+      return false;
+    }
+  });
+  /** История сценариев в автономном режиме (на стенде её ведёт симулятор в двойнике управления). */
+  const [localHistory, setLocalHistory] = useState<[number, string][]>([]);
 
   const simsRef = useRef<Simulation[]>([]);
   /** Подключение к OpenEgiz: если интерфейс открыт со Стенда, данные берутся из двойников Ditto. */
@@ -56,6 +73,22 @@ export default function App() {
   }, [mode, strategy, seed, trucks]);
 
   useEffect(createSims, [createSims]);
+
+  useEffect(() => {
+    const onHash = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  const toggleNav = () =>
+    setNavCollapsed((c) => {
+      try {
+        localStorage.setItem('aktogay.nav', c ? 'open' : 'collapsed');
+      } catch {
+        /* без сохранения */
+      }
+      return !c;
+    });
 
   useEffect(() => {
     let alive = true;
@@ -233,6 +266,42 @@ export default function App() {
       flash(`↺ Новая смена в OpenEgiz: seed ${seed}, ${trucks} самосвалов`);
     } else createSims();
   };
+  /** Выполнить команду «что если»: на стенде — через двойник управления, иначе — в локальной модели. */
+  const act = (c: Command) => {
+    const { value, arg, ...extra } = c;
+    if (bridge) {
+      void bridge.send(value, arg, extra as Record<string, number>);
+      flash(`→ OpenEgiz: ${COMMAND_LABEL[value] ?? value}`);
+      return;
+    }
+    if (value === 'pause' || value === 'resume') return setRunning(value === 'resume');
+    if (value === 'reset') {
+      const ns = c.seed ?? seed;
+      const nt = c.trucks ?? trucks;
+      if (ns === seed && nt === trucks) createSims();
+      setSeed(ns);
+      setTrucks(nt);
+      setLocalHistory([[0, `новая смена (seed ${ns}, ${nt} самосвалов)`]]);
+      flash(`↺ Новая смена: seed ${ns}, ${nt} самосвалов`);
+      return;
+    }
+    const text = applyScenario(simsRef.current, c);
+    if (!text) return;
+    setLocalHistory((h) => [...h.slice(-29), [Math.round(simsRef.current[0]?.now ?? 0), text]]);
+    flash(text);
+    if (!runningRef.current && value !== 'cancel_all') setRunning(true);
+  };
+
+  /** Перейти к объекту на карте из раздела «Двойники». */
+  const locate = (variant: StrategyName, sel: Selection) => {
+    const select = () => setSelection({ sim: variant === 'fixed' ? 0 : 1, sel });
+    if (mode !== 'compare') {
+      setMode('compare');
+      window.setTimeout(select, 60);
+    } else select();
+    window.location.hash = ROUTE_HASH.mine;
+  };
+
   // Эффект показываем после первого часа: раньше экстраполяция на смену слишком шумная.
   const effect = sims.length === 2 && sims[1].now >= 3600 ? computeEffect(kpis[0], kpis[1], sims[1]) : null;
   const main = sims[sims.length - 1];
@@ -312,12 +381,11 @@ export default function App() {
     );
   }
 
-  return (
+  const dashboard = (
     <div className="scanlines flex h-full flex-col gap-2 p-3">
       {/* Заголовок */}
       <header className="flex items-center gap-4">
         <div className="flex items-center gap-3">
-          <img src="./favicon.svg" alt="" className="h-9 w-9" />
           <div>
             <h1 className="text-[22px] font-bold leading-tight tracking-tight">Цифровой двойник карьера Актогай</h1>
             <div className="text-[12px] text-ink-3">Интеллектуальная диспетчеризация самосвалов · медь · Восточный Казахстан</div>
@@ -482,11 +550,6 @@ export default function App() {
         </span>
       </footer>
 
-      {toast && (
-        <div className="fixed left-1/2 top-24 z-40 -translate-x-1/2 rounded-lg border border-red-500/50 bg-[#1a0d0d]/95 px-4 py-2 text-[15px] font-semibold text-red-200 shadow-2xl">
-          {toast}
-        </div>
-      )}
 
       {finished && sims.length === 2 && effect && (
         <div className="fixed left-1/2 top-1/3 z-40 w-[560px] -translate-x-1/2 rounded-xl border border-amber-500/50 bg-[#0b0d10]/95 p-5 text-center shadow-2xl">
@@ -517,7 +580,75 @@ export default function App() {
       )}
     </div>
   );
+
+  const platformTwinCount = bridge ? bridge.attrs.size : 0;
+  const activeCount = activeDeviations(main).length;
+  const pageNow = main.now;
+  // Раздел «Сценарии» на стенде всегда сравнивает оба варианта.
+  const scSims = platformSims ? [platformSims.fixed, platformSims.smart] : sims;
+  return (
+    <div className="flex h-full">
+      <Sidebar
+        route={route}
+        collapsed={navCollapsed}
+        onToggle={toggleNav}
+        platform={!!bridge}
+        connected={!!bridge?.connected}
+        twinCount={bridge ? platformTwinCount : 0}
+        activeCount={activeCount}
+      />
+      <main className="h-full min-w-0 flex-1">
+        {route === 'mine' && dashboard}
+        {route === 'twins' && (
+          <TwinsPage
+            bridge={bridge}
+            localSims={simsRef.current}
+            version={bridge ? bridge.lastHydrate : Math.floor(main.now / 5)}
+            now={pageNow}
+            running={isRunning}
+            onToggleRun={toggleRun}
+            selectedId={twinId}
+            onSelect={(id) => (window.location.hash = `#/twins/${encodeURIComponent(id)}`)}
+            onLocate={locate}
+          />
+        )}
+        {route === 'scenarios' && (
+          <ScenariosPage
+            sims={scSims}
+            kpis={scSims.map((s) => bridge?.kpis[s.strategyName] ?? computeKpis(s))}
+            platform={!!bridge}
+            now={pageNow}
+            running={isRunning}
+            onToggleRun={toggleRun}
+            seed={pStatus?.seed ?? seed}
+            trucks={pStatus?.trucks ?? trucks}
+            history={bridge ? (pStatus?.history ?? []) : localHistory}
+            act={act}
+          />
+        )}
+      </main>
+      {toast && (
+        <div className="fixed left-1/2 top-6 z-40 -translate-x-1/2 rounded-lg border border-amber-500/50 bg-[#14110a]/95 px-4 py-2 text-[15px] font-semibold text-amber-100 shadow-2xl">
+          {toast}
+        </div>
+      )}
+    </div>
+  );
 }
+
+const COMMAND_LABEL: Record<string, string> = {
+  breakdown: 'поломка экскаватора',
+  repair: 'отмена поломки',
+  close_road: 'перекрытие съезда',
+  open_road: 'открытие съезда',
+  blast: 'внеплановый взрыв',
+  cancel_blast: 'отмена взрыва',
+  cancel_all: 'отмена всех сценариев',
+  pause: 'пауза',
+  resume: 'пуск',
+  speed: 'скорость',
+  reset: 'новая смена',
+};
 
 function Summary({ label, value, good }: { label: string; value: string; good: boolean }) {
   return (
