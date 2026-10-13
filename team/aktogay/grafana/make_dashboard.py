@@ -72,26 +72,35 @@ def series(title, query, x, y, unit="none", w=12, h=8, legend=True):
 
 
 add({
-    "type": "text", "title": "", "gridPos": {"x": 0, "y": 0, "w": 24, "h": 3}, "datasource": None,
+    "type": "text", "title": "", "gridPos": {"x": 0, "y": 0, "w": 24, "h": 2}, "datasource": None,
     "options": {"mode": "markdown", "content": (
         "### Цифровой двойник карьера Актогай — умная диспетчеризация против фиксированного закрепления\n"
-        "3D-карьер, сценарии «что если» и сравнение стратегий: **[http://localhost:8095](http://localhost:8095)**. "
+        "3D-сцена ниже читает двойников из Ditto; полный интерфейс с KPI и графиками: **[http://localhost:8095](http://localhost:8095)**. "
         "Двойники: приложение **OpenEgiz → Twins**, пространства имён `org.aktogay`, `org.aktogay.smart`, `org.aktogay.fixed`. "
         "Модель построена по открытым данным, операционные данные смоделированы."
     )},
 })
-stat("Добыто за смену, т", both("mine", "mined_total"), 0, 3, "none", 0)
-stat("Темп, т/ч", both("mine", "tph"), 4, 3, "none", 0)
-stat("Простой дробилки, мин", both("mine", "crusher_idle_min"), 8, 3, "none", 1)
-stat("Качество руды в норме, % времени", both("mine", "grade_in_band_pct"), 12, 3, "percent", 1)
-stat("Аварийные отказы самосвалов", both("mine", "unplanned_failures"), 16, 3, "none", 0)
-stat("Отказов предотвращено (ППР)", both("mine", "prevented_failures"), 20, 3, "none", 0)
-series("Темп добычи, т/ч", both("mine", "tph"), 0, 7, "none")
-series("Бункер дробилки, т (пусто = фабрика стоит)", both("crusher", "bin"), 12, 7, "none")
-series("Содержание меди в питании фабрики, % Cu (цель 0,35 ± 0,03)", both("plant", "feed_grade"), 0, 15, "none")
-series("Средняя очередь у экскаватора, мин", both("mine", "avg_queue_min"), 12, 15, "m")
-series("Риск отказа самосвалов (умная стратегия), %", per_thing("truck-", "failure_risk"), 0, 23, "percent", 12, 8, False)
-series("Очередь у экскаваторов (умная стратегия), самосвалов", per_thing("excavator-", "queue"), 12, 23, "none")
+stat("Добыто за смену, т", both("mine", "mined_total"), 0, 2, "none", 0)
+stat("Темп, т/ч", both("mine", "tph"), 4, 2, "none", 0)
+stat("Простой дробилки, мин", both("mine", "crusher_idle_min"), 8, 2, "none", 1)
+stat("Качество руды в норме, % времени", both("mine", "grade_in_band_pct"), 12, 2, "percent", 1)
+stat("Аварийные отказы самосвалов", both("mine", "unplanned_failures"), 16, 2, "none", 0)
+stat("Отказов предотвращено (ППР)", both("mine", "prevented_failures"), 20, 2, "none", 0)
+# 3D-сцена рудника: интерфейс aktogay-ui в компактном режиме (?embed=1); данные — из Ditto.
+add({
+    "type": "text", "title": "3D-карьер: умная диспетчеризация (справа) против фиксированного закрепления (слева)",
+    "gridPos": {"x": 0, "y": 6, "w": 24, "h": 18}, "datasource": None, "transparent": False,
+    "options": {"mode": "html", "content": (
+        '<iframe src="http://localhost:8095/?embed=1" title="3D-карьер Актогай" '
+        'style="width:100%;height:100%;min-height:420px;border:0;border-radius:6px;background:#0a1526" allow="fullscreen"></iframe>'
+    )},
+})
+series("Темп добычи, т/ч", both("mine", "tph"), 0, 24, "none")
+series("Бункер дробилки, т (пусто = фабрика стоит)", both("crusher", "bin"), 12, 24, "none")
+series("Содержание меди в питании фабрики, % Cu (цель 0,35 ± 0,03)", both("plant", "feed_grade"), 0, 32, "none")
+series("Средняя очередь у экскаватора, мин", both("mine", "avg_queue_min"), 12, 32, "m")
+series("Риск отказа самосвалов (умная стратегия), %", per_thing("truck-", "failure_risk"), 0, 40, "percent", 12, 8, False)
+series("Очередь у экскаваторов (умная стратегия), самосвалов", per_thing("excavator-", "queue"), 12, 40, "none")
 
 dash = {
     "uid": "aktogay-digital-mine",

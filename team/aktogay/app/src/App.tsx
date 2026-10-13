@@ -20,6 +20,8 @@ const BASE_RATE = 10;
 const SPEEDS: Speed[] = [1, 5, 20, 50, 'max'];
 
 export default function App() {
+  /** ?embed=1 — компактный вид для панели Grafana. */
+  const embed = useMemo(() => new URLSearchParams(window.location.search).get('embed') === '1', []);
   const [mode, setMode] = useState<Mode>('compare');
   const [view, setView] = useState<View>('3d');
   const [strategy, setStrategy] = useState<StrategyName>('smart');
@@ -240,6 +242,76 @@ export default function App() {
 
   if (!main) return null;
 
+  /** Сетка карт (3D/2D) — общая для полного интерфейса и для встраивания в Grafana. */
+  const mapsGrid = (
+          <div className={`grid min-h-0 flex-1 ${embed ? 'gap-1.5' : 'gap-3'} ${sims.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {sims.map((s, i) => (
+              <div key={`${epoch}-${i}-${view}`} className="panel relative min-h-0 overflow-hidden" style={{ borderColor: `${STRATEGY_COLOR[s.strategyName]}66` }}>
+                {(() => {
+                  const overlay = (
+                    <>
+                  <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2">
+                    <span className="rounded-md px-2.5 py-1 text-[13px] font-bold uppercase tracking-wider text-white" style={{ background: STRATEGY_COLOR[s.strategyName] }}>
+                      {s.strategyName === 'smart' ? 'Умная диспетчеризация' : 'Фиксированное закрепление'}
+                    </span>
+                    <span className="num rounded-md bg-black/60 px-2 py-1 text-[13px] text-ink">
+                      {fmtInt(kpis[i].minedTotal)} т · {fmtInt(kpis[i].tph)} т/ч
+                    </span>
+                  </div>
+                  {i === sims.length - 1 && <Legend />}
+                  {selection?.sim === i && <InfoCard sim={s} selection={selection.sel} onClose={() => setSelection(null)} />}
+                    </>
+                  );
+                  const props = {
+                    sim: s,
+                    selection: selection?.sim === i ? selection.sel : null,
+                    onSelect: (sel: Selection) => setSelection(sel ? { sim: i, sel } : null),
+                  };
+                  return view === '3d' ? <Mine3D {...props}>{overlay}</Mine3D> : <MineCanvas {...props}>{overlay}</MineCanvas>;
+                })()}
+              </div>
+            ))}
+          </div>
+  );
+
+  // Компактный режим для панели Grafana: только карьер, время и кнопки сценариев «что если».
+  if (embed) {
+    const ebtn = 'rounded px-2 py-1 font-semibold';
+    return (
+      <div className="flex h-full flex-col gap-1.5 p-1.5 text-[12px]">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="num text-[15px] font-bold text-amber-400">{fmtClock(main.now)}</span>
+          <span className={`rounded px-1.5 py-0.5 font-semibold ${bridge?.connected ? 'bg-emerald-500/15 text-emerald-300' : 'bg-panel-2 text-ink-3'}`}>
+            {bridge ? '● OpenEgiz · Ditto' : '○ автономный режим'}
+          </span>
+          {pStatus && pStatus.active_scenarios.length > 0 && (
+            <span className="truncate text-red-300" title={pStatus.active_scenarios.join('\n')}>
+              Активно: {pStatus.active_scenarios.join(' · ')}
+            </span>
+          )}
+          <div className="ml-auto flex flex-wrap gap-1">
+            <button onClick={toggleRun} className={`${ebtn} ${isRunning ? 'bg-panel-2 text-amber-300' : 'bg-amber-500 text-black'}`}>
+              {isRunning ? '❚❚' : '▶'}
+            </button>
+            <button onClick={triggerBreakdown} className={`${ebtn} bg-red-600/90 text-white`}>⚠ Поломка</button>
+            <button onClick={triggerBlast} className={`${ebtn} bg-orange-600/90 text-white`}>💥 Взрыв</button>
+            <button onClick={triggerClosure} className={`${ebtn} bg-panel-2 text-red-300`}>⛔ Съезд</button>
+            {bridge && (
+              <button onClick={() => void bridge.send('cancel_all')} className={`${ebtn} bg-panel-2 text-emerald-300`}>
+                ↶ Отменить
+              </button>
+            )}
+            <a href="./" target="_blank" rel="noreferrer" className={`${ebtn} bg-panel-2 text-ink-2`} title="Открыть полный интерфейс с KPI и графиками">
+              ⤢ Полный экран
+            </a>
+          </div>
+        </div>
+        {mapsGrid}
+        {toast && <div className="fixed left-1/2 top-10 z-40 -translate-x-1/2 rounded-md bg-black/80 px-3 py-1.5 font-semibold text-red-200">{toast}</div>}
+      </div>
+    );
+  }
+
   return (
     <div className="scanlines flex h-full flex-col gap-2 p-3">
       {/* Заголовок */}
@@ -377,34 +449,7 @@ export default function App() {
       {/* Основная область */}
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_370px] gap-3 2xl:grid-cols-[minmax(0,1fr)_440px]">
         <div className="flex min-h-0 flex-col gap-3">
-          <div className={`grid min-h-0 flex-1 gap-3 ${sims.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {sims.map((s, i) => (
-              <div key={`${epoch}-${i}-${view}`} className="panel relative min-h-0 overflow-hidden" style={{ borderColor: `${STRATEGY_COLOR[s.strategyName]}66` }}>
-                {(() => {
-                  const overlay = (
-                    <>
-                  <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2">
-                    <span className="rounded-md px-2.5 py-1 text-[13px] font-bold uppercase tracking-wider text-white" style={{ background: STRATEGY_COLOR[s.strategyName] }}>
-                      {s.strategyName === 'smart' ? 'Умная диспетчеризация' : 'Фиксированное закрепление'}
-                    </span>
-                    <span className="num rounded-md bg-black/60 px-2 py-1 text-[13px] text-ink">
-                      {fmtInt(kpis[i].minedTotal)} т · {fmtInt(kpis[i].tph)} т/ч
-                    </span>
-                  </div>
-                  {i === sims.length - 1 && <Legend />}
-                  {selection?.sim === i && <InfoCard sim={s} selection={selection.sel} onClose={() => setSelection(null)} />}
-                    </>
-                  );
-                  const props = {
-                    sim: s,
-                    selection: selection?.sim === i ? selection.sel : null,
-                    onSelect: (sel: Selection) => setSelection(sel ? { sim: i, sel } : null),
-                  };
-                  return view === '3d' ? <Mine3D {...props}>{overlay}</Mine3D> : <MineCanvas {...props}>{overlay}</MineCanvas>;
-                })()}
-              </div>
-            ))}
-          </div>
+          {mapsGrid}
           <div className="h-[190px] shrink-0 2xl:h-[250px]">
             <Charts sims={sims} />
           </div>
