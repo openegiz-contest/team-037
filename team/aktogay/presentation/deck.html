@@ -144,7 +144,7 @@
 <div class="tree"><b>org.aktogay:aktogay</b>              <i>площадка, Восточный Казахстан</i>
 ├─ <b>org.aktogay:control</b>           <i>команды «что если» и статус</i>
 ├─ <b>org.aktogay.smart:mine</b>        <i>реальный карьер: KPI, журнал</i>
-│  ├─ excavator-1 … excavator-5   <i>2 сульфид, 1 оксид, 2 вскрыша</i>
+│  ├─ excavator-1 … excavator-5   <i>6 датчиков; 2 сульфид, 1 оксид, 2 вскр.</i>
 │  ├─ truck-101 … truck-120       <i>220 т, 7 датчиков, 32 признака</i>
 │  ├─ crusher → plant             <i>бункер 1000 т → ОФ 50 т/мин</i>
 │  ├─ heap-leach, waste-dump      <i>оксид, вскрыша</i>
@@ -152,6 +152,11 @@
 │  ├─ roads                       <i>граф дорог, закрытия</i>
 │  └─ blasting                    <i>график взрывов</i>
 └─ <b>org.aktogay.fixed:mine</b>        <i>теневой расчёт, те же объекты</i></div>
+      <div style="margin-top:26px; padding-top:22px; border-top:1px solid var(--line);">
+        <div style="font: 600 17px/1 'JetBrains Mono', monospace; letter-spacing:.12em; text-transform:uppercase; color: var(--amber);">attributes.sensors — паспорт датчиков</div>
+        <p style="margin-top:14px; font-size:20px; line-height:1.5; color:var(--ink2);"><b style="color:var(--ink)">Самосвал, 7:</b> GNSS ГЛОНАСС/GPS (RTK), бортовое взвешивание, уровень топлива, температура ОЖ через ЭБУ (CAN J1939), вибродатчик рамы (MEMS), давление шин TPMS, бортовой контроллер.</p>
+        <p style="margin-top:10px; font-size:20px; line-height:1.5; color:var(--ink2);"><b style="color:var(--ink)">Экскаватор, 6:</b> взвешивание ковша, XRF-анализатор руды в ковше, позиционирование ковша (GNSS + инклинометры), обнаружение самосвалов у забоя, диагностика привода, ЭБУ.</p>
+      </div>
     </div>
     <div class="grid" style="gap:22px;">
       <div class="card">
@@ -160,7 +165,7 @@
       </div>
       <div class="card">
         <h3>Паспорт и живое состояние</h3>
-        <p><b>attributes</b>: материал, производительность, грузоподъёмность, паспорт датчиков (GNSS, взвешивание, топливо, температура ОЖ, вибрация рамы, TPMS, ЭБУ). <b>features</b> <code>{value, unit}</code>: положение на графе дорог, груз, Cu %, топливо, моточасы, температура двигателя, вибрация, давление шин, риск отказа, очередь, бункер…</p>
+        <p><b>attributes</b>: материал, производительность, грузоподъёмность, ёмкость бункера, паспорт датчиков. <b>features</b> <code>{value, unit}</code>: положение на графе дорог, груз, Cu %, топливо, температура двигателя, вибрация, давление шин, риск отказа, очередь, бункер…</p>
       </div>
       <div class="card">
         <h3>Где в коде</h3>

@@ -1,7 +1,8 @@
 import { FAILURE_LABEL, gradeAt, MATERIAL_LABEL, TRUCK_STATE_LABEL, type Simulation, type Truck } from '../sim';
 import type { Selection } from '../render/drawMine';
 import { fmt1, fmtClock, fmtInt } from '../ui/format';
-import { TRUCK_SENSORS } from '../platform/sensors';
+import { EXCAVATOR_SENSORS, TRUCK_SENSORS, type SensorSpec } from '../platform/sensors';
+import type { Excavator } from '../sim';
 import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
 
 function Row({ k, v }: { k: string; v: React.ReactNode }) {
@@ -86,9 +87,8 @@ function SensorBlock({ sim, t }: { sim: Simulation; t: Truck }) {
   );
 }
 
-/** Какое оборудование стоит на самосвале и что оно сейчас показывает. */
-function SensorList({ t }: { t: Truck }) {
-  const now: Record<string, string> = {
+function truckSensorValues(t: Truck): Record<string, string> {
+  return {
     gnss: `${Math.round(t.x)}, ${Math.round(t.y)} м`,
     payload: `${fmtInt(t.loadT)} т`,
     fuel: `${fmtInt(t.fuelL)} л`,
@@ -97,13 +97,29 @@ function SensorList({ t }: { t: Truck }) {
     tpms: `${t.sensors.tyreBar.toFixed(2)} бар`,
     ecu: `${fmt1(t.engineH)} мч`,
   };
+}
+
+function excavatorSensorValues(sim: Simulation, e: Excavator): Record<string, string> {
+  const STATE: Record<string, string> = { working: 'копает', waiting: 'ждёт', broken: 'стоит', blast: 'стоит' };
+  return {
+    bucket_weigh: `${fmtInt(e.tonnes)} т`,
+    ore_xrf: e.gradeBase > 0 ? `${gradeAt(e, sim.now).toFixed(2)}% Cu` : 'вскрыша',
+    bucket_pos: e.gradeBase > 0 ? 'руда' : 'вскрыша',
+    truck_detect: `${e.loading !== null ? 'грузит, ' : ''}очередь ${e.queue.length}`,
+    diag: e.state === 'broken' ? 'неисправность' : 'норма',
+    ecu: STATE[e.state] ?? e.state,
+  };
+}
+
+/** Какое оборудование стоит на машине и что оно сейчас показывает. */
+function SensorList({ specs, now }: { specs: SensorSpec[]; now: Record<string, string> }) {
   return (
     <details className="mt-2 border-t border-line pt-2" open>
       <summary className="cursor-pointer select-none text-[11px] font-semibold uppercase tracking-wider text-cyan-300">
-        Установленные датчики · {TRUCK_SENSORS.length}
+        Установленные датчики · {specs.length}
       </summary>
       <div className="mt-1.5 flex flex-col gap-1.5">
-        {TRUCK_SENSORS.map((s) => (
+        {specs.map((s) => (
           <div key={s.id} className="rounded-md bg-panel-2/70 px-2 py-1.5" title={`${s.hardware}
 Где: ${s.location}
 Зачем: ${s.purpose}`}>
@@ -184,7 +200,7 @@ export function InfoCard({ sim, selection, onClose }: { sim: Simulation; selecti
         {t.state === 'broken' && <Row k="Ремонт ещё" v={`${Math.ceil(t.timer / 60)} мин`} />}
         {t.state === 'service' && <Row k="ППР ещё" v={`${Math.ceil(t.timer / 60)} мин`} />}
         <SensorBlock sim={sim} t={t} />
-        <SensorList t={t} />
+        <SensorList specs={TRUCK_SENSORS} now={truckSensorValues(t)} />
       </>
     );
   } else {
@@ -206,6 +222,7 @@ export function InfoCard({ sim, selection, onClose }: { sim: Simulation; selecti
         <Row k="Простой (нет самосвалов)" v={`${fmt1(e.idleSec / 3600)} ч`} />
         <Row k="В ремонте" v={`${fmt1(e.brokenSec / 3600)} ч`} />
         {e.state === 'broken' && <Row k="Ремонт ещё" v={`${Math.ceil(e.brokenLeft / 60)} мин`} />}
+        <SensorList specs={EXCAVATOR_SENSORS} now={excavatorSensorValues(sim, e)} />
       </>
     );
   }

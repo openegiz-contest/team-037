@@ -1,9 +1,9 @@
 /**
- * Паспорт датчиков самосвала: какое оборудование стоит на машине, что оно измеряет и какие
- * признаки (features) двойника заполняет. Записывается в attributes.sensors каждого двойника
- * самосвала и показывается в интерфейсе (карточка самосвала, раздел «Двойники»).
+ * Паспорт датчиков самосвалов и экскаваторов: какое оборудование стоит на машине, что оно измеряет и какие
+ * признаки (features) двойника заполняет. Записывается в attributes.sensors двойников
+ * техники и показывается в интерфейсе (карточка самосвала, раздел «Двойники»).
  *
- * Типы оборудования — типовые для карьерных самосвалов 220 т; в модели показания синтетические.
+ * Типы оборудования — типовые для карьерной техники; в модели показания синтетические.
  */
 export interface SensorSpec {
   id: string;
@@ -96,6 +96,77 @@ export const TRUCK_SENSORS: SensorSpec[] = [
   },
 ];
 
+export const EXCAVATOR_SENSORS: SensorSpec[] = [
+  {
+    id: 'bucket_weigh',
+    name: 'Система взвешивания ковша',
+    hardware: 'датчики давления в гидроцилиндрах стрелы + контроллер',
+    location: 'стрела и рукоять',
+    measures: 'масса каждого ковша, т',
+    features: ['tonnes_total', 'loads_total', 'load_left'],
+    periodS: 1,
+    purpose: 'учёт отгрузки по ковшам, точная загрузка самосвала без перегруза',
+  },
+  {
+    id: 'ore_xrf',
+    name: 'Анализатор руды в ковше (XRF)',
+    hardware: 'рентгенофлуоресцентный датчик на ковше',
+    location: 'ковш',
+    measures: 'содержание меди в черпаемой руде, % Cu',
+    features: ['face_grade'],
+    periodS: 30,
+    purpose: 'качество руды в забое → шихтовка питания фабрики',
+  },
+  {
+    id: 'bucket_pos',
+    name: 'Система позиционирования ковша',
+    hardware: 'GNSS с RTK-поправками + инклинометры стрелы и рукояти',
+    location: 'кабина, стрела, рукоять',
+    measures: 'положение ковша в забое, см',
+    features: ['face_grade'],
+    periodS: 1,
+    purpose: 'привязка ковша к блочной модели: руда или вскрыша, какой блок отрабатывается',
+  },
+  {
+    id: 'truck_detect',
+    name: 'Обнаружение самосвалов у забоя',
+    hardware: 'радар ближней зоны + обмен с бортовыми терминалами самосвалов',
+    location: 'платформа экскаватора',
+    measures: 'кто грузится и кто ждёт в очереди',
+    features: ['queue', 'queue_ids', 'loading', 'queue_avg'],
+    periodS: 1,
+    purpose: 'очередь у забоя в реальном времени — главный вход для диспетчера',
+  },
+  {
+    id: 'diag',
+    name: 'Диагностика привода',
+    hardware: 'датчики температуры масла и вибрации редукторов поворота и хода',
+    location: 'гидросистема и редукторы',
+    measures: 'температура, вибрация, коды неисправностей',
+    features: ['broken', 'repair_left'],
+    periodS: 10,
+    purpose: 'раннее обнаружение неисправности и учёт времени ремонта',
+  },
+  {
+    id: 'ecu',
+    name: 'Бортовой контроллер / ЭБУ',
+    hardware: 'телематический терминал, шина CAN (SAE J1939)',
+    location: 'кабина',
+    measures: 'режим работы: копает, ждёт, стоит',
+    features: ['state', 'busy', 'idle'],
+    periodS: 1,
+    purpose: 'загрузка экскаватора и простои для диспетчера',
+  },
+];
+
+/** Паспорт датчиков по типу двойника (attributes.kind). */
+export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
+  'haul-truck': TRUCK_SENSORS,
+  excavator: EXCAVATOR_SENSORS,
+};
+
 /** Компактная запись для attributes.sensors двойника в Ditto. */
-export const truckSensorAttributes = () =>
-  TRUCK_SENSORS.map((s) => ({ id: s.id, name: s.name, hardware: s.hardware, location: s.location, features: s.features, period_s: s.periodS }));
+export const sensorAttributes = (list: SensorSpec[]) =>
+  list.map((s) => ({ id: s.id, name: s.name, hardware: s.hardware, location: s.location, features: s.features, period_s: s.periodS }));
+export const truckSensorAttributes = () => sensorAttributes(TRUCK_SENSORS);
+export const excavatorSensorAttributes = () => sensorAttributes(EXCAVATOR_SENSORS);

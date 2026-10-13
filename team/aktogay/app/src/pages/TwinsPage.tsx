@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader, Sparkline } from '../components/PageHeader';
 import type { PlatformBridge } from '../platform/bridge';
-import { TRUCK_SENSORS } from '../platform/sensors';
+import { SENSORS_BY_KIND } from '../platform/sensors';
 import { serializeMine, siteDefinitions, SITE_ID, thingDefinitions, thingIds, variantNs } from '../platform/twins';
 import type { Selection } from '../render/drawMine';
 import { computeKpis, type Simulation, type StrategyName } from '../sim';
@@ -290,7 +290,8 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
   const selVariant = variantOf(sel.id);
 
   const fq = fFilter.trim().toLowerCase();
-  const sensorKeys = sensorId && selKind === 'haul-truck' ? new Set(TRUCK_SENSORS.find((x) => x.id === sensorId)?.features ?? []) : null;
+  const sensors = SENSORS_BY_KIND[selKind] ?? null;
+  const sensorKeys = sensorId && sensors ? new Set(sensors.find((x) => x.id === sensorId)?.features ?? []) : null;
   const shownRows = selRows.filter((r) => (sensorKeys ? sensorKeys.has(r.key) : !fq || r.key.toLowerCase().includes(fq) || labelOf(r.key).toLowerCase().includes(fq)));
 
   const treeRow = (t: TwinRecord, indent = 0) => {
@@ -474,21 +475,27 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
           </div>
 
           {/* Датчики самосвала: какое оборудование заполняет признаки двойника */}
-          {selKind === 'haul-truck' && (
+          {sensors && (
             <div className="panel">
               <div className="flex items-center gap-3 border-b border-line px-4 py-2.5">
                 <div className="text-[13px] font-semibold">
-                  Датчики на самосвале <span className="font-normal text-ink-3">· {TRUCK_SENSORS.length} · attributes.sensors</span>
+                  Датчики {selKind === 'excavator' ? 'на экскаваторе' : 'на самосвале'} <span className="font-normal text-ink-3">· {sensors.length} · attributes.sensors</span>
                 </div>
                 <span className="ml-auto text-[11.5px] text-ink-3">клик — показать признаки датчика в таблице ниже</span>
               </div>
               <div className="grid grid-cols-1 gap-2 p-3 md:grid-cols-2 2xl:grid-cols-4">
-                {TRUCK_SENSORS.map((s) => {
+                {sensors.map((s) => {
                   const main = selMap.get(s.features[0]);
                   const fv =
                     s.id === 'gnss'
                       ? { text: `${Math.round(Number(selMap.get('x')?.value ?? 0))}; ${Math.round(Number(selMap.get('y')?.value ?? 0))}`, unit: 'м' }
-                      : fmtValue(main);
+                      : s.id === 'diag'
+                        ? Number(selMap.get('repair_left')?.value ?? 0) > 0
+                          ? { text: `ремонт ${Math.ceil(Number(selMap.get('repair_left')?.value) / 60)}`, unit: 'мин' }
+                          : { text: 'норма', unit: '' }
+                        : s.id === 'bucket_pos'
+                        ? { text: sel.attrs.material === 'waste' ? 'вскрыша' : 'руда', unit: '' }
+                        : fmtValue(main);
                   const h = hist.current.get(`${sel.id}|${s.features[0]}`);
                   const active = sensorId === s.id;
                   return (
@@ -529,7 +536,7 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
                 </div>
                 {sensorKeys && (
                   <button onClick={() => setSensorId(null)} className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[12px] text-amber-200 hover:bg-amber-500/25">
-                    датчик: {TRUCK_SENSORS.find((x) => x.id === sensorId)?.name} ✕
+                    датчик: {sensors?.find((x) => x.id === sensorId)?.name} ✕
                   </button>
                 )}
                 <input

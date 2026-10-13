@@ -14,7 +14,7 @@ import type { Kpis } from '../sim/kpi';
 import type { Simulation } from '../sim/engine';
 import { MATERIALS, TRUCK_STATES, type Blast, type Destination, type FailureType, type Material, type StrategyName, type TruckState } from '../sim/types';
 import { gradeAt } from '../sim/ore';
-import { truckSensorAttributes } from './sensors';
+import { excavatorSensorAttributes, truckSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -80,7 +80,7 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
   sim.excavators.forEach((ex, i) => {
     out[id.excavator(i)] = {
       policyId: POLICY,
-      attributes: { name: `Экскаватор ${ex.name}`, kind: 'excavator', _isType: false, _parents: parent, material: ex.material, rate_tpm: ex.rateTpm, feeds: ex.material === 'sulfide' ? id.crusher : ex.material === 'oxide' ? id.leach : id.waste },
+      attributes: { name: `Экскаватор ${ex.name}`, kind: 'excavator', _isType: false, _parents: parent, material: ex.material, rate_tpm: ex.rateTpm, sensors: excavatorSensorAttributes(), feeds: ex.material === 'sulfide' ? id.crusher : ex.material === 'oxide' ? id.leach : id.waste },
       features: serializeExcavator(sim, i),
     };
   });
