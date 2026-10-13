@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Цифровой двойник карьера Актогай — OpenEgiz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap&subset=cyrillic" rel="stylesheet">
+<style>
+  @page { size: 1920px 1080px; margin: 0; }
+  :root {
+    --bg: #0d1013; --panel: #14181d; --panel2: #1b2027; --line: #2a313a;
+    --ink: #e8eaed; --ink2: #a9b0ba; --ink3: #6f7782;
+    --amber: #f59e0b; --amber2: #fbbf24; --smart: #d95926; --fixed: #3987e5;
+    --good: #22c55e; --bad: #ef4444; --teal: #2bb39a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: Inter, 'DejaVu Sans', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .mono { font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace; }
+  .slide { width: 1920px; height: 1080px; position: relative; overflow: hidden; padding: 84px 110px 90px; page-break-after: always; display: flex; flex-direction: column;
+    background: radial-gradient(1200px 600px at 100% 0%, rgba(245,158,11,.07), transparent 60%), var(--bg); }
+  .slide:last-child { page-break-after: auto; }
+  .kicker { font: 600 22px/1 'JetBrains Mono', monospace; letter-spacing: .16em; text-transform: uppercase; color: var(--amber); display: flex; align-items: center; gap: 16px; }
+  .kicker .crit { color: var(--ink3); letter-spacing: .08em; }
+  h1 { font-size: 64px; line-height: 1.08; margin: 22px 0 0; font-weight: 800; letter-spacing: -.02em; }
+  h2 { font-size: 54px; line-height: 1.1; margin: 20px 0 0; font-weight: 800; letter-spacing: -.015em; }
+  .lead { font-size: 27px; line-height: 1.45; color: var(--ink2); margin-top: 18px; max-width: 1500px; }
+  .body { flex: 1; min-height: 0; margin-top: 44px; }
+  .foot { position: absolute; left: 110px; right: 110px; bottom: 36px; display: flex; justify-content: space-between; font-size: 17px; color: var(--ink3); }
+  .foot b { color: var(--ink2); font-weight: 600; }
+  .grid { display: grid; gap: 28px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 30px 32px; }
+  .card h3 { margin: 0 0 12px; font-size: 28px; font-weight: 700; }
+  .card p, .card li { font-size: 22px; line-height: 1.5; color: var(--ink2); margin: 0; }
+  .card ul { margin: 0; padding-left: 26px; }
+  .card li + li { margin-top: 8px; }
+  .big { font: 800 64px/1 'JetBrains Mono', monospace; color: var(--amber2); letter-spacing: -.02em; }
+  .bigsub { font-size: 21px; color: var(--ink3); margin-top: 10px; line-height: 1.4; }
+  .shot { border-radius: 16px; border: 1px solid var(--line); box-shadow: 0 30px 80px rgba(0,0,0,.5); width: 100%; display: block; }
+  .tag { display: inline-block; font: 600 17px/1 'JetBrains Mono', monospace; padding: 8px 12px; border-radius: 8px; background: var(--panel2); color: var(--ink2); }
+  .accent { color: var(--amber2); }
+  .good { color: var(--good); } .bad { color: var(--bad); }
+  table { border-collapse: collapse; width: 100%; font-size: 23px; }
+  th { text-align: left; font: 600 16px/1 'JetBrains Mono', monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); padding: 0 16px 16px; border-bottom: 1px solid var(--line); }
+  td { padding: 14px 16px; border-bottom: 1px solid rgba(42,49,58,.6); color: var(--ink2); }
+  td.n { text-align: right; font-family: 'JetBrains Mono', monospace; color: var(--ink); }
+  th.n { text-align: right; white-space: nowrap; }
+  .pill { white-space: nowrap; display: inline-block; padding: 6px 12px; border-radius: 999px; font: 700 19px/1 'JetBrains Mono', monospace; }
+  .pill.g { background: rgba(34,197,94,.14); color: var(--good); }
+  .tree { font: 400 20px/1.62 'JetBrains Mono', monospace; color: var(--ink2); white-space: pre; }
+  .tree b { color: var(--ink); font-weight: 600; }
+  .tree i { color: var(--ink3); font-style: normal; }
+  .flow { display: flex; align-items: center; gap: 18px; }
+  .node { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; min-width: 210px; }
+  .node .t { font-size: 24px; font-weight: 700; }
+  .node .s { font-size: 18px; color: var(--ink3); margin-top: 6px; line-height: 1.35; }
+  .node.hl { border-color: rgba(245,158,11,.6); background: linear-gradient(180deg, rgba(245,158,11,.09), var(--panel)); }
+  .arrow { color: var(--amber); font-size: 34px; }
+  .num-badge { width: 46px; height: 46px; border-radius: 50%; background: var(--amber); color: #000; font: 800 22px/46px 'JetBrains Mono', monospace; text-align: center; flex: none; }
+  .row { display: flex; gap: 20px; align-items: flex-start; }
+  code { font-family: 'JetBrains Mono', monospace; font-size: .9em; background: var(--panel2); padding: 2px 8px; border-radius: 6px; color: var(--ink); }
+  .pre { font: 400 20px/1.55 'JetBrains Mono', monospace; background: #080a0c; border: 1px solid var(--line); border-radius: 14px; padding: 22px 26px; color: var(--ink2); white-space: pre; }
+  .pre .c { color: var(--ink3); } .pre .k { color: #7dd3fc; } .pre .s { color: var(--amber2); }
+</style>
+</head>
+<body>
+
+<!-- 1. Титул -->
+<section class="slide" style="justify-content:center; background: radial-gradient(1100px 700px at 85% 15%, rgba(217,89,38,.16), transparent 60%), radial-gradient(900px 600px at 0% 100%, rgba(57,135,229,.10), transparent 60%), var(--bg);">
+  <div class="kicker">Конкурс «Цифровой рудник на OpenEgiz» · Команда 037</div>
+  <h1 style="font-size:96px; margin-top:34px;">Цифровой двойник<br>карьера <span class="accent">Актогай</span></h1>
+  <div class="lead" style="font-size:32px; max-width:1400px;">Открытый медный карьер в реальном времени на платформе OpenEgiz: 68 двойников в Eclipse Ditto, умная диспетчеризация самосвалов, прогноз отказов по датчикам, сценарии «что если» и расчёт эффекта в тенге.</div>
+  <div class="row" style="margin-top:56px; gap:16px; flex-wrap:wrap;">
+    <span class="tag">make aktogay — одна команда</span>
+    <span class="tag">Ditto · MQTT · InfluxDB · Grafana</span>
+    <span class="tag">React + Three.js</span>
+    <span class="tag">MIT</span>
+  </div>
+  <div class="foot"><span>GitHub: <b>ItachiTore</b> · github.com/openegiz-contest/team-037</span><span>Модель построена по открытым данным, операционные данные смоделированы. Проект не связан с KAZ Minerals.</span></div>
+</section>
+
+<!-- 2. Проблема -->
+<section class="slide">
+  <div class="kicker">Задача</div>
+  <h2>Где карьер теряет деньги каждую смену</h2>
+  <div class="lead">Самосвалы закреплены за экскаваторами на всю смену. План хорош для спокойного дня, но на поломку, закрытый съезд или взрыв никто не реагирует вовремя.</div>
+  <div class="body grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="card">
+      <div class="big">50,6 <span style="font-size:30px">мин</span></div>
+      <div class="bigsub">простоя дробилки за смену при закреплении</div>
+      <h3 style="margin-top:28px">Пустой бункер = стоит фабрика</h3>
+      <p>Сульфидная руда кончается в бункере — обогатительная фабрика простаивает. Это самая дорогая потеря: ≈15 млн ₸ за час (оценка).</p>
+    </div>
+    <div class="card">
+      <div class="big">2,4 <span style="font-size:30px">мин</span></div>
+      <div class="bigsub">средняя очередь самосвала у экскаватора</div>
+      <h3 style="margin-top:28px">Очереди и холостые рейсы</h3>
+      <p>После поломки экскаватора закреплённые самосвалы стоят в очереди к нему, а соседние забои недогружены.</p>
+    </div>
+    <div class="card">
+      <div class="big">4,4 <span style="font-size:30px">шт</span></div>
+      <div class="bigsub">аварийных отказов самосвалов за смену</div>
+      <h3 style="margin-top:28px">Отказы на трассе</h3>
+      <p>Двигатель, гидравлика, шины ломаются без предупреждения: эвакуация, вторичные повреждения, ремонт втрое дольше планового.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Среднее по 20 модельным сменам, 20 самосвалов (BENCHMARK.md)</span><span>2 / 14</span></div>
+</section>
+
+<!-- 3. Решение -->
+<section class="slide">
+  <div class="kicker">Решение</div>
+  <h2>Двойник реальной работы + теневой расчёт эффекта</h2>
+  <div class="body grid" style="grid-template-columns: 1.05fr 1fr; align-items: stretch;">
+    <div class="card" style="border-color: rgba(217,89,38,.55);">
+      <span class="pill" style="background: rgba(217,89,38,.18); color: #f08a5d;">org.aktogay.smart</span>
+      <h3 style="margin-top:18px; font-size:34px;">Реальный карьер — для диспетчера</h3>
+      <ul>
+        <li>Положение, груз, топливо и датчики каждой машины, состояние экскаваторов, бункер дробилки, питание фабрики — каждую секунду</li>
+        <li><b class="accent">Умная диспетчеризация</b>: каждый рейс назначается заново по ETA, очередям, угрозе простоя дробилки и качеству руды</li>
+        <li><b class="accent">Прогноз отказов</b>: машину отправляют на плановый ремонт до аварии</li>
+        <li><b class="accent">Взрывы и сценарии</b>: техника заранее выводится из зоны</li>
+      </ul>
+    </div>
+    <div class="card" style="border-color: rgba(57,135,229,.55);">
+      <span class="pill" style="background: rgba(57,135,229,.18); color: #7fb2f0;">org.aktogay.fixed</span>
+      <h3 style="margin-top:18px; font-size:34px;">Теневой расчёт — для руководства</h3>
+      <ul>
+        <li>Та же смена, <b>те же</b> поломки, перекрытия и взрывы (общий seed), но по-старому: самосвалы закреплены на смену</li>
+        <li>Диспетчеру не показывается — живёт в разделе «Эффект»</li>
+        <li>Отвечает на вопрос «сколько даёт система» в тоннах, минутах простоя и тенге — прямо сейчас, а не в отчёте через месяц</li>
+        <li>Любой сценарий «что если» применяется к обоим, сравнение честное</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Разделы интерфейса: Карьер · Двойники · Сценарии · Эффект</span><span>3 / 14</span></div>
+</section>
+
+<!-- 4. Модель рудника -->
+<section class="slide">
+  <div class="kicker">Модель рудника <span class="crit">· критерий 25 баллов</span></div>
+  <h2>68 двойников в Eclipse Ditto, связанных в иерархию</h2>
+  <div class="body grid" style="grid-template-columns: 1.1fr 1fr;">
+    <div class="card" style="padding:30px 34px;">
+<div class="tree"><b>org.aktogay:aktogay</b>              <i>площадка, Восточный Казахстан</i>
+├─ <b>org.aktogay:control</b>           <i>команды «что если» и статус</i>
+├─ <b>org.aktogay.smart:mine</b>        <i>реальный карьер: KPI, журнал</i>
+│  ├─ excavator-1 … excavator-5   <i>2 сульфид, 1 оксид, 2 вскрыша</i>
+│  ├─ truck-101 … truck-120       <i>220 т, 32 признака у каждого</i>
+│  ├─ crusher → plant             <i>бункер 1000 т → ОФ 50 т/мин</i>
+│  ├─ heap-leach, waste-dump      <i>оксид, вскрыша</i>
+│  ├─ garage                      <i>стоянка, АЗС, ремонт</i>
+│  ├─ roads                       <i>граф дорог, закрытия</i>
+│  └─ blasting                    <i>график взрывов</i>
+└─ <b>org.aktogay.fixed:mine</b>        <i>теневой расчёт, те же объекты</i></div>
+    </div>
+    <div class="grid" style="gap:22px;">
+      <div class="card">
+        <h3>Связи заданы в двойниках</h3>
+        <p><code>attributes._parents</code> — иерархия (по ней строит дерево приложение OpenEgiz → Twins), <code>attributes.feeds</code> — поток материала: экскаватор → дробилка / выщелачивание / отвал, дробилка → фабрика.</p>
+      </div>
+      <div class="card">
+        <h3>Паспорт и живое состояние</h3>
+        <p><b>attributes</b>: материал, производительность, грузоподъёмность, ёмкость бункера. <b>features</b> <code>{value, unit}</code>: положение на графе дорог, груз, Cu %, топливо, моточасы, температура двигателя, вибрация, давление шин, риск отказа, очередь, бункер…</p>
+      </div>
+      <div class="card">
+        <h3>Где в коде</h3>
+        <p><code>team/aktogay/app/src/platform/twins.ts</code> — контракт двойников; <code>service/main.ts</code> — создание и публикация; <code>src/sim/</code> — модель.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Карьер ~3 × 1,6 км, 14 уступов, 2 спиральных съезда, 3 кольцевые бермы, граф дорог с маршрутизацией</span><span>4 / 14</span></div>
+</section>
+
+<!-- 5. Архитектура -->
+<section class="slide">
+  <div class="kicker">Построено на OpenEgiz</div>
+  <h2>Данные идут через платформу, а не мимо неё</h2>
+  <div class="body" style="display:flex; flex-direction:column; gap:40px;">
+    <div class="flow">
+      <div class="node hl"><div class="t">Симулятор</div><div class="s">aktogay-sim, Node.js<br>2 модели, шаг 1 с</div></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="t">MQTT</div><div class="s">telemetry/&lt;thing&gt;<br>Ditto modify /features</div></div>
+      <div class="arrow">→</div>
+      <div class="node hl"><div class="t">Eclipse Ditto</div><div class="s">68 двойников<br>policy basic_policy</div></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="t">Telegraf → InfluxDB</div><div class="s">mqtt_consumer<br>тег thingId</div></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="t">Grafana</div><div class="s">дашборд + встроенная<br>3D-сцена</div></div>
+    </div>
+    <div class="flow">
+      <div class="node hl" style="min-width:330px;"><div class="t">Веб-интерфейс aktogay-ui</div><div class="s">nginx → /ditto/: поиск + поток SSE,<br>состояние восстанавливается из двойников</div></div>
+      <div class="arrow">⇄</div>
+      <div class="node" style="min-width:420px;"><div class="t">org.aktogay:control</div><div class="s">PUT features/command {value, arg, dur, seq}<br>Ditto → MQTT opentwins/… → симулятор → status</div></div>
+      <div class="arrow">←</div>
+      <div class="node"><div class="t">Любой клиент</div><div class="s">кнопки сайта, панель<br>Grafana, curl</div></div>
+    </div>
+    <div class="grid" style="grid-template-columns: repeat(3,1fr); gap:24px;">
+      <div class="card"><h3>Один шаблон подключения</h3><p>Overlay <code>team/aktogay/compose.yml</code> к стенду, как Пример рудника: <code>make aktogay</code> поднимает платформу и карьер.</p></div>
+      <div class="card"><h3>Интерфейс читает платформу</h3><p>Значок «● OpenEgiz · Ditto»: всё на экране — из двойников. Без платформы сайт честно пишет «автономный режим».</p></div>
+      <div class="card"><h3>Сценарии — через двойник</h3><p>Команда — изменение признака в Ditto. Результат и история команд — в признаке <code>status</code>.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>Ни один сервис карьера не пишет в InfluxDB или Grafana напрямую</span><span>5 / 14</span></div>
+</section>
+
+<!-- 6. Поведение -->
+<section class="slide">
+  <div class="kicker">Поведение объектов <span class="crit">· критерий 20 баллов</span></div>
+  <h2>Каждая машина живёт по своему циклу и правилам</h2>
+  <div class="body grid" style="grid-template-columns: 1fr 1fr;">
+    <div class="card">
+      <h3>Цикл самосвала</h3>
+      <div class="pre" style="margin-top:14px; font-size:19px;">ожидание → <span class="k">порожний рейс</span> → очередь → <span class="s">погрузка</span>
+  → <span class="k">гружёный рейс</span> → очередь → <span class="s">разгрузка</span> → …
+  ↘ заправка (топливо &lt; 15%)   ↘ плановый ремонт (тревога)
+  ↘ поломка: съезд на обочину, ремонт 25–70 мин</div>
+      <ul style="margin-top:22px;">
+        <li>Скорость 20 км/ч гружёный, 35 км/ч порожний, у каждой машины свой коэффициент ±10%</li>
+        <li>Маршрут — Dijkstra по графу дорог с учётом закрытых участков</li>
+        <li>Дистанция 70 м до впереди идущего, без обгонов и «проезда сквозь»</li>
+        <li>Своё место на стоянке: заезд передом, выезд задним ходом</li>
+        <li>Расход топлива: гружёный / порожний / холостой ход</li>
+      </ul>
+    </div>
+    <div class="grid" style="gap:22px;">
+      <div class="card"><h3>Экскаваторы и фабрика</h3><p>Погрузка с шумом времени, поломки 40–120 мин. Содержание Cu в забое плавно меняется по ходу отработки. Бункер смешивает руду, фабрика забирает 50 т/мин; отклонение качества снижает извлечение меди.</p></div>
+      <div class="card"><h3>Датчики и деградация</h3><p>Температура двигателя, вибрация рамы, давление шин раз в 10 с. 75% отказов имеют 60–120 мин дрейфа одного параметра, 25% внезапные, есть безобидные аномалии — ложные тревоги как в жизни.</p></div>
+      <div class="card"><h3>Взрывы и события</h3><p>Плановый взрыв в обед: предупреждение 15 мин, оцепление 30 мин, радиус 240 м. Случайные поломки и закрытия дорог генерируются из seed — одинаковый seed даёт бит-в-бит одинаковую смену (тест).</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>Все параметры — в одном файле src/sim/config.ts с комментариями; 30 автотестов движка</span><span>6 / 14</span></div>
+</section>
+
+<!-- 7. Визуализация: Карьер -->
+<section class="slide" style="padding-bottom:70px;">
+  <div class="kicker">Визуализация <span class="crit">· критерий 20 баллов</span></div>
+  <h2 style="font-size:46px;">Раздел «Карьер»: реальная смена в 3D</h2>
+  <div class="body grid" style="grid-template-columns: 1.55fr 1fr; margin-top:30px; align-items:start;">
+    <img class="shot" src="shot-mine.png" alt="Раздел Карьер">
+    <div class="grid" style="gap:18px;">
+      <div class="card" style="padding:24px 28px;"><p><b style="color:var(--ink)">Three.js-сцена</b> по той же геометрии, что граф дорог: уступы, съезды, забои, дробилка с конвейером на фабрику, отвал, выщелачивание, стоянка.</p></div>
+      <div class="card" style="padding:24px 28px;"><p>Кольцо под самосвалом — цвет состояния, кузов с грузом цвета материала, опрокидывание при разгрузке; экскаватор поворачивается и копает; уровень в силосе; закрытые участки и зоны взрывов.</p></div>
+      <div class="card" style="padding:24px 28px;"><p>Клик по машине — карточка с датчиками и графиком «датчик против модели». Камеры: общий вид, дробилка, дно, разрез, облёт, следование.</p></div>
+      <div class="card" style="padding:24px 28px;"><p><b style="color:var(--ink)">Без видеокарты</b> «Графика: Авто» сама включает лёгкий режим; есть 2D-схема.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>http://localhost:8095 — скриншот со стенда, headless Chrome</span><span>7 / 14</span></div>
+</section>
+
+<!-- 8. Двойники -->
+<section class="slide" style="padding-bottom:70px;">
+  <div class="kicker">Визуализация · модель</div>
+  <h2 style="font-size:46px;">Раздел «Двойники»: всё, что лежит в Ditto</h2>
+  <div class="body grid" style="grid-template-columns: 1.55fr 1fr; margin-top:30px; align-items:start;">
+    <img class="shot" src="shot-twins.png" alt="Раздел Двойники">
+    <div class="grid" style="gap:18px;">
+      <div class="card" style="padding:24px 28px;"><p>Дерево по <code>_parents</code>, поиск по имени и thingId, цветной индикатор состояния у каждого объекта.</p></div>
+      <div class="card" style="padding:24px 28px;"><p>Карточка: паспорт (attributes), все признаки (features) с единицами и мини-графиками, подсветка изменений, связи <code>feeds</code>.</p></div>
+      <div class="card" style="padding:24px 28px;"><p>«Сравнить» — тот же объект в теневом расчёте рядом. «Показать на карте» — переход в 3D с выделением.</p></div>
+      <div class="card" style="padding:24px 28px;"><p>Счётчик «изменений в секунду» и время последнего обновления — видно, что данные живые (~60 изменений/с).</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>http://localhost:8095/#/twins</span><span>8 / 14</span></div>
+</section>
+
+<!-- 9. Сценарии -->
+<section class="slide" style="padding-bottom:70px;">
+  <div class="kicker">Сценарии «что если» <span class="crit">· критерий 15 баллов</span></div>
+  <h2 style="font-size:46px;">Меняем условия без изменения кода — и отменяем</h2>
+  <div class="body grid" style="grid-template-columns: 1.35fr 1fr; margin-top:30px; align-items:start;">
+    <img class="shot" src="shot-scenarios.png" alt="Раздел Сценарии">
+    <div class="card" style="padding:26px 28px;">
+      <table style="font-size:20px;">
+        <tr><th>Сценарий</th><th>Отмена</th></tr>
+        <tr><td><b style="color:var(--ink)">Поломка экскаватора</b><br>Э-1…Э-5, 10–180 мин</td><td><code>repair</code></td></tr>
+        <tr><td><b style="color:var(--ink)">Перекрытие съезда</b><br>6 участков, 10–120 мин, объезд</td><td><code>open_road</code></td></tr>
+        <tr><td><b style="color:var(--ink)">Внеплановый взрыв</b><br>15 мин предупреждение + 30 мин оцепление</td><td><code>cancel_blast</code></td></tr>
+        <tr><td><b style="color:var(--ink)">Новая смена</b><br>5–30 самосвалов, другой seed</td><td><code>reset</code></td></tr>
+        <tr><td><b style="color:var(--ink)">Скорость, пауза</b></td><td><code>speed</code>, <code>resume</code></td></tr>
+      </table>
+      <p style="margin-top:20px; font-size:20px; color:var(--ink2); line-height:1.5;">Плюс «Отменить всё» и сам срок окончания. Запуск — из раздела «Сценарии», с кнопок на 3D, из панели Grafana или одним <code>PUT</code> в Ditto. Справа на экране видно, что было бы без системы.</p>
+    </div>
+  </div>
+  <div class="foot"><span>http://localhost:8095/#/scenarios · история команд хранится в двойнике управления</span><span>9 / 14</span></div>
+</section>
+
+<!-- 10. Модули -->
+<section class="slide">
+  <div class="kicker">Модули поверх двойника <span class="crit">· критерий 10 баллов</span></div>
+  <h2>Что система делает с данными двойника</h2>
+  <div class="body grid" style="grid-template-columns: 1fr 1fr; grid-template-rows: auto auto;">
+    <div class="card">
+      <h3>Умная диспетчеризация</h3>
+      <div class="pre" style="font-size:18px; margin:10px 0 16px;">оценка(экскаватор) = ETA по графу дорог
+  + прогноз очереди (включая едущих)
+  + погрузка + задержка, которую создадим другим
+  − отставание от доли плана (мёртвая зона ±2 рейса)
+  − угроза простоя дробилки (прогноз бункера 35 мин)
+  − выравнивание качества руды</div>
+      <p>«Своя петля» и порог перезакрепления — машины не гоняют через весь карьер ради мелкой выгоды.</p>
+    </div>
+    <div class="card">
+      <h3>Прогноз отказов</h3>
+      <p>Тепловая модель знает, какой <i>должна</i> быть температура в текущем режиме; невязки трёх датчиков → индекс деградации → тренд → время до отказа. При тревоге — плановый ремонт (втрое короче).</p>
+      <div class="grid" style="grid-template-columns: repeat(3,1fr); gap:14px; margin-top:22px;">
+        <div><div class="big" style="font-size:46px;">46</div><div class="bigsub">мин в среднем до отказа</div></div>
+        <div><div class="big" style="font-size:46px;">0</div><div class="bigsub">пропусков предсказуемых</div></div>
+        <div><div class="big" style="font-size:46px;">≈82%</div><div class="bigsub">точность тревог</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Шихтовка руды</h3>
+      <p>Глубокий забой богаче (~0,42% Cu), верхний беднее (~0,29%). Диспетчер держит питание фабрики в коридоре <b class="accent">0,35 ± 0,03% Cu</b> по прогнозу бункера с учётом едущих машин.</p>
+    </div>
+    <div class="card">
+      <h3>Взрывы, KPI и экономика</h3>
+      <p>График взрывов известен заранее — к забою под оцепление машины не отправляются. KPI смены и эффект в ₸ с формулой: простои, дробилка, топливо, ремонты, потери меди × 670 смен в год.</p>
+    </div>
+  </div>
+  <div class="foot"><span>src/sim/dispatch.ts · health.ts · ore.ts · kpi.ts</span><span>10 / 14</span></div>
+</section>
+
+<!-- 11. Эффект (скрин) -->
+<section class="slide" style="padding-bottom:70px;">
+  <div class="kicker">Раздел «Эффект»</div>
+  <h2 style="font-size:46px;">Поломка Э-1: что было бы без системы — видно сразу</h2>
+  <div class="body grid" style="grid-template-columns: 1.55fr 1fr; margin-top:30px; align-items:start;">
+    <img class="shot" src="shot-effect.png" alt="Раздел Эффект">
+    <div class="grid" style="gap:18px;">
+      <div class="card" style="padding:24px 28px; border-color: rgba(57,135,229,.5);"><p><b style="color:#7fb2f0">Слева — без системы.</b> Закреплённые самосвалы ждут сломанный Э-1 в очереди, бункер дробилки пустеет.</p></div>
+      <div class="card" style="padding:24px 28px; border-color: rgba(217,89,38,.5);"><p><b style="color:#f08a5d">Справа — с системой.</b> Машины Э-1 сразу ушли на другие забои, дробилка работает.</p></div>
+      <div class="card" style="padding:24px 28px;"><p>Справа — разница KPI в реальном времени и экономический эффект с раскрываемой формулой. Оценка появляется после первого часа смены.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>http://localhost:8095/#/effect</span><span>11 / 14</span></div>
+</section>
+
+<!-- 12. Результаты -->
+<section class="slide">
+  <div class="kicker">Результаты</div>
+  <h2>20 смен: система против закрепления</h2>
+  <div class="body grid" style="grid-template-columns: 1.25fr 1fr;">
+    <div class="card" style="padding:28px 30px;">
+      <table>
+        <tr><th>Показатель за смену</th><th class="n">Без системы</th><th class="n">С системой</th><th class="n">Δ</th></tr>
+        <tr><td>Простой дробилки, мин</td><td class="n">50,6</td><td class="n">19,8</td><td class="n"><span class="pill g">−61%</span></td></tr>
+        <tr><td>Аварийные отказы самосвалов</td><td class="n">4,4</td><td class="n">1,1</td><td class="n"><span class="pill g">−75%</span></td></tr>
+        <tr><td>Средняя очередь, мин</td><td class="n">2,4</td><td class="n">1,6</td><td class="n"><span class="pill g">−32%</span></td></tr>
+        <tr><td>Руда на ОФ в коридоре качества, % времени</td><td class="n">66,6</td><td class="n">81,2</td><td class="n"><span class="pill g">+15 п.п.</span></td></tr>
+        <tr><td>Медь в концентрате, т</td><td class="n">102,5</td><td class="n">106,5</td><td class="n"><span class="pill g">+4,0%</span></td></tr>
+        <tr><td>Добыто всего, т</td><td class="n">98 842</td><td class="n">101 056</td><td class="n"><span class="pill g">+2,2%</span></td></tr>
+      </table>
+      <p style="margin-top:20px; font-size:20px; color:var(--ink3);">Seed 1–20, 20 самосвалов, 12-часовые смены. Система добыла не меньше в 19 сменах из 20.</p>
+    </div>
+    <div class="grid" style="gap:22px;">
+      <div class="card" style="border-color: rgba(245,158,11,.55); background: linear-gradient(160deg, rgba(245,158,11,.12), var(--panel) 60%);">
+        <div style="font: 600 18px/1 'JetBrains Mono', monospace; letter-spacing:.12em; text-transform:uppercase; color: var(--amber);">Экономический эффект</div>
+        <div class="big" style="margin-top:18px; font-size:80px;">≈12 <span style="font-size:40px">млрд ₸/год</span></div>
+        <div class="bigsub">на моделируемый сегмент парка (20 самосвалов, 5 экскаваторов). Дополнительная добыча в деньги не переводится — оценка консервативная; ставки — оценки из config.ts.</div>
+      </div>
+      <div class="card">
+        <h3>Честно о границах</h3>
+        <p>Эффект зависит от дефицита техники: 15 самосвалов — <b class="accent">+5,8%</b> добычи и ≈36 млрд ₸/год; 25 самосвалов — добыча на уровне (−0,3%), узкое место — экскаваторы, но простой дробилки всё равно <b class="accent">−53%</b>.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>team/aktogay/app/BENCHMARK.md · npm run bench</span><span>12 / 14</span></div>
+</section>
+
+<!-- 13. Запуск -->
+<section class="slide">
+  <div class="kicker">Запуск и проверка</div>
+  <h2>Одна команда на чистой Ubuntu 24.04</h2>
+  <div class="body grid" style="grid-template-columns: 1fr 1fr;">
+    <div class="grid" style="gap:22px; align-content:start;">
+      <div class="pre"><span class="c"># чистая Ubuntu + Docker</span>
+<span class="k">sudo</span> apt install -y make
+<span class="k">make</span> aktogay
+
+<span class="c"># открыть</span>
+<span class="s">http://localhost:8095</span>          <span class="c">интерфейс</span>
+<span class="s">http://localhost:3000</span>          <span class="c">Grafana → Aktogay</span></div>
+      <div class="card"><h3>Что делает make aktogay</h3><p>Поднимает платформу OpenEgiz (пароли генерируются), собирает два образа из <code>team/aktogay/app</code>, создаёт двойники и запускает смену. Внешних датасетов нет.</p></div>
+    </div>
+    <div class="card">
+      <h3>Проверено</h3>
+      <ul>
+        <li>Чистая копия ветки <code>main</code> в Ubuntu 24.04 (WSL2 + Docker): <span class="good">68 двойников</span>, время смены растёт, данные в InfluxDB, интерфейс и Grafana открываются</li>
+        <li>Сценарий через Ditto: поломка → <code>broken</code>, отмена → снова в работе</li>
+        <li>Headless Chrome <b>без видеокарты</b> (SwiftShader): «Графика: Авто» → лёгкий режим, ошибок нет</li>
+        <li>30 автотестов движка, в т.ч. детерминизм по seed</li>
+        <li>Без WebGL открывается 2D-схема; иконки — из стандартных Linux-шрифтов</li>
+      </ul>
+      <p style="margin-top:18px; color:var(--ink3); font-size:20px;">Не замерено отдельно: сборка без кэша Docker на 8 vCPU (ожидаем с запасом в лимит 75 мин).</p>
+    </div>
+  </div>
+  <div class="foot"><span>README.md · SUBMISSION.md</span><span>13 / 14</span></div>
+</section>
+
+<!-- 14. Данные и развитие -->
+<section class="slide">
+  <div class="kicker">Данные, допущения, развитие</div>
+  <h2>Что в модели честно, а что — оценка</h2>
+  <div class="body grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="card">
+      <h3>Данные</h3>
+      <ul>
+        <li>Все операционные данные синтетические, генерируются из seed</li>
+        <li>Параметры — по открытой информации о месторождении (сульфид и оксид, открытая добыча, кучное выщелачивание) и классу самосвалов 220 т</li>
+        <li>Все числа — оценки в одном файле config.ts, сверить с годовыми отчётами</li>
+        <li>Персональных и конфиденциальных данных нет</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Ограничения</h3>
+      <ul>
+        <li>Сегмент парка: 5 экскаваторов, 5–30 самосвалов</li>
+        <li>Геометрия карьера сгенерирована, это не топосъёмка</li>
+        <li>Фабрика и выщелачивание — упрощённо</li>
+        <li>3D-панель Grafana открывает localhost:8095 — браузер на той же машине</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Что дальше</h3>
+      <ul>
+        <li>Реальная телеметрия: тот же MQTT-контракт, симулятор заменяется шлюзом FMS</li>
+        <li>Калибровка ставок и скоростей по данным предприятия</li>
+        <li>Энергия и вентиляция / пыль как новые модули на тех же двойниках</li>
+        <li>Плановый ремонт по прогнозу — в график ТОиР</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Модель построена по открытым данным, операционные данные смоделированы. Проект не связан с KAZ Minerals.</span><span>14 / 14</span></div>
+</section>
+
+</body>
+</html>

@@ -335,10 +335,10 @@ export default function App() {
                   const overlay = (
                     <>
                   <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2">
-                    <span className="rounded-md px-2.5 py-1 text-[13px] font-bold uppercase tracking-wider text-white" style={{ background: STRATEGY_COLOR[s.strategyName] }}>
-                      {s.strategyName === 'smart' ? (sims.length === 2 ? 'Реальная работа · с системой' : 'Реальная работа · умная диспетчеризация') : 'Без системы · теневой расчёт'}
+                    <span className="whitespace-nowrap rounded-md px-2.5 py-1 text-[13px] font-bold uppercase tracking-wider text-white" style={{ background: STRATEGY_COLOR[s.strategyName] }}>
+                      {s.strategyName === 'smart' ? (sims.length === 2 ? 'С системой' : 'Реальная работа · умная диспетчеризация') : 'Без системы · расчёт'}
                     </span>
-                    <span className="num rounded-md bg-black/60 px-2 py-1 text-[13px] text-ink">
+                    <span className="num whitespace-nowrap rounded-md bg-black/60 px-2 py-1 text-[13px] text-ink">
                       {fmtInt(kpis[i].minedTotal)} т · {fmtInt(kpis[i].tph)} т/ч
                     </span>
                   </div>
@@ -352,7 +352,7 @@ export default function App() {
                     onSelect: (sel: Selection) => setSelection(sel ? { v: s.strategyName, sel } : null),
                   };
                   return view === '3d' ? (
-                    <Mine3D {...props} light={quality === 'light'} onSlow={onSlow3d}>
+                    <Mine3D {...props} light={quality === 'light'} onSlow={onSlow3d} showControls={i === sims.length - 1}>
                       {overlay}
                     </Mine3D>
                   ) : (

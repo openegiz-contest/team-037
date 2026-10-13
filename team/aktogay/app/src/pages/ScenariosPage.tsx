@@ -199,7 +199,7 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
           <div className="mt-auto flex flex-wrap items-end gap-4 border-t border-line p-4">
             <div className="min-w-[240px] flex-1">
               <div className="mb-1 text-[11px] uppercase tracking-wider text-ink-3">{platform ? 'Команда в Ditto' : 'Команда (автономный режим)'}</div>
-              <pre className="num overflow-x-auto rounded-lg bg-black/40 px-3 py-2 text-[11.5px] leading-relaxed text-ink-2">
+              <pre className="num whitespace-pre-wrap break-all rounded-lg bg-black/40 px-3 py-2 text-[11.5px] leading-relaxed text-ink-2">
                 <span className="text-sky-300">PUT</span> /api/2/things/{CONTROL_ID}/features/command/properties{'\n'}
                 {preview}
               </pre>

@@ -33,3 +33,5 @@ deploy/compose/.aktogay
 team/aktogay/app/node_modules/
 team/aktogay/app/dist/
 team/aktogay/app/dist-service/
+team/aktogay/presentation/prev-*.png
+team/aktogay/presentation/presentation.pdf
