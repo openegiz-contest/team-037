@@ -10,6 +10,7 @@ import { gradeAt, inBand, recovery } from './ore';
 import { Router } from './graph';
 import { buildMine, type MineLayout } from './mine';
 import { hash01, Rng, subSeed } from './rng';
+import { emptyDriverStats, makeDriver } from './drivers';
 import {
   MATERIALS,
   MATERIAL_SHORT,
@@ -81,6 +82,8 @@ export class Simulation {
   readonly loadTotal: number[] = [];
   /** Целевая доля тоннажа каждого экскаватора по плану смены. */
   readonly targetShare: number[];
+  /** ГПСЧ событий вождения (резкие торможения) — по потоку на самосвал. */
+  private readonly driverRng: Rng[] = [];
   /**
    * Хронология смены по минутам — для диаграммы Ганта и цепочек последствий.
    * Один символ на минуту: состояние самосвала / экскаватора, уровень бункера, число перекрытий.
@@ -236,6 +239,8 @@ export class Simulation {
           ? { start: Math.floor(brng.range(0.05, 0.85) * T), dur: Math.round(brng.range(25, 50) * 60), ampC: brng.range(3, 9) }
           : null;
       const stateSec = Object.fromEntries(TRUCK_STATES.map((s) => [s, 0])) as Record<TruckState, number>;
+      // Водитель — отдельный поток ГПСЧ, не сдвигает остальные события смены.
+      const drng = new Rng(subSeed(this.seed, 7000 + i));
       const slot = i % P.slots.length;
       const home = g.nodes[P.slots[slot]];
       this.slotOccupant[slot] = i;
@@ -276,7 +281,10 @@ export class Simulation {
         departAt: i * tc.departIntervalSec,
         queuedSince: 0,
         rerouteFlag: false,
+        driver: makeDriver(i, () => drng.next()),
+        driverStats: emptyDriverStats(),
       });
+      this.driverRng.push(new Rng(subSeed(this.seed, 7100 + i)));
     }
   }
 
@@ -648,7 +656,10 @@ export class Simulation {
     t.stateSec[acc] += dt;
     const rate = this.fuelRate(t.state);
     if (rate > 0) {
-      const used = (rate * dt) / 3600;
+      // Стиль водителя: в движении расход зависит от плавности езды.
+      const moving = t.state === 'empty' || t.state === 'loaded';
+      const used = ((rate * dt) / 3600) * (moving ? t.driver.fuelFactor : 1);
+      if (moving) t.driverStats.fuelUsedL += used;
       t.fuelL = Math.max(0, t.fuelL - used);
       this.stats.fuelL += used;
       t.engineH += dt / 3600;
@@ -671,8 +682,14 @@ export class Simulation {
           this.addLog(`Поломка самосвала ${t.name} (ремонт ~${Math.round(dur / 60)} мин)`, 'alarm');
           break;
         }
-        const want = (t.state === 'loaded' ? this.speedLoaded : this.speedEmpty) * t.speedFactor * dt;
-        this.move(t, Math.min(want, this.freeDistance(t)));
+        const g = this.layout.graph;
+        const ei = t.seg < t.path.length - 1 ? g.edgeBetween(t.path[t.seg], t.path[t.seg + 1]) : undefined;
+        const onRamp = ei !== undefined && g.edges[ei].kind === 'ramp';
+        const want = (t.state === 'loaded' ? this.speedLoaded : this.speedEmpty) * t.speedFactor * (onRamp ? t.driver.rampSkill : 1) * dt;
+        const free = this.freeDistance(t);
+        const step = Math.min(want, free);
+        this.move(t, step);
+        this.driveStats(t, step, dt, onRamp, free < want * 0.5);
         break;
       }
       case 'broken':
@@ -825,6 +842,26 @@ export class Simulation {
       d0 += g.edges[g.edgeBetween(a, b)!].len;
     }
     return best === Infinity ? Infinity : Math.max(0, best - gap);
+  }
+
+  /** Телеметрия водителя: пробег, съезды, резкие торможения (акселерометр рамы). */
+  private driveStats(t: Truck, step: number, dt: number, onRamp: boolean, forcedSlow: boolean): void {
+    const s = t.driverStats;
+    s.distM += step;
+    if (onRamp) {
+      s.rampSec += dt;
+      s.rampDistM += step;
+    }
+    s.harshCooldown = Math.max(0, s.harshCooldown - dt);
+    if (s.harshCooldown > 0) return;
+    const rng = this.driverRng[t.id];
+    const lack = 1 - t.driver.safety; // 0.02…0.45
+    // Резко тормозит, догнав впереди идущего, или на спуске с грузом.
+    const p = (forcedSlow ? 0.25 * lack : 0) + (onRamp && t.state === 'loaded' ? 0.004 * lack * dt : 0) + 0.0004 * lack * dt;
+    if (rng.next() < p) {
+      s.harsh++;
+      s.harshCooldown = 45;
+    }
   }
 
   private move(t: Truck, dist: number): void {

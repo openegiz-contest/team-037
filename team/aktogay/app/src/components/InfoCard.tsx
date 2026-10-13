@@ -162,6 +162,7 @@ export function InfoCard({ sim, selection, onClose }: { sim: Simulation; selecti
       <>
         <Row k="Состояние" v={<span style={{ color }}>{TRUCK_STATE_LABEL[t.state]}</span>} />
         <Row k="Класс" v={`${sim.cfg.truck.payloadT} т (БелАЗ-75306)`} />
+        <Row k="Водитель" v={<a href="#/drivers" className="hover:text-amber-300">{t.driver.name} · {t.driver.years} л.</a>} />
         <Row
           k="Груз"
           v={

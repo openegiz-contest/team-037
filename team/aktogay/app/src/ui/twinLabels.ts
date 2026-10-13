@@ -87,6 +87,11 @@ export const FEATURE_LABEL: Record<string, string> = {
   failure_sign: 'Признак неисправности',
   health_index: 'Индекс деградации',
   service_requested: 'Назначен ППР',
+  drv_dist: 'Пробег за смену',
+  drv_ramp_time: 'Время на съездах',
+  drv_ramp_dist: 'Пройдено по съездам',
+  drv_fuel: 'Топливо в движении',
+  drv_harsh: 'Резкие торможения',
   // экскаватор
   queue: 'Очередь',
   queue_ids: 'В очереди (номера)',

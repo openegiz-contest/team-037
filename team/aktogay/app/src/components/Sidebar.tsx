@@ -2,9 +2,9 @@
 import type { ReactNode } from 'react';
 import type { ThemeMode } from '../ui/themeMode';
 
-export type Route = 'mine' | 'effect' | 'twins' | 'scenarios' | 'fleet' | 'timeline';
+export type Route = 'mine' | 'effect' | 'twins' | 'scenarios' | 'fleet' | 'timeline' | 'drivers';
 
-export const ROUTE_HASH: Record<Route, string> = { mine: '#/', effect: '#/effect', twins: '#/twins', scenarios: '#/scenarios', fleet: '#/fleet', timeline: '#/timeline' };
+export const ROUTE_HASH: Record<Route, string> = { mine: '#/', effect: '#/effect', twins: '#/twins', scenarios: '#/scenarios', fleet: '#/fleet', timeline: '#/timeline', drivers: '#/drivers' };
 
 export function routeFromHash(h: string): Route {
   if (h.startsWith('#/twins')) return 'twins';
@@ -12,6 +12,7 @@ export function routeFromHash(h: string): Route {
   if (h.startsWith('#/effect')) return 'effect';
   if (h.startsWith('#/fleet')) return 'fleet';
   if (h.startsWith('#/timeline')) return 'timeline';
+  if (h.startsWith('#/drivers')) return 'drivers';
   return 'mine';
 }
 
@@ -47,6 +48,14 @@ const ICONS: Record<Route | 'grafana' | 'api' | 'collapse' | 'sun' | 'moon', Rea
       <circle cx="19" cy="5" r="2" />
       <circle cx="19" cy="19" r="2" />
       <path d="M7 12h4l6-6M11 12l6 6" />
+    </Icon>
+  ),
+  // водитель с рулём
+  drivers: (
+    <Icon>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="2" />
+      <path d="M12 14v6M10.2 11 4.5 9.5M13.8 11l5.7-1.5" />
     </Icon>
   ),
   // полосы диаграммы Ганта
@@ -104,6 +113,7 @@ const ICONS: Record<Route | 'grafana' | 'api' | 'collapse' | 'sun' | 'moon', Rea
 const NAV: { route: Route; label: string; hint: string; group: 'ops' | 'analysis' }[] = [
   { route: 'mine', label: 'Карьер', hint: 'Реальная работа карьера: 3D, показатели, прогноз отказов', group: 'ops' },
   { route: 'fleet', label: 'Оборудование', hint: 'Парк техники: добавить и вывести самосвалы и экскаваторы', group: 'ops' },
+  { route: 'drivers', label: 'Водители', hint: 'Рейтинг стиля вождения и кого ставить на съезды', group: 'ops' },
   { route: 'twins', label: 'Двойники', hint: 'Объекты рудника в Eclipse Ditto', group: 'ops' },
   { route: 'scenarios', label: 'Сценарии', hint: 'Запуск и отмена «что если»', group: 'analysis' },
   { route: 'timeline', label: 'Хронология', hint: 'Цепочки последствий и диаграмма Ганта смены', group: 'analysis' },

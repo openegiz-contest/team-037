@@ -12,6 +12,7 @@ import { TwinsPage } from './pages/TwinsPage';
 import { ScenariosPage } from './pages/ScenariosPage';
 import { FleetPage } from './pages/FleetPage';
 import { TimelinePage } from './pages/TimelinePage';
+import { DriversPage } from './pages/DriversPage';
 import { defaultFleet, fleetConfig, type Fleet } from './platform/fleet';
 import { PlatformBridge } from './platform/bridge';
 import { activeDeviations, applyScenario, type Command } from './platform/scenarios';
@@ -671,6 +672,7 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
             onOpenInside={openInside}
           />
         )}
+        {route === 'drivers' && <DriversPage sim={main} now={pageNow} running={isRunning} onToggleRun={toggleRun} onLocate={(sel) => locate('smart', sel)} />}
         {route === 'timeline' && <TimelinePage sims={allSims} now={pageNow} running={isRunning} onToggleRun={toggleRun} onLocate={locate} />}
         {route === 'fleet' && (
           <FleetPage

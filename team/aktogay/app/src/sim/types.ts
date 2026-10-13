@@ -1,3 +1,4 @@
+import type { DriverStats, DriverTraits } from './drivers';
 /** Базовые типы движка симуляции. Модуль не зависит от React. */
 
 export type Material = 'sulfide' | 'oxide' | 'waste';
@@ -166,6 +167,9 @@ export interface Truck {
   departAt: number;
   queuedSince: number;
   rerouteFlag: boolean;
+  /** Водитель смены и его телеметрия (см. drivers.ts). */
+  driver: DriverTraits;
+  driverStats: DriverStats;
 }
 
 export interface Excavator {

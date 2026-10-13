@@ -88,7 +88,7 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
   sim.trucks.forEach((t, i) => {
     out[id.truck(i)] = {
       policyId: POLICY,
-      attributes: { name: `Самосвал ${t.name}`, kind: 'haul-truck', _isType: false, _parents: parent, capacity_t: cfg.truck.payloadT, model_class: '220 t (БелАЗ-75306 class)', sensors: truckSensorAttributes() },
+      attributes: { name: `Самосвал ${t.name}`, kind: 'haul-truck', _isType: false, _parents: parent, capacity_t: cfg.truck.payloadT, model_class: '220 t (БелАЗ-75306 class)', driver: t.driver.name, driver_years: t.driver.years, sensors: truckSensorAttributes() },
       features: serializeTruck(sim, i),
     };
   });
@@ -223,6 +223,12 @@ export function serializeTruck(sim: Simulation, i: number): Features {
     failure_sign: f(t.health.sign ?? 'none'),
     health_index: f(r3(t.health.score)),
     service_requested: f(t.serviceRequested),
+    // Стиль вождения (GNSS, датчик топлива, акселерометр рамы) — для рейтинга водителей.
+    drv_dist: f(Math.round(t.driverStats.distM), 'm'),
+    drv_ramp_time: f(Math.round(t.driverStats.rampSec), 's'),
+    drv_ramp_dist: f(Math.round(t.driverStats.rampDistM), 'm'),
+    drv_fuel: f(r1(t.driverStats.fuelUsedL), 'l'),
+    drv_harsh: f(t.driverStats.harsh, 'pcs'),
   };
 }
 
@@ -576,6 +582,12 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     t.health.sign = sign === 'none' ? null : (sign as FailureType);
     t.health.score = num(fs, 'health_index');
     t.serviceRequested = num(fs, 'service_requested') === 1;
+    const ds = t.driverStats;
+    ds.distM = num(fs, 'drv_dist');
+    ds.rampSec = num(fs, 'drv_ramp_time');
+    ds.rampDistM = num(fs, 'drv_ramp_dist');
+    ds.fuelUsedL = num(fs, 'drv_fuel');
+    ds.harsh = num(fs, 'drv_harsh');
   });
 
   // История для графиков — точка каждые historyEverySec модельного времени.
