@@ -24,7 +24,7 @@ export function DiagnosticsPanel({ sim, onPick }: { sim: Simulation; onPick: (tr
           <button key={t.id} onClick={() => onPick(t.id)} className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-[12.5px] hover:bg-panel-2">
             <span className="num w-12 font-semibold">{t.name}</span>
             <span className="flex-1 truncate text-ink-2">
-              {t.state === 'service' ? '🔧 на ППР' : h.sign ? FAILURE_LABEL[h.sign] : 'отклонение параметров'}
+              {t.state === 'service' ? '⚒ на ППР' : h.sign ? FAILURE_LABEL[h.sign] : 'отклонение параметров'}
             </span>
             {t.state !== 'service' && h.etaMin !== null && <span className="num text-ink-3">~{Math.round(h.etaMin)} мин</span>}
             <span className="num w-10 text-right font-bold" style={{ color }}>

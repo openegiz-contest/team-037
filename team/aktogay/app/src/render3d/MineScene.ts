@@ -95,8 +95,14 @@ export class MineScene {
   private selection: Selection = null;
   private readonly tmp = new THREE.Matrix4();
   private readonly crusherPos: THREE.Vector3;
-  private readonly composer: EffectComposer;
-  private readonly bloom: UnrealBloomPass;
+  /** Постобработка со свечением — только в полном качестве. */
+  private readonly composer: EffectComposer | null = null;
+  private readonly bloom: UnrealBloomPass | null = null;
+  private readonly light: boolean;
+  private readonly onSlow: (() => void) | null;
+  private lastRender = 0;
+  /** Сторож производительности: средняя длительность кадра за окно наблюдения. */
+  private perf = { start: 0, frames: 0, fired: false };
   private readonly blk: Block;
   private trail: THREE.Mesh | null = null;
   private trailKey = '';
@@ -104,13 +110,18 @@ export class MineScene {
   constructor(
     private readonly container: HTMLElement,
     private readonly sim: Simulation,
+    opts: { light?: boolean; onSlow?: () => void } = {},
   ) {
     const cfg = sim.cfg;
     this.heightAt = makeHeightAt(cfg);
+    this.light = !!opts.light;
+    this.onSlow = opts.onSlow ?? null;
+    const light = this.light;
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    this.renderer.shadowMap.enabled = true;
+    // Лёгкий режим: без сглаживания и теней, пиксель 1:1 — программный WebGL справляется.
+    this.renderer = new THREE.WebGLRenderer({ antialias: !light, powerPreference: light ? 'default' : 'high-performance' });
+    this.renderer.setPixelRatio(light ? 1 : Math.min(window.devicePixelRatio, 1.5));
+    this.renderer.shadowMap.enabled = !light;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.2;
@@ -139,7 +150,7 @@ export class MineScene {
     this.scene.add(new THREE.HemisphereLight('#d6e6ff', '#3b2c1f', 1.25));
     const sun = new THREE.DirectionalLight('#ffe2b8', 2.6);
     sun.position.set(-2200, 3200, 1800);
-    sun.castShadow = true;
+    sun.castShadow = !light;
     sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, { left: -3600, right: 3600, top: 3000, bottom: -3000, near: 100, far: 10000 });
     sun.shadow.bias = -0.0004;
@@ -149,7 +160,7 @@ export class MineScene {
     // Рельеф до горизонта: чаша с уступами, вокруг — степь, которая растворяется в дымке.
     this.blk = blockBounds(sim);
     const blk = this.blk;
-    const ground = new THREE.Mesh(new THREE.RingGeometry(2200, 30000, 128, 1), new THREE.MeshStandardMaterial({ color: '#b8996a', roughness: 1 }));
+    const ground = new THREE.Mesh(new THREE.RingGeometry(2200, 30000, light ? 48 : 128, 1), new THREE.MeshStandardMaterial({ color: '#b8996a', roughness: 1 }));
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -12;
     ground.receiveShadow = true;
@@ -208,7 +219,7 @@ export class MineScene {
       { x: garage.position.x, y: garage.position.z, r: 170 },
       { x: sim.parkingSlot(2 * sim.parking.cols + 2).x, y: sim.parkingSlot(2 * sim.parking.cols + 2).y, r: 460 },
     ];
-    this.scene.add(scatterRocks(sim, blk, this.heightAt, avoid));
+    if (!light) this.scene.add(scatterRocks(sim, blk, this.heightAt, avoid));
     for (let i = 0; i < 10; i++) {
       const th = (i / 10) * Math.PI * 2 + 0.3;
       const a = cfg.pit.semiMajorM * 1.1;
@@ -313,11 +324,13 @@ export class MineScene {
     panel(new THREE.Vector3(dump.position.x, dump.position.y + 150, dump.position.z), () => `<b>ОТВАЛ</b><br>Вскрыша: <span class="v">${fmtInt(wasteD.tonnes)} т</span>`);
 
     // Мягкое свечение фонарей, окон, колец статуса.
-    this.composer = new EffectComposer(this.renderer);
-    this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.45, 0.62);
-    this.composer.addPass(this.bloom);
-    this.composer.addPass(new OutputPass());
+    if (!light) {
+      this.composer = new EffectComposer(this.renderer);
+      this.composer.addPass(new RenderPass(this.scene, this.camera));
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.45, 0.62);
+      this.composer.addPass(this.bloom);
+      this.composer.addPass(new OutputPass());
+    }
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(container);
@@ -434,7 +447,7 @@ export class MineScene {
       if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
       else mat?.dispose();
     });
-    this.composer.dispose();
+    this.composer?.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.labels.domElement.remove();
@@ -447,8 +460,8 @@ export class MineScene {
     const h = this.container.clientHeight;
     if (w === 0 || h === 0) return;
     this.renderer.setSize(w, h);
-    this.composer.setSize(w, h);
-    this.bloom.resolution.set(w / 2, h / 2);
+    this.composer?.setSize(w, h);
+    this.bloom?.resolution.set(w / 2, h / 2);
     this.labels.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -456,6 +469,10 @@ export class MineScene {
 
   private frame = (now: number): void => {
     this.raf = requestAnimationFrame(this.frame);
+    // Лёгкий режим: не чаще 30 кадров в секунду.
+    if (this.light && now - this.lastRender < 32) return;
+    this.lastRender = now;
+    this.watchPerf(now);
     this.update(now);
     if (this.tween) {
       const k = Math.min(1, (now - this.tween.start) / this.tween.dur);
@@ -465,9 +482,27 @@ export class MineScene {
       if (k >= 1) this.tween = null;
     }
     this.controls.update();
-    this.composer.render();
+    if (this.composer) this.composer.render();
+    else this.renderer.render(this.scene, this.camera);
     this.labels.render(this.scene, this.camera);
   };
+
+  /**
+   * Если в полном качестве кадр в среднем дольше 70 мс (меньше ~14 кадров/с) — сообщаем, чтобы
+   * интерфейс переключился в лёгкий режим. Первые 3 с не считаем: идёт компиляция шейдеров.
+   */
+  private watchPerf(now: number): void {
+    if (this.light || !this.onSlow || this.perf.fired || document.hidden) return;
+    if (!this.perf.start) this.perf.start = now + 3000;
+    if (now < this.perf.start) return;
+    this.perf.frames++;
+    const span = now - this.perf.start;
+    if (span < 4000) return;
+    if (span / this.perf.frames > 70) {
+      this.perf.fired = true;
+      this.onSlow();
+    } else this.perf = { start: now, frames: 0, fired: false };
+  }
 
   private update(now: number): void {
     const sim = this.sim;
@@ -591,7 +626,7 @@ export class MineScene {
       for (const p of this.panels) (p.obj.element as HTMLElement).innerHTML = p.render();
       sim.excavators.forEach((ex, i) => {
         const q = ex.queue.length;
-        const st = ex.state === 'broken' ? '<span class="bad">⚠ ПОЛОМКА</span>' : ex.state === 'blast' ? '<span class="bad">💥 ОЦЕПЛЕНИЕ</span>' : '';
+        const st = ex.state === 'broken' ? '<span class="bad">⚠ ПОЛОМКА</span>' : ex.state === 'blast' ? '<span class="bad">✸ ОЦЕПЛЕНИЕ</span>' : '';
         const gr = ex.gradeBase > 0 ? ` <span class="warn">${gradeAt(ex, sim.now).toFixed(2)}% Cu</span>` : '';
         const dot = ex.state === 'broken' ? '#ef4444' : ex.state === 'blast' ? '#f97316' : ex.state === 'working' ? '#2dd4bf' : '#f59e0b';
         (this.exLabels[i].element as HTMLElement).innerHTML = tag(
@@ -727,7 +762,7 @@ export class MineScene {
       zm.color.set(active ? '#ef4444' : '#f59e0b');
       zm.opacity = active ? (blink ? 0.22 : 0.12) : 0.12;
       const mins = Math.max(0, Math.ceil((b.t - sim.now) / 60));
-      (v.lbl.element as HTMLElement).innerHTML = active ? '💥 <b>ВЗРЫВНЫЕ РАБОТЫ</b> · оцепление' : `⚠ <b>Взрыв через ${mins} мин</b> · вывод техники`;
+      (v.lbl.element as HTMLElement).innerHTML = active ? '✸ <b>ВЗРЫВНЫЕ РАБОТЫ</b> · оцепление' : `⚠ <b>Взрыв через ${mins} мин</b> · вывод техники`;
       if (active && v.boomAt === null) v.boomAt = now;
       // Анимация взрыва идёт в реальном времени (3 с), независимо от скорости модели.
       if (v.boomAt !== null) {
@@ -828,7 +863,7 @@ export class MineScene {
         bar.position.set(n.x, this.heightAt(n.x, n.y) + 2, n.y);
         bar.scale.setScalar(EQUIP_SCALE / 2);
         grp.add(bar);
-        const lbl = label('lbl3d bad', '⛔ ЗАКРЫТО');
+        const lbl = label('lbl3d bad', '⊘ ЗАКРЫТО');
         lbl.position.set(n.x, this.heightAt(n.x, n.y) + 70, n.y);
         grp.add(lbl);
         this.scene.add(grp);

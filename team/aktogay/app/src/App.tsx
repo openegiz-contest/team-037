@@ -10,6 +10,7 @@ import { TwinsPage } from './pages/TwinsPage';
 import { ScenariosPage } from './pages/ScenariosPage';
 import { PlatformBridge } from './platform/bridge';
 import { activeDeviations, applyScenario, type Command } from './platform/scenarios';
+import { glRenderer, loadQualityMode, resolveQuality, saveQualityMode, softwareGL, webglAvailable, type QualityMode } from './render3d/quality';
 import type { Selection } from './render/drawMine';
 import { computeEffect, computeKpis, deltaPct, MATERIAL_SHORT, Simulation, type StrategyName } from './sim';
 import { fmtClock, fmtDelta, fmtInt, fmtKzt } from './ui/format';
@@ -25,7 +26,11 @@ const SPEEDS: Speed[] = [1, 5, 20, 50, 'max'];
 export default function App() {
   /** ?embed=1 — компактный вид для панели Grafana. */
   const embed = useMemo(() => new URLSearchParams(window.location.search).get('embed') === '1', []);
-  const [view, setView] = useState<View>('3d');
+  // Без WebGL сразу показываем 2D-схему.
+  const [view, setView] = useState<View>(() => (webglAvailable() ? '3d' : '2d'));
+  const [qualityMode, setQualityMode] = useState<QualityMode>(loadQualityMode);
+  const [slow3d, setSlow3d] = useState(false);
+  const quality = resolveQuality(qualityMode, slow3d);
   const [seed, setSeed] = useState(42);
   const [trucks, setTrucks] = useState(20);
   const [speed, setSpeed] = useState<Speed>(20);
@@ -175,7 +180,7 @@ export default function App() {
       const n = b.sims.smart.excavators.length;
       const exId = selection?.sel?.kind === 'excavator' ? selection.sel.id : blastIdx.current++ % n;
       void b.send('blast', exId);
-      flash(`💥 Сценарий отправлен в OpenEgiz: взрыв у ${b.sims.smart.excavators[exId].name} через ${b.sims.smart.cfg.blasting.warnMin} мин`);
+      flash(`✸ Сценарий отправлен в OpenEgiz: взрыв у ${b.sims.smart.excavators[exId].name} через ${b.sims.smart.cfg.blasting.warnMin} мин`);
       return;
     }
     const sims = simsRef.current;
@@ -189,7 +194,7 @@ export default function App() {
     }
     const warn = sims[0].cfg.blasting.warnMin;
     for (const s of sims) s.scheduleBlast(exId, warn * 60);
-    flash(`💥 Взрывные работы у ${sims[0].excavators[exId].name} через ${warn} мин — вывод техники`);
+    flash(`✸ Взрывные работы у ${sims[0].excavators[exId].name} через ${warn} мин — вывод техники`);
     if (!runningRef.current) setRunning(true);
   }, [selection]);
 
@@ -199,7 +204,7 @@ export default function App() {
       const groups = b.sims.smart.layout.closureGroups;
       const g = closeIdx.current++ % groups.length;
       void b.send('close_road', g);
-      flash(`⛔ Сценарий отправлен в OpenEgiz: перекрыт ${groups[g].label}`);
+      flash(`⊘ Сценарий отправлен в OpenEgiz: перекрыт ${groups[g].label}`);
       return;
     }
     const sims = simsRef.current;
@@ -209,7 +214,7 @@ export default function App() {
       const g = (closeIdx.current + k) % groups.length;
       if (sims.every((s) => s.injectRoadClosure(g, 40 * 60))) {
         closeIdx.current = g + 1;
-        flash(`⛔ Перекрыт участок: ${groups[g].label} на 40 мин`);
+        flash(`⊘ Перекрыт участок: ${groups[g].label} на 40 мин`);
         return;
       }
     }
@@ -310,6 +315,17 @@ export default function App() {
 
   if (!main) return null;
 
+  const onSlow3d = () => {
+    if (qualityMode !== 'auto' || slow3d) return;
+    setSlow3d(true);
+    flash('3D тормозит — включена лёгкая графика (без теней и свечения)');
+  };
+  const chooseQuality = (m: QualityMode) => {
+    setQualityMode(m);
+    saveQualityMode(m);
+    if (m !== 'auto') setSlow3d(false);
+  };
+
   /** Сетка карт (3D/2D) — общая для полного интерфейса и для встраивания в Grafana. */
   const mapsGrid = (
           <div className={`grid min-h-0 flex-1 ${embed ? 'gap-1.5' : 'gap-3'} ${sims.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -335,7 +351,13 @@ export default function App() {
                     selection: selection?.v === s.strategyName ? selection.sel : null,
                     onSelect: (sel: Selection) => setSelection(sel ? { v: s.strategyName, sel } : null),
                   };
-                  return view === '3d' ? <Mine3D {...props}>{overlay}</Mine3D> : <MineCanvas {...props}>{overlay}</MineCanvas>;
+                  return view === '3d' ? (
+                    <Mine3D {...props} light={quality === 'light'} onSlow={onSlow3d}>
+                      {overlay}
+                    </Mine3D>
+                  ) : (
+                    <MineCanvas {...props}>{overlay}</MineCanvas>
+                  );
                 })()}
               </div>
             ))}
@@ -362,8 +384,8 @@ export default function App() {
               {isRunning ? '❚❚' : '▶'}
             </button>
             <button onClick={triggerBreakdown} className={`${ebtn} bg-red-600/90 text-white`}>⚠ Поломка</button>
-            <button onClick={triggerBlast} className={`${ebtn} bg-orange-600/90 text-white`}>💥 Взрыв</button>
-            <button onClick={triggerClosure} className={`${ebtn} bg-panel-2 text-red-300`}>⛔ Съезд</button>
+            <button onClick={triggerBlast} className={`${ebtn} bg-orange-600/90 text-white`}>✸ Взрыв</button>
+            <button onClick={triggerClosure} className={`${ebtn} bg-panel-2 text-red-300`}>⊘ Съезд</button>
             {bridge && (
               <button onClick={() => void bridge.send('cancel_all')} className={`${ebtn} bg-panel-2 text-emerald-300`}>
                 ↶ Отменить
@@ -397,20 +419,14 @@ export default function App() {
         <div className="ml-auto flex items-center gap-4">
           <div className="text-right">
             <div className="text-[11px] uppercase tracking-wider text-ink-3">Время смены</div>
-            <div className="num text-[26px] font-bold leading-none text-amber-400">
+            <div className="num whitespace-nowrap text-[26px] font-bold leading-none text-amber-400">
               {fmtClock(main.now)}
               <span className="text-[16px] text-ink-3"> / 12:00</span>
             </div>
           </div>
-          <div className="h-2.5 w-48 overflow-hidden rounded-full bg-panel-2">
+          <div className="hidden h-2.5 w-40 overflow-hidden rounded-full bg-panel-2 2xl:block">
             <div className="h-full rounded-full bg-gradient-to-r from-amber-600 to-amber-400" style={{ width: `${progress * 100}%` }} />
           </div>
-          <span
-            className={`rounded-md px-2 py-1 text-[11.5px] font-semibold ${bridge ? (bridge.connected ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300') : 'bg-panel-2 text-ink-3'}`}
-            title={bridge ? 'Данные берутся из двойников Eclipse Ditto платформы OpenEgiz' : 'Модель считается в браузере (OpenEgiz не найден)'}
-          >
-            {bridge ? `● OpenEgiz · Ditto${bridge.connected ? '' : ' (переподключение…)'}` : '○ автономный режим'}
-          </span>
           <div className="flex overflow-hidden rounded-lg border border-line">
             {(['3d', '2d'] as View[]).map((v) => (
               <button
@@ -418,10 +434,28 @@ export default function App() {
                 onClick={() => setView(v)}
                 className={`px-3 py-1.5 text-[13px] font-semibold ${view === v ? 'bg-sky-500 text-black' : 'bg-panel text-ink-2 hover:bg-panel-2'}`}
               >
-                {v === '3d' ? '3D' : '2D схема'}
+                {v === '3d' ? '3D' : '2D'}
               </button>
             ))}
           </div>
+          {view === '3d' && (
+            <label
+              className="flex items-center gap-1.5 rounded-lg border border-line bg-panel px-2 py-1 text-[12.5px] text-ink-2"
+              title={`Лёгкая графика: без теней, свечения и сглаживания — для компьютеров без видеокарты.
+WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' : ''}`}
+            >
+              <span className="text-ink-3">Графика:</span>
+              <select
+                value={qualityMode}
+                onChange={(e) => chooseQuality(e.target.value as QualityMode)}
+                className="cursor-pointer bg-transparent font-semibold text-ink outline-none"
+              >
+                <option value="auto">Авто ({quality === 'light' ? 'лёгкая' : 'полная'})</option>
+                <option value="high">Полная</option>
+                <option value="light">Лёгкая</option>
+              </select>
+            </label>
+          )}
         </div>
       </header>
 
@@ -443,7 +477,7 @@ export default function App() {
               title={s === 'max' ? 'Максимально быстро — промотать смену' : `1 с = ${BASE_RATE * s} с смены`}
               className={`num rounded px-2 py-1 font-semibold ${speed === s ? 'bg-amber-500 text-black' : 'bg-panel-2 text-ink-2 hover:text-ink'}`}
             >
-              {s === 'max' ? '⏩ МАКС' : `x${s}`}
+              {s === 'max' ? '» МАКС' : `x${s}`}
             </button>
           ))}
         </div>
@@ -456,7 +490,7 @@ export default function App() {
             className="num w-20 rounded border border-line bg-panel-2 px-2 py-1 text-ink outline-none focus:border-amber-500"
           />
           <button onClick={() => setSeed(Math.floor(Math.random() * 10000))} className="rounded bg-panel-2 px-2 py-1 text-ink-2 hover:text-ink" title="Случайный seed">
-            🎲
+            ⚄
           </button>
         </label>
         <label className="flex items-center gap-2">
@@ -469,10 +503,10 @@ export default function App() {
             ⚠ Вызвать поломку
           </button>
           <button onClick={triggerBlast} className="rounded-md bg-orange-600/90 px-3 py-1.5 font-bold text-white hover:bg-orange-500" title="Клавиша E. Если выбран экскаватор — взрыв у него.">
-            💥 Взрыв
+            ✸ Взрыв
           </button>
           <button onClick={triggerClosure} className="rounded-md bg-panel-2 px-3 py-1.5 font-semibold text-red-300 ring-1 ring-red-500/40 hover:bg-red-500/10" title="Клавиша C">
-            ⛔ Перекрыть съезд
+            ⊘ Перекрыть съезд
           </button>
           {bridge && (
             <button

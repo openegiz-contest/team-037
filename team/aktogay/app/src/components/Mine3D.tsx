@@ -9,6 +9,10 @@ interface Props {
   onSelect: (s: Selection) => void;
   /** Показывать кнопки камеры (в режиме сравнения — только на одной из карт). */
   showControls?: boolean;
+  /** Лёгкая графика (без теней и свечения) — для машин без видеокарты. */
+  light?: boolean;
+  /** Сцена тормозит в полном качестве. */
+  onSlow?: () => void;
   children?: React.ReactNode;
 }
 
@@ -20,7 +24,7 @@ const PRESETS: { key: CameraPreset; label: string }[] = [
 ];
 
 /** 3D-вид карьера (Three.js). Камера: ЛКМ — вращение, ПКМ — сдвиг, колесо — масштаб. */
-export function Mine3D({ sim, selection, onSelect, showControls = true, children }: Props) {
+export function Mine3D({ sim, selection, onSelect, showControls = true, light = false, onSlow, children }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<MineScene | null>(null);
   const [orbit, setOrbit] = useState(false);
@@ -34,8 +38,11 @@ export function Mine3D({ sim, selection, onSelect, showControls = true, children
     return () => window.removeEventListener('keydown', onKey);
   }, [full]);
 
+  const onSlowRef = useRef(onSlow);
+  onSlowRef.current = onSlow;
+
   useEffect(() => {
-    const scene = new MineScene(hostRef.current!, sim);
+    const scene = new MineScene(hostRef.current!, sim, { light, onSlow: () => onSlowRef.current?.() });
     sceneRef.current = scene;
     const el = scene.domElement;
     let down: { x: number; y: number } | null = null;
@@ -54,7 +61,7 @@ export function Mine3D({ sim, selection, onSelect, showControls = true, children
       scene.dispose();
       sceneRef.current = null;
     };
-  }, [sim]);
+  }, [sim, light]);
 
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
@@ -82,11 +89,11 @@ export function Mine3D({ sim, selection, onSelect, showControls = true, children
             ⟳ Облёт
           </button>
           <button onClick={() => setFull((f) => !f)} className={`${btn} bg-black/55 text-ink-2 hover:text-ink`} title="Во весь экран (Esc — выход)">
-            {full ? '✕ Свернуть' : '⛶ Во весь экран'}
+            {full ? '✕ Свернуть' : '⤢ Во весь экран'}
           </button>
           {selection?.kind === 'truck' && (
             <button onClick={() => setFollow((f) => !f)} className={`${btn} ${follow ? 'bg-amber-500 text-black' : 'bg-black/55 text-ink-2 hover:text-ink'}`}>
-              🎥 Следовать
+              ◎ Следовать
             </button>
           )}
         </div>

@@ -233,7 +233,7 @@ export function drawDynamic(ctx: CanvasRenderingContext2D, sim: Simulation, v: V
     ctx.stroke();
     ctx.setLineDash([]);
     const mins = Math.max(0, Math.ceil((b.t - sim.now) / 60));
-    label(ctx, active ? '💥 ОЦЕПЛЕНИЕ' : `⚠ ВЗРЫВ через ${mins} мин`, cx, cy - rr - fs * 0.6, fs * 0.85, active ? '#fca5a5' : '#fcd34d');
+    label(ctx, active ? '✸ ОЦЕПЛЕНИЕ' : `⚠ ВЗРЫВ через ${mins} мин`, cx, cy - rr - fs * 0.6, fs * 0.85, active ? '#fca5a5' : '#fcd34d');
   }
 
   // Закрытые участки дорог.
@@ -253,7 +253,7 @@ export function drawDynamic(ctx: CanvasRenderingContext2D, sim: Simulation, v: V
     ctx.setLineDash([]);
     const mid = g.edges[c.edges[Math.floor(c.edges.length / 2)]];
     const m = g.nodes[mid.a];
-    label(ctx, '⛔ ЗАКРЫТО', sx(v, m.x), sy(v, m.y) - fs, fs * 0.85, '#fca5a5');
+    label(ctx, '⊘ ЗАКРЫТО', sx(v, m.x), sy(v, m.y) - fs, fs * 0.85, '#fca5a5');
   }
 
   // Конвейер дробилка → фабрика.

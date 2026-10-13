@@ -435,7 +435,7 @@ export class Simulation {
     }
     this.closures.push({ edges: b.edges, until: b.t + b.dur, label: b.label });
     this.applyClosures();
-    this.addLog(`💥 Взрыв: ${b.label.toLowerCase()}, оцепление ~${Math.round(b.dur / 60)} мин`, 'alarm');
+    this.addLog(`✸ Взрыв: ${b.label.toLowerCase()}, оцепление ~${Math.round(b.dur / 60)} мин`, 'alarm');
   }
 
   // ───────────────────────────── публичное API ─────────────────────────────

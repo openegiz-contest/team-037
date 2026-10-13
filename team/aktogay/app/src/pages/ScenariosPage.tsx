@@ -16,8 +16,8 @@ type Kind = 'breakdown' | 'close_road' | 'blast' | 'reset';
 
 const KINDS: { kind: Kind; icon: string; title: string; text: string; tone: string }[] = [
   { kind: 'breakdown', icon: '⚠', title: 'Поломка экскаватора', text: 'Экскаватор встаёт на ремонт. Кто перевезёт его самосвалы?', tone: '#ef4444' },
-  { kind: 'close_road', icon: '⛔', title: 'Перекрытие съезда', text: 'Участок спирального съезда закрыт: маршруты идут в объезд.', tone: '#f97316' },
-  { kind: 'blast', icon: '💥', title: 'Внеплановый взрыв', text: 'Предупреждение 15 мин, затем оцепление 30 мин вокруг забоя.', tone: '#f59e0b' },
+  { kind: 'close_road', icon: '⊘', title: 'Перекрытие съезда', text: 'Участок спирального съезда закрыт: маршруты идут в объезд.', tone: '#f97316' },
+  { kind: 'blast', icon: '✸', title: 'Внеплановый взрыв', text: 'Предупреждение 15 мин, затем оцепление 30 мин вокруг забоя.', tone: '#f59e0b' },
   { kind: 'reset', icon: '↺', title: 'Новая смена', text: 'Другой парк самосвалов и другой сценарий случайных событий.', tone: '#38bdf8' },
 ];
 
@@ -167,7 +167,7 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
                       className="num w-full rounded-lg border border-line bg-panel-2 px-2.5 py-1.5 outline-none focus:border-amber-500"
                     />
                     <button onClick={() => setNewSeed(Math.floor(Math.random() * 10000))} className="rounded-lg bg-panel-2 px-2.5 text-ink-2 hover:text-ink" title="Случайный seed">
-                      🎲
+                      ⚄
                     </button>
                   </div>
                   <span className="text-[11.5px] text-ink-3">Сейчас: seed {seed}, {trucks} самосвалов.</span>
@@ -286,8 +286,8 @@ function SectionTitle({ n, title }: { n: string; title: string }) {
 
 const DEV_STYLE: Record<ActiveDeviation['kind'], { icon: string; color: string }> = {
   breakdown: { icon: '⚠', color: '#ef4444' },
-  closure: { icon: '⛔', color: '#f97316' },
-  blast: { icon: '💥', color: '#f59e0b' },
+  closure: { icon: '⊘', color: '#f97316' },
+  blast: { icon: '✸', color: '#f59e0b' },
 };
 
 function DeviationCard({ d, onUndo }: { d: ActiveDeviation; onUndo: () => void }) {
