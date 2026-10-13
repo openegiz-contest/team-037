@@ -47,7 +47,7 @@ interface Props {
 export function BuildingView({ sim, kind, onClose, onTruck, light = false }: Props) {
   const sensors = SENSORS_BY_KIND[TWIN_KIND[kind]] ?? [];
   /** У дробилки и фабрики есть 3D-цех; без WebGL — только схема. */
-  const has3d = (kind === 'crusher' || kind === 'plant') && webglAvailable();
+  const has3d = (kind === 'crusher' || kind === 'plant' || kind === 'garage') && webglAvailable();
   const [tab, setTab] = useState<'3d' | 'scheme'>(has3d ? '3d' : 'scheme');
   const show3d = has3d && tab === '3d';
   return (
@@ -72,13 +72,13 @@ export function BuildingView({ sim, kind, onClose, onTruck, light = false }: Pro
       <div className={`min-h-0 flex-1 p-3 ${show3d ? 'flex flex-col' : 'overflow-auto'}`}>
         {show3d && (
           <div className="relative min-h-0 flex-1">
-            <Interior3D sim={sim} kind={kind as 'crusher' | 'plant'} light={light} />
+            <Interior3D sim={sim} kind={kind as 'crusher' | 'plant' | 'garage'} light={light} />
             <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 text-[11.5px] text-ink-2">ЛКМ — вращение · ПКМ — сдвиг · колесо — масштаб</div>
           </div>
         )}
         {!show3d && kind === 'crusher' && <Crusher sim={sim} onTruck={onTruck} />}
         {!show3d && kind === 'plant' && <Plant sim={sim} />}
-        {kind === 'garage' && <Garage sim={sim} onTruck={onTruck} />}
+        {!show3d && kind === 'garage' && <Garage sim={sim} onTruck={onTruck} />}
         {(kind === 'leach' || kind === 'waste') && <Dump sim={sim} kind={kind} onTruck={onTruck} />}
         {sensors.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">

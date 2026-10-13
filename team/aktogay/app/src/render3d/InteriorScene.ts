@@ -1,5 +1,5 @@
 /**
- * 3D «внутри здания»: цех дробилки и обогатительной фабрики. Оборудование собрано из простых
+ * 3D «внутри здания»: цех дробилки, обогатительной фабрики и гаража. Оборудование собрано из простых
  * фигур (в стиле сцены карьера) и живёт по данным двойника: разгрузка самосвала, вращение
  * дробилки и мельниц, уровень в бункере, руда на конвейерах, пена во флотации. При простое
  * всё останавливается и загораются красные маяки.
@@ -12,10 +12,10 @@ import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRe
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { Simulation } from '../sim';
 import { fmtInt } from '../ui/format';
-import { MATERIAL_COLOR } from '../ui/theme';
+import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
 import { EQUIP_SCALE, makeTruck, ROCK_GEO, type TruckModel } from './models';
 
-export type InteriorKind = 'crusher' | 'plant';
+export type InteriorKind = 'crusher' | 'plant' | 'garage';
 
 const std = (color: string, extra: Partial<THREE.MeshStandardMaterialParameters> = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0.2, ...extra });
@@ -172,9 +172,10 @@ export class InteriorScene {
     this.controls.minDistance = 15;
     this.controls.maxDistance = 200;
 
-    this.buildHall(kind === 'crusher' ? 110 : 130);
+    this.buildHall(kind === 'crusher' ? 110 : kind === 'plant' ? 130 : 150);
     if (kind === 'crusher') this.buildCrusher();
-    else this.buildPlant();
+    else if (kind === 'plant') this.buildPlant();
+    else this.buildGarage();
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(container);
@@ -404,6 +405,164 @@ export class InteriorScene {
 
     this.camera.position.set(22, 24, 40);
     this.controls.target.set(-2, 8, 0);
+  }
+
+  // ───────────────────────────── гараж ─────────────────────────────
+
+  private buildGarage(): void {
+    const sim = this.sim;
+    const cfg = sim.cfg;
+    const BAYS = 3;
+    const POSTS = 2;
+
+    // Самосвал реального размера (нос по +X).
+    const mkTruck = (x: number, z: number, rotY: number) => {
+      const t = makeTruck();
+      t.root.scale.setScalar(1 / EQUIP_SCALE);
+      t.root.position.set(x, 0, z);
+      t.root.rotation.y = rotY;
+      t.ring.visible = false;
+      t.heap.visible = false;
+      t.root.visible = false;
+      this.scene.add(t.root);
+      return t;
+    };
+
+    // Ремонтные боксы: перегородки, кран-балка, механик, тележка, лампа.
+    const bays: { truck: TruckModel; crane: THREE.Group; mech: THREE.Group; lamp: { mesh: THREE.Mesh; mat: THREE.MeshStandardMaterial } }[] = [];
+    const vest = std('#f97316', { roughness: 0.6 });
+    // Боксы вдоль задней стены, машины носом к воротам (+Z).
+    const bayX = (i: number) => -54 + i * 17;
+    for (let i = 0; i < BAYS; i++) {
+      const x = bayX(i);
+      this.scene.add(box(0.5, 6, 26, M.wall, x - 8.2, 3, -20));
+      this.scene.add(box(0.6, 0.05, 26, M.yellow, x + 7.6, 0.04, -20));
+      const truck = mkTruck(x, -22, -Math.PI / 2);
+      const crane = new THREE.Group();
+      crane.add(box(15, 1, 1, M.yellow, 0, 0, 0));
+      crane.add(box(1.4, 1.2, 1.4, M.dark, 0, -1, 0));
+      crane.add(box(0.15, 6, 0.15, M.steel, 0, -4.2, 0));
+      crane.position.set(x, 22, -22);
+      this.scene.add(crane);
+      this.scene.add(box(0.8, 0.8, 30, M.steel, x - 7.4, 22.6, -20), box(0.8, 0.8, 30, M.steel, x + 7.4, 22.6, -20));
+      const mech = new THREE.Group();
+      const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.45, 0.9, 4, 8), vest);
+      torso.position.y = 1.4;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 8), std('#f2c79a'));
+      head.position.y = 2.35;
+      const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.36, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), M.yellow);
+      helmet.position.y = 2.4;
+      mech.add(torso, head, helmet);
+      mech.position.set(x + 5, 0, -16);
+      this.scene.add(mech);
+      this.scene.add(box(1, 1, 1.6, std('#b91c1c'), x - 5.5, 0.5, -12)); // тележка с инструментом
+      const lamp = beacon(x, 7, -34);
+      this.scene.add(lamp.mesh);
+      bays.push({ truck, crane, mech, lamp });
+    }
+
+    // АЗС: островок, колонки со шлангами.
+    const posts: { truck: TruckModel; hose: THREE.Mesh; lamp: { mesh: THREE.Mesh; mat: THREE.MeshStandardMaterial } }[] = [];
+    this.scene.add(box(26, 0.4, 24, M.concrete, 6, 0.2, -10));
+    this.scene.add(box(26, 0.8, 24, std('#c4442c'), 6, 12, -10)); // навес
+    for (const x of [-6, 18]) for (const z of [-21, 1]) this.scene.add(box(0.7, 12, 0.7, M.steel, x, 6, z));
+    for (let i = 0; i < POSTS; i++) {
+      const z = -16 + i * 12;
+      this.scene.add(box(1.4, 3.2, 1.2, std('#e9edf0'), 6, 1.8, z + 3.5));
+      this.scene.add(box(1.5, 0.9, 1.3, std('#0f766e'), 6, 3.8, z + 3.5));
+      const truck = mkTruck(4, z, 0);
+      const hose = cyl(0.12, 0.12, 4.5, M.dark, 6);
+      hose.rotation.x = Math.PI / 2.4;
+      hose.position.set(5, 2.6, z + 1.6);
+      this.scene.add(hose);
+      const lamp = beacon(6, 4.6, z + 3.5);
+      this.scene.add(lamp.mesh);
+      posts.push({ truck, hose, lamp });
+    }
+
+    // Стоянка: места по номерам, на занятых — упрощённые машины (корпус + кабина) цвета состояния.
+    const P = sim.parking;
+    const cols = Math.max(1, P.cols);
+    const slotN = sim.slotOccupant.length;
+    const rows = Math.ceil(slotN / cols);
+    const sx = 9;
+    const sz = 16;
+    const x0 = 28;
+    const z0 = -((rows - 1) * sz) / 2 - 6;
+    this.scene.add(box(cols * sx + 6, 0.3, rows * sz + 6, std('#4b4d52', { roughness: 1 }), x0 + ((cols - 1) * sx) / 2, 0.15, z0 + ((rows - 1) * sz) / 2));
+    const parked: { body: THREE.Mesh; cab: THREE.Mesh; mat: THREE.MeshStandardMaterial }[] = [];
+    for (let k = 0; k < slotN; k++) {
+      const x = x0 + (k % cols) * sx;
+      const z = z0 + Math.floor(k / cols) * sz;
+      this.scene.add(box(0.2, 0.05, 13, M.yellow, x - sx / 2, 0.32, z), box(0.2, 0.05, 13, M.yellow, x + sx / 2, 0.32, z));
+      const mat = std('#c4442c', { roughness: 0.6 });
+      const body = box(5.6, 3.6, 9, mat, x, 2.2, z + 1.2);
+      const cab = box(5.6, 2.6, 3, std('#e9edf0'), x, 3.2, z - 4.6);
+      body.visible = false;
+      cab.visible = false;
+      this.scene.add(body, cab);
+      parked.push({ body, cab, mat });
+    }
+
+    let craneT = 0;
+    this.updaters.push((dt, now) => {
+      const blink = Math.floor(now / 450) % 2 === 0;
+      const service = sim.trucks.filter((t) => t.state === 'service');
+      const refuel = sim.trucks.filter((t) => t.state === 'refuel');
+      craneT += dt;
+      bays.forEach((b, i) => {
+        const t = service[i];
+        b.truck.root.visible = !!t;
+        b.mech.visible = !!t;
+        b.truck.body.rotation.z = t ? 0.55 : 0;
+        b.crane.position.z = -22 + (t ? Math.sin(craneT * 0.4 + i) * 6 : 0);
+        b.mech.position.z = -16 + (t ? Math.sin(craneT * 0.7 + i * 2) * 1.2 : 0);
+        const col = t ? (blink ? '#f97316' : '#7c2d12') : '#22c55e';
+        b.lamp.mat.color.set(col);
+        b.lamp.mat.emissive.set(col);
+      });
+      posts.forEach((p, i) => {
+        const t = refuel[i];
+        p.truck.root.visible = !!t;
+        p.hose.visible = !!t;
+        const col = t ? '#38bdf8' : '#22c55e';
+        p.lamp.mat.color.set(col);
+        p.lamp.mat.emissive.set(col);
+      });
+      sim.slotOccupant.forEach((occ, k) => {
+        const p = parked[k];
+        const t = occ !== null ? sim.trucks[occ] : null;
+        // На месте — только ожидающие машины (на заправке и в ремонте они показаны у колонок и в боксах).
+        const here = !!t && t.parkSlot === k && t.state === 'idle';
+        p.body.visible = here;
+        p.cab.visible = here;
+        if (t) p.mat.color.set(TRUCK_COLOR[t.state]);
+      });
+    });
+
+    for (let i = 0; i < BAYS; i++) {
+      this.label(bayX(i), 16, -22, () => {
+        const service = sim.trucks.filter((t) => t.state === 'service');
+        const t = service[i];
+        return t
+          ? `<b>БОКС ${i + 1} · ППР</b><br><span class="v">${t.name}</span><br>${t.health.sign ? 'проверка: ' + (t.health.sign === 'engine' ? 'двигатель' : t.health.sign === 'tyre' ? 'шины' : 'гидравлика') + '<br>' : ''}осталось: <span class="v">${Math.ceil(t.timer / 60)} мин</span>`
+          : `<b>БОКС ${i + 1}</b><br><span class="ok">свободен</span>`;
+      });
+    }
+    this.label(6, 16, -10, () => {
+      const refuel = sim.trucks.filter((t) => t.state === 'refuel');
+      const rows = refuel.map((t) => `<span class="v">${t.name}</span> · ${Math.round((t.fuelL / cfg.truck.fuelTankL) * 100)}%`).join('<br>');
+      const going = sim.trucks.filter((t) => t.dest?.kind === 'garage' && t.dest.purpose === 'refuel' && t.state !== 'refuel').length;
+      return `<b>АЗС</b><br>${rows || 'никто не заправляется'}${going ? `<br>едут: <span class="v">${going}</span>` : ''}`;
+    });
+    this.label(x0 + ((cols - 1) * sx) / 2, 9, z0 - 12, () => {
+      const occupied = sim.slotOccupant.filter((o) => o !== null).length;
+      const broken = sim.trucks.filter((t) => t.state === 'broken').length;
+      return `<b>СТОЯНКА</b><br>занято: <span class="v">${occupied} из ${slotN}</span>${broken ? `<br><span class="bad">аварийный ремонт на трассе: ${broken}</span>` : ''}`;
+    });
+
+    this.camera.position.set(-14, 28, 34);
+    this.controls.target.set(-20, 4, -16);
   }
 
   // ───────────────────────────── фабрика ─────────────────────────────
