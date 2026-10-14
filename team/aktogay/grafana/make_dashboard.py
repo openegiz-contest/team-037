@@ -122,7 +122,7 @@ add({
     "type": "text", "title": "3D-карьер Актогай: реальная работа",
     "gridPos": {"x": 0, "y": 6, "w": 24, "h": 18}, "datasource": None, "transparent": False,
     "options": {"mode": "html", "content": (
-        '<iframe src="http://localhost:8095/?embed=1" title="3D-карьер Актогай" '
+        '<iframe src="http://localhost:8095/?embed=1&v=2" title="3D-карьер Актогай" '
         'style="width:100%;height:100%;min-height:420px;border:0;border-radius:6px;background:#0a1526" allow="fullscreen"></iframe>'
     )},
 })
