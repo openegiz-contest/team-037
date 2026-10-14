@@ -714,6 +714,8 @@ const COMMAND_LABEL: Record<string, string> = {
   resume: 'пуск',
   speed: 'скорость',
   reset: 'новая смена',
+  drill_down: 'поломка бурового станка',
+  drill_repair: 'отмена поломки станка',
 };
 
 function Summary({ label, value, good }: { label: string; value: string; good: boolean }) {

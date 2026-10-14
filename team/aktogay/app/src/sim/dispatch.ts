@@ -92,7 +92,7 @@ export class SmartStrategy implements DispatchStrategy {
       }
       const arrive = now + d / v;
       const lt = sim.expectedLoadTime(ex);
-      const down = Math.max(ex.state === 'broken' ? ex.brokenLeft : 0, ex.blastLeft);
+      const down = Math.max(ex.state === 'broken' ? ex.brokenLeft : ex.state === 'nostock' ? 4 * 3600 : 0, ex.blastLeft);
       const free0 = now + down + (ex.loading !== null ? ex.loadLeft : 0) + ex.queue.length * lt;
       // Прогоняем очередь с учётом уже едущих самосвалов: когда начнём грузиться мы
       // и насколько наш приезд задержит тех, кто приедет позже (их ожидание — тоже потеря).
@@ -141,7 +141,7 @@ export class SmartStrategy implements DispatchStrategy {
       if (o === truck || o.dest?.kind !== 'excavator' || o.state === 'idle') continue;
       allocated[o.dest.id] += payload;
     }
-    const active = sim.excavators.map((e) => (e.state === 'broken' ? 0 : sim.targetShare[e.id]));
+    const active = sim.excavators.map((e) => (e.state === 'broken' || e.state === 'nostock' ? 0 : sim.targetShare[e.id]));
     const shareSum = active.reduce((a, b) => a + b, 0) || 1;
     const activeAllocated = allocated.reduce((s, a, i) => s + (active[i] > 0 ? a : 0), 0);
     return active.map((a, i) => {

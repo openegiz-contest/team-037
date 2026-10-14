@@ -207,16 +207,21 @@ export function InfoCard({ sim, selection, onClose }: { sim: Simulation; selecti
   } else {
     const e = sim.excavators[selection.id];
     title = `Экскаватор ${e.name}`;
-    color = e.state === 'broken' ? '#ef4444' : e.state === 'blast' ? '#f97316' : e.state === 'working' ? '#22c55e' : '#9ca3af';
+    color = e.state === 'broken' ? '#ef4444' : e.state === 'blast' ? '#f97316' : e.state === 'nostock' ? '#a855f7' : e.state === 'working' ? '#22c55e' : '#9ca3af';
     const util = sim.now > 0 ? (e.busySec / sim.now) * 100 : 0;
     body = (
       <>
-        <Row k="Состояние" v={<span style={{ color }}>{e.state === 'broken' ? 'Поломка' : e.state === 'blast' ? 'Оцепление (взрыв)' : e.state === 'working' ? 'Погрузка' : 'Ожидает самосвал'}</span>} />
+        <Row k="Состояние" v={<span style={{ color }}>{e.state === 'broken' ? 'Поломка' : e.state === 'blast' ? 'Оцепление (взрыв)' : e.state === 'nostock' ? 'Нет взорванной массы' : e.state === 'working' ? 'Погрузка' : 'Ожидает самосвал'}</span>} />
         <Row k="Материал" v={<span style={{ color: MATERIAL_COLOR[e.material] }}>{MATERIAL_LABEL[e.material]}</span>} />
         <Row k="Производительность" v={`${e.rateTpm} т/мин`} />
         {e.gradeBase > 0 && <Row k="Содержание меди в забое" v={<span className="text-amber-300">{gradeAt(e, sim.now).toFixed(2)}% Cu</span>} />}
         {e.blastLeft > 0 && <Row k="Оцепление ещё" v={`${Math.ceil(e.blastLeft / 60)} мин`} />}
         <Row k="Очередь" v={`${e.queue.length} самосвалов`} />
+        <Row
+          k="Взорванная масса"
+          v={<span className={sim.drill.stockShifts(e.id) < 0.5 ? 'text-red-400' : ''}>{fmtInt(sim.drill.stockT[e.id])} т · ~{sim.drill.stockShifts(e.id).toFixed(1)} смен</span>}
+        />
+        <Row k="Следующий блок обурен" v={`${sim.drill.blocks[e.id].holesDone}/${sim.drill.blocks[e.id].holesTotal} скважин`} />
         <Row k="Погрузок" v={e.loads} />
         <Row k="Отгружено" v={`${fmtInt(e.tonnes)} т`} />
         <Row k="Загрузка" v={`${fmt1(util)}%`} />

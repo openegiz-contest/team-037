@@ -38,7 +38,8 @@ const NO_SPARK = new Set(['x', 'y', 'edge_from', 'edge_to', 'node', 'seg_pos', '
 const KEY_METRICS: Record<string, string[]> = {
   'open-pit': ['mined_total', 'tph', 'crusher_idle_min', 'avg_queue_min', 'grade_in_band_pct'],
   'haul-truck': ['state', 'payload', 'fuel', 'engine_temp', 'failure_risk'],
-  excavator: ['state', 'queue', 'face_grade', 'tonnes_total'],
+  excavator: ['state', 'queue', 'face_grade', 'stock', 'stock_shifts'],
+  'drill-rig': ['state', 'block', 'holes_done', 'penetration', 'hole_depth'],
   crusher: ['state', 'bin', 'bin_grade', 'starved'],
   concentrator: ['state', 'feed_rate', 'feed_grade', 'cu_concentrate'],
   'heap-leach': ['tonnes_total', 'queue'],
@@ -55,6 +56,7 @@ const INSIDE: Record<string, BuildingKind> = { crusher: 'crusher', concentrator:
 const GROUPS: { title: string; kinds: string[] }[] = [
   { title: 'Карьер', kinds: ['open-pit'] },
   { title: 'Экскаваторы', kinds: ['excavator'] },
+  { title: 'Буровые станки', kinds: ['drill-rig'] },
   { title: 'Самосвалы', kinds: ['haul-truck'] },
   { title: 'Переработка', kinds: ['crusher', 'concentrator', 'heap-leach', 'waste-dump'] },
   { title: 'Агрегаты цехов', kinds: ['unit'] },
@@ -188,6 +190,10 @@ function summary(r: TwinRecord): [string, keyof typeof TONE_COLOR] {
       const a = Number(v('active') ?? 0);
       const w = Number(v('announced') ?? 0);
       return [a ? 'оцепление' : w ? 'объявлен взрыв' : 'нет', a ? 'bad' : w ? 'warn' : 'idle'];
+    }
+    case 'drill-rig': {
+      const s = String(v('state') ?? '');
+      return [s === 'drilling' ? `бурит · ${v('block')} ${v('holes_done')}/${v('holes_total')}` : (VALUE_LABEL[s] ?? s), stateTone(s)];
     }
     case 'unit': {
       const alarm = Number(v('alarm')) === 1;
@@ -506,7 +512,7 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
             <div className="panel">
               <div className="flex items-center gap-3 border-b border-line px-4 py-2.5">
                 <div className="text-[13px] font-semibold">
-                  Датчики {({ excavator: 'на экскаваторе', 'haul-truck': 'на самосвале', crusher: 'на дробилке', concentrator: 'на фабрике', 'heap-leach': 'на площадке выщелачивания', 'waste-dump': 'на отвале', garage: 'в гараже' } as Record<string, string>)[selKind]} <span className="font-normal text-ink-3">· {sensors.length} · attributes.sensors</span>
+                  Датчики {({ excavator: 'на экскаваторе', 'haul-truck': 'на самосвале', crusher: 'на дробилке', concentrator: 'на фабрике', 'heap-leach': 'на площадке выщелачивания', 'waste-dump': 'на отвале', garage: 'в гараже', 'drill-rig': 'на буровом станке' } as Record<string, string>)[selKind]} <span className="font-normal text-ink-3">· {sensors.length} · attributes.sensors</span>
                 </div>
                 <span className="ml-auto text-[11.5px] text-ink-3">клик — показать признаки датчика в таблице ниже</span>
               </div>

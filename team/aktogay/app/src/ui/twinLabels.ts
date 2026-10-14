@@ -15,6 +15,7 @@ export const KIND_LABEL: Record<string, string> = {
   blasting: 'Взрывные работы',
   'shift-log': 'Хронология смены',
   unit: 'Агрегат',
+  'drill-rig': 'Буровой станок',
 };
 
 export const FEATURE_LABEL: Record<string, string> = {
@@ -130,6 +131,22 @@ export const FEATURE_LABEL: Record<string, string> = {
   active: 'Идёт оцепление',
   announced: 'Объявлено',
   blasts: 'Взрывы смены',
+  // буровые станки и подготовка блоков
+  target_ex: 'Блок у экскаватора (номер)',
+  block: 'Бурит блок у',
+  holes_done: 'Пробурено скважин на блоке',
+  holes_total: 'Скважин на блоке',
+  hole_depth: 'Глубина текущей скважины',
+  penetration: 'Скорость проходки',
+  pulldown: 'Усилие подачи',
+  torque: 'Крутящий момент',
+  air_pressure: 'Давление воздуха',
+  meters_shift: 'Пробурено за смену',
+  holes_shift: 'Скважин за смену',
+  stock: 'Запас взорванной массы',
+  stock_shifts: 'Запаса хватит на',
+  block_holes_done: 'Следующий блок: пробурено',
+  block_holes_total: 'Следующий блок: скважин',
   // агрегаты внутри зданий
   power: 'Мощность привода',
   motor_current: 'Ток двигателя',
@@ -201,9 +218,18 @@ export const UNIT_LABEL: Record<string, string> = {
   um: 'мкм',
   'g/t': 'г/т',
   'l/min': 'л/мин',
+  'm/h': 'м/ч',
+  kN: 'кН',
+  'kN*m': 'кН·м',
+  holes: 'скв.',
+  shifts: 'смен',
 };
 
 export const VALUE_LABEL: Record<string, string> = {
+  // буровые станки, экскаватор без запаса
+  drilling: 'бурит',
+  moving: 'переезд',
+  nostock: 'нет взорванной массы',
   // агрегаты
   run: 'работает',
   idling: 'холостой ход',
@@ -253,6 +279,7 @@ export function stateTone(state: string | undefined): 'ok' | 'busy' | 'warn' | '
     case 'starved':
     case 'stopped':
     case 'stop':
+    case 'nostock':
       return 'bad';
     case 'queue':
     case 'waiting':
@@ -268,7 +295,10 @@ export function stateTone(state: string | undefined): 'ok' | 'busy' | 'warn' | '
     case 'crushing':
     case 'running':
     case 'run':
+    case 'drilling':
       return 'ok';
+    case 'moving':
+      return 'busy';
     case 'busy':
       return 'warn';
     case 'idling':

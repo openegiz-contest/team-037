@@ -15,7 +15,7 @@ import type { Simulation } from '../sim/engine';
 import { MATERIALS, TRUCK_STATES, type Blast, type Destination, type FailureType, type Material, type StrategyName, type TruckState } from '../sim/types';
 import { gradeAt } from '../sim/ore';
 import { UNIT_DEFS, type UnitState } from '../sim/equipment';
-import { crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
+import { drillSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -38,6 +38,7 @@ export const thingIds = (v: StrategyName) => {
     blasting: `${ns}:blasting`,
     shift: `${ns}:shift`,
     unit: (key: string) => `${ns}:${key}`,
+    drill: (i: number) => `${ns}:drill-${i + 1}`,
   };
 };
 
@@ -109,6 +110,22 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
   out[id.garage] = { policyId: POLICY, attributes: { name: 'Гараж, АЗС и стоянка', kind: 'garage', _isType: false, _parents: parent, slots: sim.parking.slots.length, sensors: garageSensorAttributes() }, features: serializeGarage(sim) };
   out[id.roads] = { policyId: POLICY, attributes: { name: 'Дорожная сеть карьера', kind: 'road-network', _isType: false, _parents: parent, edges: sim.layout.graph.edges.length }, features: serializeRoads(sim) };
   out[id.blasting] = { policyId: POLICY, attributes: { name: 'Буровзрывные работы', kind: 'blasting', _isType: false, _parents: parent }, features: serializeBlasting(sim) };
+  // Буровые станки — бурят блоки у забоев под взрыв.
+  sim.drill.rigs.forEach((g, i) => {
+    out[id.drill(i)] = {
+      policyId: POLICY,
+      attributes: {
+        name: `Буровой станок ${g.name}`,
+        kind: 'drill-rig',
+        _isType: false,
+        _parents: parent,
+        model_class: 'гусеничный станок шарошечного бурения, скважины Ø 250 мм',
+        hole_depth_m: 16,
+        sensors: drillSensorAttributes(),
+      },
+      features: serializeDrill(sim, i),
+    };
+  });
   // Агрегаты внутри зданий — дочерние двойники дробилки, фабрики и гаража.
   const parentOf = { crusher: id.crusher, plant: id.plant, garage: id.garage };
   for (const u of sim.equipment.units) {
@@ -270,6 +287,11 @@ export function serializeExcavator(sim: Simulation, i: number): Features {
     blast_time: f(Math.round(ex.blastSec), 's'),
     queue_avg: f(r3(sim.now > 0 ? ex.queueIntegral / sim.now : 0), 'trucks'),
     face_grade: f(r3(gradeAt(ex, sim.now)), '% Cu'),
+    // Буровзрывная подготовка: запас взорванной массы и обуренность следующего блока.
+    stock: f(Math.round(sim.drill.stockT[i]), 't'),
+    stock_shifts: f(Math.round(sim.drill.stockShifts(i) * 10) / 10, 'shifts'),
+    block_holes_done: f(sim.drill.blocks[i].holesDone, 'holes'),
+    block_holes_total: f(sim.drill.blocks[i].holesTotal, 'holes'),
   };
 }
 
@@ -337,7 +359,30 @@ export function serializeBlasting(sim: Simulation): Features {
   return {
     active: f(live.filter((b) => b.phase === 'active').length),
     announced: f(live.filter((b) => b.phase === 'warning').length),
-    blasts: f(JSON.stringify(sim.blasts.map((b) => ({ id: b.id, t: b.t, dur: b.dur, x: Math.round(b.x), y: Math.round(b.y), r: b.radius, ex: b.exIds, ph: b.phase, m: b.manual, label: b.label })))),
+    blasts: f(JSON.stringify(sim.blasts.map((b) => ({ id: b.id, t: b.t, dur: b.dur, x: Math.round(b.x), y: Math.round(b.y), r: b.radius, ex: b.exIds, ph: b.phase, m: b.manual, label: b.label, tg: b.target })))),
+  };
+}
+
+/** Признаки бурового станка. */
+export function serializeDrill(sim: Simulation, i: number): Features {
+  const g = sim.drill.rigs[i];
+  const b = g.target !== null ? sim.drill.blocks[g.target] : null;
+  return {
+    state: f(g.state),
+    x: f(r1(g.x), 'm'),
+    y: f(r1(g.y), 'm'),
+    target_ex: f(g.target ?? -1),
+    block: f(g.target !== null ? sim.excavators[g.target].name : '—'),
+    holes_done: f(b ? b.holesDone : 0, 'holes'),
+    holes_total: f(b ? b.holesTotal : 0, 'holes'),
+    hole_depth: f(r1(g.holeDepth), 'm'),
+    penetration: f(g.state === 'drilling' && g.reposition <= 0 ? r1(g.penetration) : 0, 'm/h'),
+    pulldown: f(g.pulldown, 'kN'),
+    torque: f(g.torque, 'kN*m'),
+    air_pressure: f(g.air, 'bar'),
+    meters_shift: f(Math.round(g.metersShift), 'm'),
+    holes_shift: f(g.holesShift, 'holes'),
+    repair_left: f(Math.round(g.brokenLeft), 's'),
   };
 }
 
@@ -387,6 +432,7 @@ export function serializeAll(sim: Simulation, v: StrategyName, k: Kpis): Record<
   out[id.roads] = serializeRoads(sim);
   out[id.blasting] = serializeBlasting(sim);
   for (const d of UNIT_DEFS) out[id.unit(d.key)] = serializeUnit(sim, d.key);
+  sim.drill.rigs.forEach((_, i) => (out[id.drill(i)] = serializeDrill(sim, i)));
   return out;
 }
 
@@ -491,8 +537,8 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
   const blasting = things.get(id.blasting);
   if (blasting) {
     try {
-      const bl = JSON.parse(str(blasting, 'blasts', '[]')) as { id: number; t: number; dur: number; x: number; y: number; r: number; ex: number[]; ph: Blast['phase']; m: boolean; label: string }[];
-      sim.blasts.splice(0, sim.blasts.length, ...bl.map((b) => ({ id: b.id, t: b.t, dur: b.dur, x: b.x, y: b.y, radius: b.r, exIds: b.ex, edges: [], label: b.label, manual: b.m, phase: b.ph })));
+      const bl = JSON.parse(str(blasting, 'blasts', '[]')) as { id: number; t: number; dur: number; x: number; y: number; r: number; ex: number[]; ph: Blast['phase']; m: boolean; label: string; tg?: number }[];
+      sim.blasts.splice(0, sim.blasts.length, ...bl.map((b) => ({ id: b.id, t: b.t, dur: b.dur, x: b.x, y: b.y, radius: b.r, exIds: b.ex, edges: [], label: b.label, manual: b.m, phase: b.ph, target: b.tg ?? b.ex[0] ?? 0 })));
     } catch {
       /* нет данных */
     }
@@ -515,6 +561,26 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     ex.blastLeft = num(fs, 'blast_left');
     ex.blastSec = num(fs, 'blast_time');
     ex.queueIntegral = num(fs, 'queue_avg') * sim.now;
+    sim.drill.stockT[i] = num(fs, 'stock', sim.drill.stockT[i]);
+    sim.drill.blocks[i].holesDone = num(fs, 'block_holes_done', sim.drill.blocks[i].holesDone);
+  });
+  sim.drill.rigs.forEach((g, i) => {
+    const fs = things.get(id.drill(i));
+    if (!fs) return;
+    g.state = str(fs, 'state', g.state) as typeof g.state;
+    g.x = num(fs, 'x', g.x);
+    g.y = num(fs, 'y', g.y);
+    const t = num(fs, 'target_ex', -1);
+    g.target = t >= 0 ? t : null;
+    g.holeDepth = num(fs, 'hole_depth');
+    g.penetration = num(fs, 'penetration');
+    g.reposition = g.penetration > 0 ? 0 : 1;
+    g.pulldown = num(fs, 'pulldown');
+    g.torque = num(fs, 'torque');
+    g.air = num(fs, 'air_pressure');
+    g.metersShift = num(fs, 'meters_shift');
+    g.holesShift = num(fs, 'holes_shift');
+    g.brokenLeft = num(fs, 'repair_left');
   });
 
   // Агрегаты внутри зданий.

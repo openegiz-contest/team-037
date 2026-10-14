@@ -116,7 +116,7 @@ export interface Health {
   history: number[];
 }
 
-export type ExcavatorState = 'working' | 'waiting' | 'broken' | 'blast';
+export type ExcavatorState = 'working' | 'waiting' | 'broken' | 'blast' | 'nostock';
 
 export interface Truck {
   id: number;
@@ -276,6 +276,8 @@ export interface Blast {
   edges: number[];
   label: string;
   manual: boolean;
+  /** Экскаватор, у забоя которого взрывают блок. */
+  target: number;
   phase: 'planned' | 'warning' | 'active' | 'done';
 }
 

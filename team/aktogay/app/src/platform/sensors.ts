@@ -321,6 +321,69 @@ export const GARAGE_SENSORS: SensorSpec[] = [
   },
 ];
 
+export const DRILL_SENSORS: SensorSpec[] = [
+  {
+    id: 'gnss',
+    name: 'GNSS-позиционирование станка',
+    hardware: 'два приёмника с RTK-поправками на мачте',
+    location: 'мачта и кабина',
+    measures: 'координаты и направление станка, наведение на проектную точку скважины',
+    features: ['x', 'y'],
+    periodS: 1,
+    purpose: 'бурение точно по сетке проекта взрыва',
+  },
+  {
+    id: 'depth',
+    name: 'Датчик глубины (энкодер подачи)',
+    hardware: 'энкодер на механизме подачи бурового става',
+    location: 'мачта',
+    measures: 'глубина текущей скважины, м',
+    features: ['hole_depth', 'holes_done', 'meters_shift'],
+    periodS: 1,
+    purpose: 'контроль недобура и перебура, учёт пробуренных метров',
+  },
+  {
+    id: 'mwd',
+    name: 'Система мониторинга бурения (MWD)',
+    hardware: 'контроллер станка: скорость проходки, обороты, удельная энергия',
+    location: 'кабина',
+    measures: 'скорость проходки, м/ч',
+    features: ['penetration'],
+    periodS: 1,
+    purpose: 'по скорости видно крепость породы — уточнение блочной модели и заряда',
+  },
+  {
+    id: 'pulldown',
+    name: 'Датчик усилия подачи',
+    hardware: 'датчик давления в гидроцилиндрах подачи',
+    location: 'мачта',
+    measures: 'усилие на долото, кН',
+    features: ['pulldown'],
+    periodS: 1,
+    purpose: 'режим бурения и износ долота',
+  },
+  {
+    id: 'torque',
+    name: 'Датчик крутящего момента вращателя',
+    hardware: 'датчик давления гидромотора вращателя',
+    location: 'вращатель',
+    measures: 'крутящий момент, кН·м',
+    features: ['torque'],
+    periodS: 1,
+    purpose: 'заклинивание става, трещиноватость породы',
+  },
+  {
+    id: 'air',
+    name: 'Датчик давления воздуха компрессора',
+    hardware: 'преобразователь давления на линии продувки',
+    location: 'компрессор',
+    measures: 'давление продувки скважины, бар',
+    features: ['air_pressure'],
+    periodS: 1,
+    purpose: 'очистка скважины от шлама, исправность компрессора',
+  },
+];
+
 /** Паспорт датчиков по типу двойника (attributes.kind). */
 export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   'haul-truck': TRUCK_SENSORS,
@@ -330,6 +393,7 @@ export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   'heap-leach': LEACH_SENSORS,
   'waste-dump': WASTE_SENSORS,
   garage: GARAGE_SENSORS,
+  'drill-rig': DRILL_SENSORS,
 };
 
 /** Компактная запись для attributes.sensors двойника в Ditto. */
@@ -342,3 +406,4 @@ export const plantSensorAttributes = () => sensorAttributes(PLANT_SENSORS);
 export const leachSensorAttributes = () => sensorAttributes(LEACH_SENSORS);
 export const wasteSensorAttributes = () => sensorAttributes(WASTE_SENSORS);
 export const garageSensorAttributes = () => sensorAttributes(GARAGE_SENSORS);
+export const drillSensorAttributes = () => sensorAttributes(DRILL_SENSORS);

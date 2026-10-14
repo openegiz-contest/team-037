@@ -21,6 +21,8 @@ import {
   makeGarage,
   makeLeachPad,
   makeLightMast,
+  makeDrillRig,
+  type DrillModel,
   makePlant,
   makeTruck,
   makeWasteDump,
@@ -78,6 +80,12 @@ export class MineScene {
   private readonly heading: number[] = [];
   private readonly excavators: ExcavatorModel[] = [];
   private readonly exLabels: CSS2DObject[] = [];
+  /** Буровые станки и сетки скважин на блоках. */
+  private readonly drills: DrillModel[] = [];
+  private readonly drillLabels: CSS2DObject[] = [];
+  private readonly drillHeading: number[] = [];
+  private readonly holes: THREE.InstancedMesh[] = [];
+  private readonly holesShown: number[] = [];
   private readonly exAngles: { face: number; truck: number }[] = [];
   private readonly truckLabel: CSS2DObject;
   private readonly alertLabels: CSS2DObject[] = [];
@@ -291,6 +299,27 @@ export class MineScene {
       this.exLabels.push(lbl);
     });
 
+    // Буровые станки и сетки скважин (по блоку у каждого забоя).
+    sim.drill.rigs.forEach(() => {
+      const d = makeDrillRig();
+      this.scene.add(d.root);
+      this.drills.push(d);
+      this.drillHeading.push(0);
+      const lbl = label('lbl3d');
+      lbl.position.set(0, 150, 0);
+      d.root.add(lbl);
+      this.drillLabels.push(lbl);
+    });
+    const holeGeo = new THREE.CylinderGeometry(4.5, 4.5, 1.2, 10);
+    const holeMat = new THREE.MeshBasicMaterial({ color: '#1a1410' });
+    sim.drill.blocks.forEach(() => {
+      const im = new THREE.InstancedMesh(holeGeo, holeMat, 30);
+      im.count = 0;
+      this.scene.add(im);
+      this.holes.push(im);
+      this.holesShown.push(-1);
+    });
+
     // Самосвалы.
     for (const t of sim.trucks) {
       const m = makeTruck();
@@ -446,6 +475,60 @@ export class MineScene {
     }
     return best;
   }
+
+  /** Буровые станки: положение, мачта (бурение — вертикально, переезд — уложена), сетки скважин. */
+  private syncDrills(now: number, blink: boolean): void {
+    const sim = this.sim;
+    sim.drill.rigs.forEach((g, i) => {
+      const d = this.drills[i];
+      const prev = d.root.position;
+      const h = this.heightAt(g.x, g.y);
+      const dx = g.x - prev.x;
+      const dz = g.y - prev.z;
+      if (g.state === 'moving' && Math.hypot(dx, dz) > 0.5) this.drillHeading[i] = Math.atan2(dz, dx);
+      else if (g.state === 'drilling') this.drillHeading[i] = Math.atan2(-g.y, -g.x); // мачтой к центру карьера
+      d.root.position.set(g.x, h + 1, g.y);
+      d.root.rotation.y = -this.drillHeading[i];
+      const lowered = g.state === 'moving' ? -1.45 : 0;
+      d.mast.rotation.z += (lowered - d.mast.rotation.z) * 0.08;
+      const drilling = g.state === 'drilling' && g.reposition <= 0;
+      if (drilling) d.rod.rotation.y += 0.4;
+      d.rod.position.y = drilling ? 9 - (g.holeDepth / 16) * 7 : 9;
+      const col = g.state === 'broken' ? (blink ? '#ef4444' : '#450a0a') : drilling ? '#22c55e' : g.state === 'moving' ? '#38bdf8' : '#f59e0b';
+      (d.light.material as THREE.MeshBasicMaterial).color.set(col);
+      (d.ring.material as THREE.MeshBasicMaterial).color.set(col);
+    });
+    sim.drill.blocks.forEach((b, k) => {
+      if (this.holesShown[k] === b.holesDone) return;
+      this.holesShown[k] = b.holesDone;
+      const im = this.holes[k];
+      for (let j = 0; j < b.holesDone; j++) {
+        const p = sim.drill.holePos(b, j);
+        this.tmp.makeTranslation(p.x, this.heightAt(p.x, p.y) + 0.8, p.y);
+        im.setMatrixAt(j, this.tmp);
+      }
+      im.count = b.holesDone;
+      im.instanceMatrix.needsUpdate = true;
+    });
+    if (now - this.lastDrillLabel > 300) {
+      this.lastDrillLabel = now;
+      sim.drill.rigs.forEach((g, i) => {
+        const b = g.target !== null ? sim.drill.blocks[g.target] : null;
+        const where = b ? ` · блок у ${sim.excavators[b.exId].name} ${b.holesDone}/${b.holesTotal}` : '';
+        const st =
+          g.state === 'broken'
+            ? `<br><span class="bad">⚠ ПОЛОМКА · ещё ${Math.ceil(g.brokenLeft / 60)} мин</span>`
+            : g.state === 'moving'
+              ? '<br>переезд по дорогам'
+              : g.state === 'drilling'
+                ? `<br>скважина <span class="warn">${g.holeDepth.toFixed(1)}/16 м</span>${g.penetration ? ` · ${g.penetration.toFixed(0)} м/ч` : ''}`
+                : '';
+        const dot = g.state === 'broken' ? '#ef4444' : g.state === 'drilling' ? '#22c55e' : g.state === 'moving' ? '#38bdf8' : '#f59e0b';
+        (this.drillLabels[i].element as HTMLElement).innerHTML = tag(dot, `<b>${g.name}</b> · буровой${where}${st}`);
+      });
+    }
+  }
+  private lastDrillLabel = 0;
 
   /** Здание под курсором — для «внутреннего двойника». */
   pickBuilding(clientX: number, clientY: number): BuildingKind | null {
@@ -605,7 +688,11 @@ export class MineScene {
             ? blink
               ? '#f97316'
               : '#431407'
-            : ex.state === 'working'
+            : ex.state === 'nostock'
+              ? blink
+                ? '#a855f7'
+                : '#2e1065'
+              : ex.state === 'working'
               ? '#22c55e'
               : '#f59e0b';
       (m.light.material as THREE.MeshBasicMaterial).color.set(col);
@@ -646,6 +733,7 @@ export class MineScene {
 
     this.syncClosures(blink);
     this.syncBlasts(now, blink);
+    this.syncDrills(now, blink);
 
     // Тексты панелей обновляем реже, чем кадры.
     if (now - this.lastPanel > 300) {
@@ -653,7 +741,14 @@ export class MineScene {
       for (const p of this.panels) (p.obj.element as HTMLElement).innerHTML = p.render();
       sim.excavators.forEach((ex, i) => {
         const q = ex.queue.length;
-        const st = ex.state === 'broken' ? '<span class="bad">⚠ ПОЛОМКА</span>' : ex.state === 'blast' ? '<span class="bad">✸ ОЦЕПЛЕНИЕ</span>' : '';
+        const st =
+          ex.state === 'broken'
+            ? '<span class="bad">⚠ ПОЛОМКА</span>'
+            : ex.state === 'blast'
+              ? '<span class="bad">✸ ОЦЕПЛЕНИЕ</span>'
+              : ex.state === 'nostock'
+                ? '<span class="bad">⛏ НЕТ ВЗОРВАННОЙ МАССЫ</span>'
+                : '';
         const gr = ex.gradeBase > 0 ? ` <span class="warn">${gradeAt(ex, sim.now).toFixed(2)}% Cu</span>` : '';
         const dot = ex.state === 'broken' ? '#ef4444' : ex.state === 'blast' ? '#f97316' : ex.state === 'working' ? '#2dd4bf' : '#f59e0b';
         (this.exLabels[i].element as HTMLElement).innerHTML = tag(

@@ -491,3 +491,56 @@ export function makeBarrier(): THREE.Group {
   root.add(box(3, 12, 3, MAT.wall, 18, 5, 0));
   return root;
 }
+
+// ───────────────────────────── буровой станок ─────────────────────────────
+
+export interface DrillModel {
+  root: THREE.Group;
+  /** Мачта на шарнире: 0 — вертикально (бурение), ~1.4 — уложена для переезда. */
+  mast: THREE.Group;
+  /** Буровой став — вращается при бурении. */
+  rod: THREE.Mesh;
+  ring: THREE.Mesh;
+  light: THREE.Mesh;
+}
+
+/** Гусеничный станок шарошечного бурения (~14 × 6 м, мачта ~20 м), передом — по +X. */
+export function makeDrillRig(): DrillModel {
+  const root = new THREE.Group();
+  const g = new THREE.Group();
+  g.scale.setScalar(EQUIP_SCALE);
+  root.add(g);
+  const body = std('#5d6b78', { roughness: 0.55 });
+  const red = std('#b8452f', { roughness: 0.5 });
+  // Гусеницы.
+  for (const z of [2.4, -2.4]) {
+    g.add(box(12, 1.6, 1.4, MAT.darker, 0, 0.8, z));
+    for (let i = 0; i < 6; i++) g.add(wheel(0.45, 1.5, MAT.steel, -5 + i * 2, 0.8, z, 10));
+  }
+  // Платформа, машинное отделение (компрессор), кабина у мачты.
+  g.add(box(13, 0.6, 6, body, 0, 1.9, 0));
+  g.add(box(5.5, 3, 4.6, body, -3.2, 3.7, 0));
+  for (let i = 0; i < 5; i++) g.add(box(0.15, 2, 4.4, MAT.dark, -5.2 + i * 1, 3.8, 0));
+  g.add(box(2.6, 2.6, 2.4, MAT.truckCab, 4.2, 3.5, 2));
+  g.add(box(0.1, 1.4, 2.0, MAT.glass, 5.52, 3.8, 2));
+  g.add(railing(-6.4, 2.95, 6.4, 2.95, 2.2, 1.0, MAT.rail));
+  // Домкраты-аутригеры.
+  for (const [x, z] of [[5.8, 2.6], [5.8, -2.6], [-6, 2.6], [-6, -2.6]] as const) g.add(box(0.5, 1.6, 0.5, MAT.steel, x, 1.2, z));
+  // Мачта на шарнире у переднего края.
+  const mast = new THREE.Group();
+  mast.position.set(5.2, 2.4, -0.6);
+  g.add(mast);
+  mast.add(box(1.4, 20, 1.4, red, 0, 10, 0));
+  for (let i = 0; i < 9; i++) mast.add(box(1.6, 0.18, 1.6, MAT.dark, 0, 1.5 + i * 2.2, 0));
+  mast.add(box(1.8, 1.2, 1.8, MAT.dark, 0, 18.5, 0)); // вращатель
+  const rod = cyl(0.25, 0.25, 17, MAT.steel, 8);
+  rod.position.set(0.95, 9, 0);
+  mast.add(rod);
+  const light = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 8), new THREE.MeshBasicMaterial({ color: '#22c55e' }));
+  light.position.set(0, 20.6, 0);
+  mast.add(light);
+  const ring = groundRing(9 * EQUIP_SCALE);
+  ring.position.y = 0.6;
+  root.add(ring);
+  return { root, mast, rod, ring, light };
+}

@@ -141,7 +141,7 @@ function analyzeOne(sim: Simulation): Chain[] {
   const roots: { key: string; s: number; e: number }[] = [];
   tl.excavators.forEach((str, i) => {
     if (sim.excavators[i]?.material !== 'sulfide') return;
-    for (const r of runs(str, (c) => c === 'b' || c === 'x', 3)) roots.push({ key: `${str[r.s]}-${i}-${r.s}`, s: r.s, e: r.e });
+    for (const r of runs(str, (c) => c === 'b' || c === 'x' || c === 'n', 3)) roots.push({ key: `${str[r.s]}-${i}-${r.s}`, s: r.s, e: r.e });
   });
   for (const r of runs(tl.closures, (c) => c !== '0', 3)) roots.push({ key: `cl-${r.s}`, s: r.s, e: r.e });
   const assigned = new Map<string, Run[]>();
@@ -171,6 +171,30 @@ function analyzeOne(sim: Simulation): Chain[] {
         t1: r.e,
         title: `Поломка экскаватора ${ex.name}`,
         steps: [{ t: r.s, text: `${ex.name} (${mat}) остановлен на ${r.e - r.s} мин`, tone: 'root' }, ...steps, ...(r.e < ctx.len ? [{ t: r.e, text: `${ex.name} снова в работе`, tone: 'info' as const }] : [])],
+        impact,
+        severity: severity(impact),
+        row: { kind: 'excavator', id: i },
+      });
+    }
+  });
+
+  // 1б. Экскаватору нечего грузить: бурение не успело — взрыв перенесён.
+  tl.excavators.forEach((str, i) => {
+    const ex = sim.excavators[i];
+    if (!ex) return;
+    for (const r of runs(str, (c) => c === 'n', 3)) {
+      const { steps, impact } = consequences(ctx, r.s, r.e, ex.material === 'sulfide' ? mine(`n-${i}-${r.s}`) : null);
+      out.push({
+        id: `ns-${i}-${r.s}`,
+        kind: 'excavator',
+        t0: r.s,
+        t1: r.e,
+        title: `${ex.name}: кончилась взорванная горная масса`,
+        steps: [
+          { t: r.s, text: 'буровые станки не успели обурить блок — плановый взрыв перенесён', tone: 'root' },
+          { t: r.s, text: `${ex.name} остановлен: грузить нечего (${r.e - r.s} мин)`, tone: 'bad' },
+          ...steps,
+        ],
         impact,
         severity: severity(impact),
         row: { kind: 'excavator', id: i },

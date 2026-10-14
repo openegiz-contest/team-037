@@ -13,12 +13,13 @@ import { fmtClock, fmtInt } from '../ui/format';
 import { MATERIAL_COLOR, STRATEGY_COLOR } from '../ui/theme';
 import { stateTone, TONE_COLOR, VALUE_LABEL } from '../ui/twinLabels';
 
-type Kind = 'breakdown' | 'close_road' | 'blast' | 'reset';
+type Kind = 'breakdown' | 'close_road' | 'blast' | 'drill_down' | 'reset';
 
 const KINDS: { kind: Kind; icon: string; title: string; text: string; tone: string }[] = [
   { kind: 'breakdown', icon: '⚠', title: 'Поломка экскаватора', text: 'Экскаватор встаёт на ремонт. Кто перевезёт его самосвалы?', tone: '#ef4444' },
   { kind: 'close_road', icon: '⊘', title: 'Перекрытие съезда', text: 'Участок спирального съезда закрыт: маршруты идут в объезд.', tone: '#f97316' },
   { kind: 'blast', icon: '✸', title: 'Внеплановый взрыв', text: 'Предупреждение 15 мин, затем оцепление 30 мин вокруг забоя.', tone: '#f59e0b' },
+  { kind: 'drill_down', icon: '⚒', title: 'Поломка бурового станка', text: 'Блок не обурен — взрыв переносится, экскаватору становится нечего грузить.', tone: '#a855f7' },
   { kind: 'reset', icon: '↺', title: 'Новая смена', text: 'Та же техника, другой сценарий случайных поломок и закрытий дорог.', tone: '#38bdf8' },
 ];
 
@@ -38,8 +39,8 @@ interface Props {
 export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun, seed, fleet, history, act }: Props) {
   const ref = sims[sims.length - 1];
   const [kind, setKind] = useState<Kind>('breakdown');
-  const [target, setTarget] = useState<Record<Kind, number>>({ breakdown: 0, close_road: 0, blast: 1, reset: 0 });
-  const [dur, setDur] = useState<Record<'breakdown' | 'close_road', number>>({ ...DEFAULT_DUR });
+  const [target, setTarget] = useState<Record<Kind, number>>({ breakdown: 0, close_road: 0, blast: 1, drill_down: 2, reset: 0 });
+  const [dur, setDur] = useState<Record<'breakdown' | 'close_road' | 'drill_down', number>>({ ...DEFAULT_DUR });
   const [newSeed, setNewSeed] = useState(seed);
   if (!ref) return null;
 
@@ -83,7 +84,7 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
         {/* Конструктор */}
         <section className="panel flex flex-col">
           <SectionTitle n="1" title="Выберите сценарий" />
-          <div className="grid grid-cols-2 gap-2 px-4 pb-4 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 px-4 pb-4 md:grid-cols-3 2xl:grid-cols-5">
             {KINDS.map((k) => (
               <button
                 key={k.kind}
@@ -100,7 +101,7 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
             ))}
           </div>
 
-          <SectionTitle n="2" title={kind === 'reset' ? 'Параметры смены' : kind === 'close_road' ? 'Какой участок' : 'Какой экскаватор'} />
+          <SectionTitle n="2" title={kind === 'reset' ? 'Параметры смены' : kind === 'close_road' ? 'Какой участок' : kind === 'drill_down' ? 'Какой станок' : 'Какой экскаватор'} />
           <div className="px-4 pb-4">
             {(kind === 'breakdown' || kind === 'blast') && (
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 2xl:grid-cols-3">
@@ -122,6 +123,28 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
                           <span className="h-1.5 w-1.5 rounded-full" style={{ background: TONE_COLOR[tone] }} />
                           {VALUE_LABEL[ex.state]} · очередь {ex.queue.length}
                         </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {kind === 'drill_down' && (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {[...ref.drill.rigs.map((g) => ({ id: g.id, name: g.name, g })), { id: 2, name: 'Оба станка', g: null }].map((o) => {
+                  const active = target.drill_down === o.id;
+                  const g = o.g;
+                  return (
+                    <button
+                      key={o.id}
+                      onClick={() => pick('drill_down', o.id)}
+                      className={`flex flex-col items-start rounded-lg border px-3 py-2 text-left ${active ? 'border-amber-500 bg-amber-500/10' : 'border-line hover:border-ink-3'}`}
+                    >
+                      <span className="text-[13.5px] font-semibold">{o.name}</span>
+                      <span className="text-[11.5px] text-ink-3">
+                        {g
+                          ? `${VALUE_LABEL[g.state] ?? g.state}${g.target !== null ? ` · блок у ${ref.excavators[g.target]?.name}: ${ref.drill.blocks[g.target].holesDone}/${ref.drill.blocks[g.target].holesTotal}` : ''}`
+                          : 'самый наглядный вариант'}
                       </span>
                     </button>
                   );
@@ -181,7 +204,7 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
             )}
           </div>
 
-          {(kind === 'breakdown' || kind === 'close_road') && (
+          {(kind === 'breakdown' || kind === 'close_road' || kind === 'drill_down') && (
             <>
               <SectionTitle n="3" title="Длительность" />
               <div className="flex items-center gap-4 px-4 pb-4">
@@ -237,7 +260,7 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
                 </div>
               )}
               {deviations.map((d) => (
-                <DeviationCard key={`${d.kind}-${d.undo.arg}`} d={d} onUndo={() => act({ value: d.undo.value, arg: d.undo.arg })} />
+                <DeviationCard key={`${d.kind}-${d.title}`} d={d} onUndo={d.undo ? () => act({ value: d.undo!.value, arg: d.undo!.arg }) : undefined} />
               ))}
             </div>
           </section>
@@ -293,9 +316,11 @@ const DEV_STYLE: Record<ActiveDeviation['kind'], { icon: string; color: string }
   breakdown: { icon: '⚠', color: '#ef4444' },
   closure: { icon: '⊘', color: '#f97316' },
   blast: { icon: '✸', color: '#f59e0b' },
+  drill: { icon: '⚒', color: '#a855f7' },
+  nostock: { icon: '⛏', color: '#ef4444' },
 };
 
-function DeviationCard({ d, onUndo }: { d: ActiveDeviation; onUndo: () => void }) {
+function DeviationCard({ d, onUndo }: { d: ActiveDeviation; onUndo?: () => void }) {
   const st = DEV_STYLE[d.kind];
   const left = Math.ceil(d.leftSec / 60);
   return (
@@ -307,13 +332,17 @@ function DeviationCard({ d, onUndo }: { d: ActiveDeviation; onUndo: () => void }
         <div className="truncate text-[13.5px] font-semibold">{d.title}</div>
         <div className="truncate text-[11.5px] text-ink-3">{d.detail}</div>
       </div>
-      <div className="text-right leading-tight">
-        <div className="num text-[15px] font-bold text-ink">{left} мин</div>
-        <div className="text-[10.5px] text-ink-3">{d.phase === 'warning' ? 'до взрыва' : 'осталось'}</div>
-      </div>
-      <button onClick={onUndo} className="rounded-md bg-panel px-2.5 py-1.5 text-[12.5px] font-semibold text-emerald-300 ring-1 ring-emerald-500/40 hover:bg-emerald-500/10">
-        ↶ Отменить
-      </button>
+      {d.leftSec > 0 && (
+        <div className="text-right leading-tight">
+          <div className="num text-[15px] font-bold text-ink">{left} мин</div>
+          <div className="text-[10.5px] text-ink-3">{d.phase === 'warning' ? 'до взрыва' : 'осталось'}</div>
+        </div>
+      )}
+      {onUndo && (
+        <button onClick={onUndo} className="rounded-md bg-panel px-2.5 py-1.5 text-[12.5px] font-semibold text-emerald-300 ring-1 ring-emerald-500/40 hover:bg-emerald-500/10">
+          ↶ Отменить
+        </button>
+      )}
     </div>
   );
 }

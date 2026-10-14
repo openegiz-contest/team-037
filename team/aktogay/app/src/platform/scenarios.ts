@@ -20,8 +20,8 @@ export interface Command {
   fleet?: unknown;
 }
 
-export const DEFAULT_DUR = { breakdown: 50, close_road: 40 } as const;
-export const DUR_RANGE = { breakdown: [10, 180], close_road: [10, 120] } as const;
+export const DEFAULT_DUR = { breakdown: 50, close_road: 40, drill_down: 240 } as const;
+export const DUR_RANGE = { breakdown: [10, 180], close_road: [10, 120], drill_down: [30, 600] } as const;
 
 const clampDur = (kind: keyof typeof DUR_RANGE, v: number | undefined) => {
   const [lo, hi] = DUR_RANGE[kind];
@@ -70,8 +70,22 @@ export function applyScenario(sims: Simulation[], c: Command): string | null {
       const ok = sims.map((s) => s.cancelBlast(a)).some(Boolean);
       return ok ? `отменён взрыв #${a}` : `взрыв #${a} уже завершён`;
     }
+    case 'drill_down': {
+      // arg: 0 — БУ-1, 1 — БУ-2, 2 — оба станка.
+      const dur = clampDur('drill_down', c.dur);
+      const ids = a === 2 ? [0, 1] : [a];
+      for (const s of sims) for (const i of ids) s.drill.breakRig(i, dur * 60);
+      const names = ids.map((i) => ref.drill.rigs[i]?.name).join(' и ');
+      for (const s of sims) s.addLog(`Поломка бурового станка ${names}, ремонт ~${dur} мин — бурение блоков остановлено`, 'alarm');
+      return `поломка бурового станка ${names} на ${dur} мин`;
+    }
+    case 'drill_repair': {
+      const ok = sims.map((s) => s.drill.repairRig(a)).some(Boolean);
+      return ok ? `отмена поломки ${ref.drill.rigs[a]?.name}` : `${ref.drill.rigs[a]?.name ?? a} не в ремонте`;
+    }
     case 'cancel_all':
       for (const s of sims) {
+        s.drill.rigs.forEach((g) => s.drill.repairRig(g.id));
         s.excavators.forEach((ex) => s.repairExcavator(ex.id));
         s.layout.closureGroups.forEach((_, g) => s.openRoad(g));
         s.blasts.filter((b) => b.phase === 'warning' || b.phase === 'active').forEach((b) => s.cancelBlast(b.id));
@@ -84,9 +98,9 @@ export function applyScenario(sims: Simulation[], c: Command): string | null {
 
 /** Что сейчас нарушает нормальную работу рудника (по одной модели — события у всех общие). */
 export interface ActiveDeviation {
-  kind: 'breakdown' | 'closure' | 'blast';
-  /** Команда отмены и её аргумент. */
-  undo: { value: string; arg: number };
+  kind: 'breakdown' | 'closure' | 'blast' | 'drill' | 'nostock';
+  /** Команда отмены и её аргумент (нет — отклонение снимается само). */
+  undo: { value: string; arg: number } | null;
   title: string;
   detail: string;
   /** Осталось, с (до конца поломки/закрытия/оцепления или до взрыва). */
@@ -104,6 +118,26 @@ export function activeDeviations(sim: Simulation): ActiveDeviation[] {
       title: `Поломка экскаватора ${ex.name}`,
       detail: 'Экскаватор стоит, его самосвалы ждут или перераспределяются',
       leftSec: Math.max(0, ex.brokenLeft),
+    });
+  }
+  for (const g of sim.drill.rigs) {
+    if (g.state !== 'broken') continue;
+    out.push({
+      kind: 'drill',
+      undo: { value: 'drill_repair', arg: g.id },
+      title: `Поломка бурового станка ${g.name}`,
+      detail: g.target !== null ? `Блок у ${sim.excavators[g.target]?.name}: ${sim.drill.blocks[g.target].holesDone}/${sim.drill.blocks[g.target].holesTotal} скважин` : 'Бурение остановлено',
+      leftSec: Math.max(0, g.brokenLeft),
+    });
+  }
+  for (const ex of sim.excavators) {
+    if (ex.state !== 'nostock') continue;
+    out.push({
+      kind: 'nostock',
+      undo: null,
+      title: `${ex.name}: нет взорванной массы`,
+      detail: 'Экскаватор стоит до взрыва обуренного блока',
+      leftSec: 0,
     });
   }
   const groups = sim.layout.closureGroups;

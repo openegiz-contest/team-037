@@ -22,8 +22,8 @@ const TRUCK_RU: Record<TruckState, string> = {
   service: 'плановый ремонт',
   broken: 'поломка',
 };
-const EX_COLOR: Record<string, string> = { w: '#22c55e', i: '#5b6470', b: '#ef4444', x: '#f97316' };
-const EX_RU: Record<string, string> = { w: 'работает', i: 'ждёт самосвал', b: 'поломка', x: 'оцепление (взрыв)' };
+const EX_COLOR: Record<string, string> = { w: '#22c55e', i: '#5b6470', b: '#ef4444', x: '#f97316', n: '#a855f7' };
+const EX_RU: Record<string, string> = { w: 'работает', i: 'ждёт самосвал', b: 'поломка', x: 'оцепление (взрыв)', n: 'нет взорванной массы' };
 const BIN_COLOR = (c: string) => (c === 's' ? '#ef4444' : ['#b45309', '#c2410c', '#d97706', '#ca8a04', '#a3a635', '#65a30d', '#16a34a', '#16a34a', '#15803d', '#15803d'][Number(c)] ?? '#15803d');
 
 const SEV: Record<Chain['severity'], { color: string; label: string }> = {

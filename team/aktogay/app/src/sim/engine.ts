@@ -12,6 +12,7 @@ import { buildMine, type MineLayout } from './mine';
 import { hash01, Rng, subSeed } from './rng';
 import { emptyDriverStats, makeDriver } from './drivers';
 import { PlantEquipment } from './equipment';
+import { DrillOps } from './drilling';
 import {
   MATERIALS,
   MATERIAL_SHORT,
@@ -45,7 +46,7 @@ export interface ShiftTimeline {
 }
 
 export const TRUCK_CODE: Record<TruckState, string> = { idle: 'i', empty: 'e', queue: 'q', loading: 'l', loaded: 'L', dumping: 'd', refuel: 'f', service: 's', broken: 'b' };
-export const EX_CODE: Record<Excavator['state'], string> = { working: 'w', waiting: 'i', broken: 'b', blast: 'x' };
+export const EX_CODE: Record<Excavator['state'], string> = { working: 'w', waiting: 'i', broken: 'b', blast: 'x', nostock: 'n' };
 
 export interface SimOptions {
   seed: number;
@@ -85,6 +86,8 @@ export class Simulation {
   readonly targetShare: number[];
   /** Оборудование внутри зданий (агрегаты дробилки, фабрики, гаража). */
   equipment!: PlantEquipment;
+  /** Буровые станки, блоки у забоев, запас взорванной массы. */
+  drill!: DrillOps;
   /** ГПСЧ событий вождения (резкие торможения) — по потоку на самосвал. */
   private readonly driverRng: Rng[] = [];
   /**
@@ -200,6 +203,7 @@ export class Simulation {
     this.timeline.excavators = this.excavators.map(() => '');
     this.events = this.generateEvents();
     this.generateBlasts();
+    this.drill = new DrillOps(this);
     this.recordHistory();
     this.equipment = new PlantEquipment(this);
   }
@@ -410,6 +414,7 @@ export class Simulation {
       edges,
       label: `Взрывные работы у ${ex.name}`,
       manual,
+      target: exId,
       phase: 'planned',
     };
   }
@@ -443,7 +448,27 @@ export class Simulation {
         this.addLog(`⚠ Объявлены взрывные работы через ${Math.round((b.t - this.now) / 60)} мин: зона у ${names}`, 'warn');
         this.strategy.onDisruption?.(this);
       }
-      if (b.phase === 'warning' && this.now >= b.t) this.startBlast(b);
+      if (b.phase === 'warning' && this.now >= b.t) {
+        // Плановый взрыв — только обуренного блока: иначе переносится на 30 мин (до конца смены).
+        if (!b.manual && this.drill.drilled(b.target) < 1) {
+          const T = this.cfg.shift.durationSec;
+          const done = this.drill.blocks[b.target];
+          if (b.t + 1800 > T - 60) {
+            b.phase = 'done';
+            this.addLog(`Взрыв у ${this.excavators[b.target].name} отменён: блок не обурен (${done.holesDone}/${done.holesTotal} скважин)`, 'alarm');
+            this.strategy.onDisruption?.(this);
+          } else {
+            b.t += 1800;
+            // В журнал — только первый перенос, дальше взрыв ждёт добуривания молча.
+            if (!this.drill.postponed.has(b.id)) {
+              this.drill.postponed.add(b.id);
+              this.addLog(`Взрыв у ${this.excavators[b.target].name} перенесён: блок не обурен (${done.holesDone}/${done.holesTotal} скважин) — ждём бурения`, 'warn');
+            }
+          }
+          continue;
+        }
+        this.startBlast(b);
+      }
       if (b.phase === 'active' && this.now >= b.t + b.dur) b.phase = 'done';
     }
   }
@@ -468,6 +493,8 @@ export class Simulation {
     }
     this.closures.push({ edges: b.edges, until: b.t + b.dur, label: b.label });
     this.applyClosures();
+    const add = this.drill.blastBlock(b.target);
+    if (add > 0) this.addLog(`Взорван блок у ${this.excavators[b.target].name}: +${Math.round(add / 1000)} тыс. т горной массы`, 'info');
     this.addLog(`✸ Взрыв: ${b.label.toLowerCase()}, оцепление ~${Math.round(b.dur / 60)} мин`, 'alarm');
   }
 
@@ -588,6 +615,7 @@ export class Simulation {
     this.now += dt;
     if (Math.floor(this.now / 60) > this.timeline.minutes) this.recordMinute();
     this.equipment.tick();
+    this.drill.tick(dt);
     for (const t of this.trucks) {
       t.px = t.x;
       t.py = t.y;
@@ -990,6 +1018,20 @@ export class Simulation {
       ex.loadLeft -= dt;
       if (ex.loadLeft <= 0) this.finishLoading(ex, 1);
     }
+    // Нечего грузить: запас взорванной горной массы у забоя кончился — ждём взрыва блока.
+    if (ex.loading === null && this.drill.stockT[ex.id] <= 0) {
+      ex.idleSec += dt;
+      if (ex.state !== 'nostock') {
+        ex.state = 'nostock';
+        this.addLog(`Экскаватор ${ex.name}: кончилась взорванная горная масса — ждёт взрыва обуренного блока`, 'alarm');
+        this.strategy.onExcavatorDown?.(this, ex);
+      }
+      return;
+    }
+    if (ex.state === 'nostock') {
+      this.addLog(`Экскаватор ${ex.name}: есть взорванная масса, погрузка возобновлена`, 'info');
+      this.strategy.onDisruption?.(this);
+    }
     if (ex.loading === null && ex.queue.length > 0) {
       const t = this.trucks[ex.queue.shift()!];
       this.stats.exQueueSec += this.now - t.queuedSince;
@@ -1016,6 +1058,7 @@ export class Simulation {
     t.gradePct = ex.gradeBase > 0 ? Math.max(0.05, gradeAt(ex, this.now) + noise) : 0;
     ex.tonnes += load;
     ex.loads++;
+    this.drill.consume(ex.id, load);
     const dumpId = this.dumps.findIndex((d) => d.material === ex.material);
     this.setDestination(t, { kind: 'dump', id: dumpId });
     t.state = 'loaded';
