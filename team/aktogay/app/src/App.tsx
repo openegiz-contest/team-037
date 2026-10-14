@@ -93,6 +93,26 @@ export default function App() {
 
   useEffect(createSims, [createSims]);
 
+  // Встроенная в Grafana сцена висит открытой часами: раз в минуту проверяем, не пересобран ли
+  // интерфейс (ETag index.html), и перезагружаем панель, чтобы она показывала новую версию.
+  useEffect(() => {
+    if (!embed) return;
+    let etag: string | null = null;
+    const check = async () => {
+      try {
+        const r = await fetch('./index.html', { method: 'HEAD', cache: 'no-store' });
+        const e = r.headers.get('etag') ?? r.headers.get('last-modified');
+        if (etag && e && e !== etag) window.location.reload();
+        etag = e ?? etag;
+      } catch {
+        /* нет связи — проверим позже */
+      }
+    };
+    void check();
+    const id = window.setInterval(check, 60000);
+    return () => window.clearInterval(id);
+  }, [embed]);
+
   useEffect(() => {
     const onHash = () => setHash(window.location.hash);
     window.addEventListener('hashchange', onHash);

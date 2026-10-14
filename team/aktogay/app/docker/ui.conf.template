@@ -3,8 +3,20 @@ server {
   listen 80;
   server_name localhost;
 
+  root /usr/share/nginx/html;
+
+  # index.html не кешируется: после пересборки браузер (и панель Grafana) сразу получает новую версию.
+  location = /index.html {
+    add_header Cache-Control "no-cache, must-revalidate";
+  }
+
+  # Сборка Vite: имена файлов с хешем — кешируются надолго.
+  location /assets/ {
+    add_header Cache-Control "public, max-age=31536000, immutable";
+  }
+
   location / {
-    root /usr/share/nginx/html;
+    add_header Cache-Control "no-cache, must-revalidate";
     try_files $uri /index.html;
   }
 
