@@ -101,6 +101,8 @@ series("Содержание меди в питании фабрики, % Cu (ц
 series("Средняя очередь у экскаватора, мин", both("mine", "avg_queue_min"), 12, 32, "m")
 series("Риск отказа самосвалов (реальная работа), %", per_thing("truck-", "failure_risk"), 0, 40, "percent", 12, 8, False)
 series("Очередь у экскаваторов (реальная работа), самосвалов", per_thing("excavator-", "queue"), 12, 40, "none")
+series("Мощность мельниц фабрики (реальная работа), МВт", per_thing("(sag|ball)-mill", "power"), 0, 48, "none")
+series("Температура подшипников агрегатов (реальная работа), °C", per_thing("(crusher-drive|conveyor-|sag-mill|ball-mill)", "bearing_temp"), 12, 48, "celsius")
 
 dash = {
     "uid": "aktogay-digital-mine",

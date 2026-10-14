@@ -15,6 +15,19 @@ import { fmtInt } from '../ui/format';
 import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
 import { EQUIP_SCALE, makeTruck, ROCK_GEO, type TruckModel } from './models';
 
+/** Строка показаний агрегата для 3D-подписи: значения датчиков и тревога подшипника. */
+function unitLine(sim: Simulation, key: string, parts: [string, string, string][]): string {
+  const u = sim.equipment.get(key);
+  if (!u) return '';
+  const vals = parts
+    .filter(([k]) => !(u.alarm && k === 'bearing_temp'))
+    .map(([k, label, unit]) => (u.v[k] !== undefined ? `${label} <span class="v">${u.v[k]}${unit ? ' ' + unit : ''}</span>` : ''))
+    .filter(Boolean)
+    .join('<br>');
+  const alarm = u.alarm ? `<br><span class="bad">⚠ подшипник ${u.v.bearing_temp} °C</span>` : '';
+  return `${vals ? '<br>' + vals : ''}${alarm}`;
+}
+
 export type InteriorKind = 'crusher' | 'plant' | 'garage';
 
 const std = (color: string, extra: Partial<THREE.MeshStandardMaterialParameters> = {}) =>
@@ -393,7 +406,8 @@ export class InteriorScene {
       const a = c.active[0];
       return `<b>ПЛОЩАДКА РАЗГРУЗКИ</b><br>${a ? `разгружается <span class="v">${sim.trucks[a.truck]?.name ?? ''}</span>` : 'свободно'}<br>ждут: <span class="v">${c.queue.length}</span>`;
     });
-    this.label(-8, 1, 7, () => `<b>КОНУСНАЯ ДРОБИЛКА</b><br>${c.active.length ? '<span class="ok">ДРОБИТ</span>' : c.binT <= 0.01 ? '<span class="bad">ЖДЁТ РУДУ</span>' : 'вхолостую'}`);
+    this.label(-8, 1, 7, () => `<b>КОНУСНАЯ ДРОБИЛКА</b><br>${c.active.length ? '<span class="ok">ДРОБИТ</span>' : c.binT <= 0.01 ? '<span class="bad">ЖДЁТ РУДУ</span>' : 'вхолостую'}${unitLine(sim, 'crusher-drive', [['power', 'мощность', 'кВт'], ['bearing_temp', 'подшипник', '°C'], ['vibration', 'вибрация', 'мм/с']])}`);
+    this.label(4, 14, 4, () => `<b>КОНВЕЙЕР 1</b>${unitLine(sim, 'conveyor-1', [['load', 'нагрузка', 'т/ч'], ['bearing_temp', 'подшипник', '°C']])}`);
     this.label(27, binH - 4, 4, () => {
       const pct = Math.round((c.binT / c.binCapT) * 100);
       const g = sim.binGrade;
@@ -401,7 +415,7 @@ export class InteriorScene {
       const left = c.binT / cfg.dumps.crusher.plantFeedTpm;
       return `<b>БУНКЕР</b><br><span class="v">${fmtInt(c.binT)} т (${pct}%)</span><br>Cu: <span class="${ok ? 'ok' : 'bad'}">${c.binT > 0.01 ? g.toFixed(3) + '%' : '—'}</span><br>${c.binT > 0.01 ? `запас: <span class="v">${Math.round(left)} мин</span>` : '<span class="bad">ПУСТО — ОФ СТОИТ</span>'}`;
     });
-    this.label(42, 6, 0, () => (c.binT > 0.01 ? `<b>НА ФАБРИКУ</b><br><span class="v">${fmtInt(cfg.dumps.crusher.plantFeedTpm * 60)} т/ч</span>` : '<b>КОНВЕЙЕР</b><br><span class="bad">СТОИТ</span>'));
+    this.label(42, 6, 0, () => (c.binT > 0.01 ? `<b>КОНВЕЙЕР 2 → ОФ</b>${unitLine(sim, 'conveyor-2', [['load', 'нагрузка', 'т/ч'], ['motor_current', 'ток', 'А'], ['bearing_temp', 'подшипник', '°C']])}` : `<b>КОНВЕЙЕР 2</b><br><span class="bad">СТОИТ</span>${unitLine(sim, 'conveyor-2', [])}`));
 
     this.camera.position.set(22, 24, 40);
     this.controls.target.set(-2, 8, 0);
@@ -709,13 +723,13 @@ export class InteriorScene {
       const ok = Math.abs(sim.binGrade - cfg.grade.targetPct) <= cfg.grade.bandPct;
       return `<b>ПИТАНИЕ · PGNAA</b><br>${on ? `<span class="v">${fmtInt(cfg.dumps.crusher.plantFeedTpm * 60)} т/ч</span><br>Cu: <span class="${ok ? 'ok' : 'bad'}">${sim.binGrade.toFixed(3)}%</span>` : '<span class="bad">НЕТ РУДЫ</span>'}`;
     });
-    this.label(-28, 19, -4, () => `<b>МЕЛЬНИЦА ПСИ</b><br>${running() ? '<span class="ok">ИЗМЕЛЬЧЕНИЕ</span>' : '<span class="bad">СТОИТ</span>'}`);
-    this.label(-6, 12, 6, () => `<b>ШАРОВАЯ МЕЛЬНИЦА</b><br>${running() ? 'работает' : '<span class="bad">стоит</span>'}`);
-    this.label(9, 22, -4, () => '<b>ГИДРОЦИКЛОНЫ</b>');
-    this.label(30, 10, 6, () => `<b>ФЛОТАЦИЯ</b><br>извлечение: <span class="v">${recovery().toFixed(1)}%</span>`);
-    this.label(46, 10, -20, () => `<b>КОНЦЕНТРАТ</b><br><span class="v">${st.cuConcT.toFixed(1)} т Cu</span><br>хвосты: ${st.cuLossT.toFixed(2)} т Cu`);
+    this.label(-28, 19, -4, () => `<b>МЕЛЬНИЦА ПСИ</b><br>${running() ? '<span class="ok">ИЗМЕЛЬЧЕНИЕ</span>' : '<span class="bad">СТОИТ</span>'}${unitLine(sim, 'sag-mill', [['power', 'мощность', 'МВт'], ['mill_load', 'загрузка', '%'], ['bearing_temp', 'подшипник', '°C']])}`);
+    this.label(-6, 12, 6, () => `<b>ШАРОВАЯ МЕЛЬНИЦА</b><br>${running() ? 'работает' : '<span class="bad">стоит</span>'}${unitLine(sim, 'ball-mill', [['power', 'мощность', 'МВт'], ['bearing_temp', 'подшипник', '°C']])}`);
+    this.label(9, 22, -4, () => `<b>ГИДРОЦИКЛОНЫ</b>${unitLine(sim, 'cyclones', [['pressure', 'давление', 'кПа'], ['p80', 'P80', 'мкм']])}`);
+    this.label(30, 10, 6, () => `<b>ФЛОТАЦИЯ</b><br>извлечение: <span class="v">${recovery().toFixed(1)}%</span>${unitLine(sim, 'flotation', [['froth_level', 'пена', 'мм'], ['air_flow', 'воздух', 'м³/мин'], ['conc_grade', 'Cu в конц.', '%']])}`);
+    this.label(46, 10, -20, () => `<b>СГУСТИТЕЛЬ · КОНЦЕНТРАТ</b><br><span class="v">${st.cuConcT.toFixed(1)} т Cu</span><br>хвосты: ${st.cuLossT.toFixed(2)} т Cu${unitLine(sim, 'thickener', [['underflow_density', 'плотность', '%'], ['rake_torque', 'момент грабель', '%']])}`);
 
-    this.camera.position.set(4, 30, 52);
-    this.controls.target.set(-8, 6, -2);
+    this.camera.position.set(10, 34, 64);
+    this.controls.target.set(-4, 6, -4);
   }
 }

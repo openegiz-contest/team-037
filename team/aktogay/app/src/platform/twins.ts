@@ -14,6 +14,7 @@ import type { Kpis } from '../sim/kpi';
 import type { Simulation } from '../sim/engine';
 import { MATERIALS, TRUCK_STATES, type Blast, type Destination, type FailureType, type Material, type StrategyName, type TruckState } from '../sim/types';
 import { gradeAt } from '../sim/ore';
+import { UNIT_DEFS, type UnitState } from '../sim/equipment';
 import { crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
@@ -36,6 +37,7 @@ export const thingIds = (v: StrategyName) => {
     roads: `${ns}:roads`,
     blasting: `${ns}:blasting`,
     shift: `${ns}:shift`,
+    unit: (key: string) => `${ns}:${key}`,
   };
 };
 
@@ -107,6 +109,24 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
   out[id.garage] = { policyId: POLICY, attributes: { name: 'Гараж, АЗС и стоянка', kind: 'garage', _isType: false, _parents: parent, slots: sim.parking.slots.length, sensors: garageSensorAttributes() }, features: serializeGarage(sim) };
   out[id.roads] = { policyId: POLICY, attributes: { name: 'Дорожная сеть карьера', kind: 'road-network', _isType: false, _parents: parent, edges: sim.layout.graph.edges.length }, features: serializeRoads(sim) };
   out[id.blasting] = { policyId: POLICY, attributes: { name: 'Буровзрывные работы', kind: 'blasting', _isType: false, _parents: parent }, features: serializeBlasting(sim) };
+  // Агрегаты внутри зданий — дочерние двойники дробилки, фабрики и гаража.
+  const parentOf = { crusher: id.crusher, plant: id.plant, garage: id.garage };
+  for (const u of sim.equipment.units) {
+    out[id.unit(u.def.key)] = {
+      policyId: POLICY,
+      attributes: {
+        name: u.def.name,
+        kind: 'unit',
+        _isType: false,
+        _parents: parentOf[u.def.building],
+        building: u.def.building,
+        key_features: u.def.keyFeatures,
+        sensors: u.def.sensors,
+        ...(u.def.bearingC ? { bearing_alarm_c: u.def.alarmC } : {}),
+      },
+      features: serializeUnit(sim, u.def.key),
+    };
+  }
   out[id.shift] = {
     policyId: POLICY,
     attributes: {
@@ -321,6 +341,25 @@ export function serializeBlasting(sim: Simulation): Features {
   };
 }
 
+const UNIT_UNITS: Record<string, string> = {
+  power: '', motor_current: 'A', hydraulic_pressure: 'bar', bearing_temp: 'C', vibration: 'mm/s', belt_speed: 'm/s', load: 't/h', mill_load: '%',
+  speed: 'rpm', pulp_density: '%', water: 'm3/h', pressure: 'kPa', p80: 'um', froth_level: 'mm', air_flow: 'm3/min', reagent_dose: 'g/t',
+  conc_grade: '% Cu', underflow_density: '%', rake_torque: '%', flow: 'l/min', dispensed: 'l', remaining: 'min',
+};
+
+/** Признаки агрегата (мощность дробилки — кВт, мельниц — МВт). */
+export function serializeUnit(sim: Simulation, key: string): Features {
+  const u = sim.equipment.get(key);
+  const out: Features = {};
+  if (!u) return out;
+  for (const [k, val] of Object.entries(u.v)) {
+    if (k === 'bearing_extra') continue;
+    const unit = k === 'power' ? (key === 'crusher-drive' ? 'kW' : 'MW') : UNIT_UNITS[k];
+    out[k] = f(val, unit || undefined);
+  }
+  return out;
+}
+
 /** Хронология смены (публикуется реже остальных — раз в 15 с). */
 export function serializeShift(sim: Simulation): Features {
   const tl = sim.timeline;
@@ -347,6 +386,7 @@ export function serializeAll(sim: Simulation, v: StrategyName, k: Kpis): Record<
   out[id.garage] = serializeGarage(sim);
   out[id.roads] = serializeRoads(sim);
   out[id.blasting] = serializeBlasting(sim);
+  for (const d of UNIT_DEFS) out[id.unit(d.key)] = serializeUnit(sim, d.key);
   return out;
 }
 
@@ -476,6 +516,18 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     ex.blastSec = num(fs, 'blast_time');
     ex.queueIntegral = num(fs, 'queue_avg') * sim.now;
   });
+
+  // Агрегаты внутри зданий.
+  for (const u of sim.equipment.units) {
+    const fs = things.get(id.unit(u.def.key));
+    if (!fs) continue;
+    for (const k of Object.keys(fs)) {
+      const raw = (fs[k] as { properties?: { value?: unknown } } | undefined)?.properties?.value;
+      if (typeof raw === 'number' || typeof raw === 'string') u.v[k] = raw;
+    }
+    u.state = String(u.v.state ?? u.state) as UnitState;
+    u.alarm = Number(u.v.alarm ?? 0) === 1;
+  }
 
   // Хронология смены.
   const sh = things.get(id.shift);

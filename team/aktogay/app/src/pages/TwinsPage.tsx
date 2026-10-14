@@ -32,7 +32,7 @@ interface Row {
 
 type Variant = StrategyName;
 
-const BOOL_KEYS = new Set(['finished', 'failure_alert', 'service_requested']);
+const BOOL_KEYS = new Set(['finished', 'failure_alert', 'service_requested', 'alarm', 'belt_misalign']);
 const NO_SPARK = new Set(['x', 'y', 'edge_from', 'edge_to', 'node', 'seg_pos', 'dest_id', 'home_excavator', 'fixed_excavator', 'park_slot', 'loading', 'seed', 'trucks', 'timer']);
 
 const KEY_METRICS: Record<string, string[]> = {
@@ -57,6 +57,7 @@ const GROUPS: { title: string; kinds: string[] }[] = [
   { title: 'Экскаваторы', kinds: ['excavator'] },
   { title: 'Самосвалы', kinds: ['haul-truck'] },
   { title: 'Переработка', kinds: ['crusher', 'concentrator', 'heap-leach', 'waste-dump'] },
+  { title: 'Агрегаты цехов', kinds: ['unit'] },
   { title: 'Инфраструктура', kinds: ['garage', 'road-network', 'blasting', 'shift-log'] },
 ];
 
@@ -187,6 +188,11 @@ function summary(r: TwinRecord): [string, keyof typeof TONE_COLOR] {
       const a = Number(v('active') ?? 0);
       const w = Number(v('announced') ?? 0);
       return [a ? 'оцепление' : w ? 'объявлен взрыв' : 'нет', a ? 'bad' : w ? 'warn' : 'idle'];
+    }
+    case 'unit': {
+      const alarm = Number(v('alarm')) === 1;
+      const s = String(v('state') ?? '');
+      return [alarm ? `⚠ подшипник ${v('bearing_temp')} °C` : (VALUE_LABEL[s] ?? s), alarm ? 'bad' : stateTone(s)];
     }
     case 'control': {
       const s = m.get('status.value')?.value as string | undefined;
@@ -474,7 +480,7 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
 
             {/* Ключевые показатели */}
             <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-5">
-              {(KEY_METRICS[selKind] ?? []).map((k) => {
+              {(KEY_METRICS[selKind] ?? (sel.attrs.key_features as string[] | undefined) ?? []).map((k) => {
                 const row = selMap.get(k);
                 const fv = fmtValue(row);
                 const h = hist.current.get(`${sel.id}|${k}`);

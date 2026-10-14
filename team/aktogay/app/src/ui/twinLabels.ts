@@ -14,6 +14,7 @@ export const KIND_LABEL: Record<string, string> = {
   'road-network': 'Дороги',
   blasting: 'Взрывные работы',
   'shift-log': 'Хронология смены',
+  unit: 'Агрегат',
 };
 
 export const FEATURE_LABEL: Record<string, string> = {
@@ -129,6 +130,36 @@ export const FEATURE_LABEL: Record<string, string> = {
   active: 'Идёт оцепление',
   announced: 'Объявлено',
   blasts: 'Взрывы смены',
+  // агрегаты внутри зданий
+  power: 'Мощность привода',
+  motor_current: 'Ток двигателя',
+  hydraulic_pressure: 'Давление гидросистемы',
+  bearing_temp: 'Температура подшипника',
+  alarm: 'Тревога',
+  belt_speed: 'Скорость ленты',
+  load: 'Нагрузка',
+  belt_misalign: 'Сход ленты',
+  mill_load: 'Загрузка мельницы',
+  speed: 'Обороты',
+  pulp_density: 'Плотность пульпы',
+  water: 'Расход воды',
+  pressure: 'Давление на входе',
+  p80: 'Крупность слива P80',
+  cyclones_on: 'Циклонов в работе',
+  froth_level: 'Уровень пены',
+  air_flow: 'Расход воздуха',
+  reagent_dose: 'Дозировка реагентов',
+  conc_grade: 'Cu в концентрате',
+  cells_running: 'Камер в работе',
+  underflow_density: 'Плотность разгрузки',
+  rake_torque: 'Момент на граблях',
+  truck: 'Самосвал',
+  flow: 'Подача',
+  dispensed: 'Выдано за смену',
+  refuels: 'Заправок',
+  remaining: 'До конца ремонта',
+  component: 'Узел',
+  repairs: 'Ремонтов',
   // хронология смены
   minutes: 'Записано минут',
   excavators: 'Экскаваторы по минутам',
@@ -159,9 +190,26 @@ export const UNIT_LABEL: Record<string, string> = {
   bar: 'бар',
   '%': '%',
   '% Cu': '% Cu',
+  kW: 'кВт',
+  MW: 'МВт',
+  A: 'А',
+  rpm: 'об/мин',
+  'm/s': 'м/с',
+  'm3/h': 'м³/ч',
+  'm3/min': 'м³/мин',
+  kPa: 'кПа',
+  um: 'мкм',
+  'g/t': 'г/т',
+  'l/min': 'л/мин',
 };
 
 export const VALUE_LABEL: Record<string, string> = {
+  // агрегаты
+  run: 'работает',
+  idling: 'холостой ход',
+  stop: 'стоит',
+  busy: 'занят',
+  free: 'свободен',
   // самосвал
   idle: 'ожидает',
   empty: 'порожний рейс',
@@ -204,6 +252,7 @@ export function stateTone(state: string | undefined): 'ok' | 'busy' | 'warn' | '
     case 'broken':
     case 'starved':
     case 'stopped':
+    case 'stop':
       return 'bad';
     case 'queue':
     case 'waiting':
@@ -218,7 +267,12 @@ export function stateTone(state: string | undefined): 'ok' | 'busy' | 'warn' | '
     case 'receiving':
     case 'crushing':
     case 'running':
+    case 'run':
       return 'ok';
+    case 'busy':
+      return 'warn';
+    case 'idling':
+      return 'busy';
     case 'empty':
       return 'busy';
     default:

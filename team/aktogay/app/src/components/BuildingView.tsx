@@ -11,6 +11,9 @@ import type { BuildingKind } from '../render3d/MineScene';
 import { TRUCK_STATE_LABEL, type Simulation } from '../sim';
 import { fmtInt } from '../ui/format';
 import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
+import { thingIds } from '../platform/twins';
+import { UNIT_STATE_RU } from '../sim/equipment';
+import { FEATURE_LABEL, stateTone, TONE_COLOR, UNIT_LABEL } from '../ui/twinLabels';
 
 const TITLE: Record<BuildingKind, string> = {
   crusher: 'Первичная дробилка ККД',
@@ -69,9 +72,9 @@ export function BuildingView({ sim, kind, onClose, onTruck, light = false }: Pro
           ✕ Закрыть
         </button>
       </div>
-      <div className={`min-h-0 flex-1 p-3 ${show3d ? 'flex flex-col' : 'overflow-auto'}`}>
+      <div className="min-h-0 flex-1 overflow-auto p-3">
         {show3d && (
-          <div className="relative min-h-0 flex-1">
+          <div className="relative h-[46vh] min-h-[300px]">
             <Interior3D sim={sim} kind={kind as 'crusher' | 'plant' | 'garage'} light={light} />
             <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 text-[11.5px] text-ink-2">ЛКМ — вращение · ПКМ — сдвиг · колесо — масштаб</div>
           </div>
@@ -80,6 +83,7 @@ export function BuildingView({ sim, kind, onClose, onTruck, light = false }: Pro
         {!show3d && kind === 'plant' && <Plant sim={sim} />}
         {!show3d && kind === 'garage' && <Garage sim={sim} onTruck={onTruck} />}
         {(kind === 'leach' || kind === 'waste') && <Dump sim={sim} kind={kind} onTruck={onTruck} />}
+        {(kind === 'crusher' || kind === 'plant' || kind === 'garage') && <UnitStrip sim={sim} building={kind} />}
         {sensors.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {sensors.map((s) => (
@@ -89,6 +93,65 @@ export function BuildingView({ sim, kind, onClose, onTruck, light = false }: Pro
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────── агрегаты здания ─────────────────────────────
+
+const UNIT_OF: Record<string, (key: string) => string> = { power: (k) => (k === 'crusher-drive' ? 'kW' : 'MW') };
+const UNITS_RU: Record<string, string> = {
+  motor_current: 'A', hydraulic_pressure: 'bar', bearing_temp: 'C', vibration: 'mm/s', belt_speed: 'm/s', load: 't/h', mill_load: '%', speed: 'rpm',
+  pulp_density: '%', water: 'm3/h', pressure: 'kPa', p80: 'um', froth_level: 'mm', air_flow: 'm3/min', reagent_dose: 'g/t', conc_grade: '% Cu',
+  underflow_density: '%', rake_torque: '%', flow: 'l/min', dispensed: 'l', remaining: 'min',
+};
+
+/** Карточки агрегатов здания: состояние, ключевые датчики, тревога; клик — двойник агрегата. */
+function UnitStrip({ sim, building }: { sim: Simulation; building: 'crusher' | 'plant' | 'garage' }) {
+  const units = sim.equipment.units.filter((u) => u.def.building === building);
+  const id = thingIds(sim.strategyName);
+  return (
+    <div className="mt-3">
+      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-3">Агрегаты · двойники в Ditto</div>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-5">
+        {units.map((u) => {
+          const tone = u.alarm ? 'bad' : stateTone(u.state);
+          return (
+            <a
+              key={u.def.key}
+              href={`#/twins/${encodeURIComponent(id.unit(u.def.key))}`}
+              className="rounded-lg border bg-panel-2/50 px-2.5 py-2 hover:border-amber-500"
+              style={{ borderColor: u.alarm ? '#ef4444' : 'var(--color-line)' }}
+              title="Открыть двойник агрегата"
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: TONE_COLOR[tone] }} />
+                <span className="truncate text-[12.5px] font-semibold">{u.def.name}</span>
+              </div>
+              <div className="mt-0.5 text-[11px]" style={{ color: u.alarm ? '#ef4444' : 'var(--color-ink-3)' }}>
+                {u.alarm ? `⚠ подшипник ${u.v.bearing_temp} °C — осмотр в пересменку` : UNIT_STATE_RU[u.state]}
+              </div>
+              <div className="mt-1 flex flex-col gap-0.5">
+                {u.def.keyFeatures
+                  .filter((k) => k !== 'state')
+                  .map((k) => {
+                    const raw = UNIT_OF[k]?.(u.def.key) ?? UNITS_RU[k];
+                    const unit = raw ? (UNIT_LABEL[raw] ?? raw) : '';
+                    return (
+                      <div key={k} className="flex justify-between gap-2 text-[11.5px]">
+                        <span className="truncate text-ink-3">{FEATURE_LABEL[k] ?? k}</span>
+                        <span className="num shrink-0 text-ink">
+                          {u.v[k] ?? '—'}
+                          {unit && u.v[k] !== undefined && typeof u.v[k] === 'number' ? ` ${unit}` : ''}
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </a>
+          );
+        })}
       </div>
     </div>
   );

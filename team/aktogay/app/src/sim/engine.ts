@@ -11,6 +11,7 @@ import { Router } from './graph';
 import { buildMine, type MineLayout } from './mine';
 import { hash01, Rng, subSeed } from './rng';
 import { emptyDriverStats, makeDriver } from './drivers';
+import { PlantEquipment } from './equipment';
 import {
   MATERIALS,
   MATERIAL_SHORT,
@@ -82,6 +83,8 @@ export class Simulation {
   readonly loadTotal: number[] = [];
   /** Целевая доля тоннажа каждого экскаватора по плану смены. */
   readonly targetShare: number[];
+  /** Оборудование внутри зданий (агрегаты дробилки, фабрики, гаража). */
+  equipment!: PlantEquipment;
   /** ГПСЧ событий вождения (резкие торможения) — по потоку на самосвал. */
   private readonly driverRng: Rng[] = [];
   /**
@@ -198,6 +201,7 @@ export class Simulation {
     this.events = this.generateEvents();
     this.generateBlasts();
     this.recordHistory();
+    this.equipment = new PlantEquipment(this);
   }
 
   // ───────────────────────────── инициализация ─────────────────────────────
@@ -583,6 +587,7 @@ export class Simulation {
     const dt = this.cfg.shift.tickSec;
     this.now += dt;
     if (Math.floor(this.now / 60) > this.timeline.minutes) this.recordMinute();
+    this.equipment.tick();
     for (const t of this.trucks) {
       t.px = t.x;
       t.py = t.y;
