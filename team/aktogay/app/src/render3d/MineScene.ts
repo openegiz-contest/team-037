@@ -489,12 +489,17 @@ export class MineScene {
       }
         break;
       case 'bottom':
+        // С борта карьера на дно: камера над склоном, а не внутри него.
         target = new THREE.Vector3(0, -PIT_DEPTH + 40, 0);
-        pos = new THREE.Vector3(-900, -60, 700);
+        pos = new THREE.Vector3(-760, this.heightAt(-760, 560) + 160, 560);
         break;
       case 'side':
-        target = new THREE.Vector3(0, -260, 0);
-        pos = new THREE.Vector3(0, 300, 4600);
+      {
+        // Восточная смотровая площадка: с бровки внутрь карьера, на западный борт и дно.
+        const a = this.sim.cfg.pit.semiMajorM;
+        target = new THREE.Vector3(-a * 0.3, -PIT_DEPTH * 0.7, 0);
+        pos = new THREE.Vector3(a * 1.12, this.heightAt(a * 1.12, a * 0.25) + 380, a * 0.25);
+      }
         break;
       default:
         // Вся диорама наискосок, как макет на столе.

@@ -22,7 +22,7 @@ const PRESETS: { key: CameraPreset; label: string }[] = [
   { key: 'overview', label: 'Общий вид' },
   { key: 'crusher', label: 'Дробилка' },
   { key: 'bottom', label: 'Дно карьера' },
-  { key: 'side', label: 'Разрез' },
+  { key: 'side', label: 'Смотровая' },
 ];
 
 /** 3D-вид карьера (Three.js). Камера: ЛКМ — вращение, ПКМ — сдвиг, колесо — масштаб. */

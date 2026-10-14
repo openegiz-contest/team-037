@@ -9,7 +9,7 @@ import { pitPoint, pitWarp, type SimConfig, type Simulation } from '../sim';
 import { ROCK_GEO } from './models';
 
 /** Глубина карьера, м. Оценка: порядок сотен метров. */
-export const PIT_DEPTH = 330;
+export const PIT_DEPTH = 480;
 /** Доля «ступенчатости» рельефа: 1 — чистые уступы, 0 — гладкий конус. */
 const TERRACE = 0.65;
 /** Доля бермы в шаге уступа (остальное — откос). */

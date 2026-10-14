@@ -220,7 +220,7 @@ export const DEFAULT_CONFIG: SimConfig = {
   pit: {
     semiMajorM: 1500, // оценка, сверить с открытыми источниками (годовые отчёты KAZ Minerals)
     semiMinorM: 800, // оценка
-    benchCount: 14,
+    benchCount: 30, // уступы по 16 м при глубине 480 м (визуально)
     bottomScale: 0.2,
     rampTurns: 0.8,
     rampNodes: 21,
