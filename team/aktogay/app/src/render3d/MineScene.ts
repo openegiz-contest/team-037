@@ -300,13 +300,14 @@ export class MineScene {
     });
 
     // Буровые станки и сетки скважин (по блоку у каждого забоя).
-    sim.drill.rigs.forEach(() => {
+    sim.drill.rigs.forEach((_, i) => {
       const d = makeDrillRig();
       this.scene.add(d.root);
       this.drills.push(d);
       this.drillHeading.push(0);
       const lbl = label('lbl3d');
-      lbl.position.set(0, 150, 0);
+      // Подписи двух станков — на разной высоте, чтобы не перекрывались, когда они рядом.
+      lbl.position.set(0, i === 0 ? 150 : 290, 0);
       d.root.add(lbl);
       this.drillLabels.push(lbl);
     });
@@ -479,15 +480,27 @@ export class MineScene {
   /** Буровые станки: положение, мачта (бурение — вертикально, переезд — уложена), сетки скважин. */
   private syncDrills(now: number, blink: boolean): void {
     const sim = this.sim;
-    sim.drill.rigs.forEach((g, i) => {
+    const rigs = sim.drill.rigs;
+    rigs.forEach((g, i) => {
       const d = this.drills[i];
+      // Модели увеличены (×5,5): два станка на одном блоке в 8–40 м друг от друга слились бы в один.
+      // Раздвигаем их вдоль уступа на экране, на скважины в модели это не влияет.
+      let gx = g.x;
+      let gy = g.y;
+      const other = rigs.find((o) => o !== g);
+      if (other && g.state !== 'moving' && other.state !== 'moving' && Math.hypot(other.x - g.x, other.y - g.y) < 160 && g.target !== null) {
+        const b = sim.drill.blocks[g.target];
+        const side = i === 0 ? -1 : 1;
+        gx += b.ux * 110 * side;
+        gy += b.uy * 110 * side;
+      }
       const prev = d.root.position;
-      const h = this.heightAt(g.x, g.y);
-      const dx = g.x - prev.x;
-      const dz = g.y - prev.z;
+      const h = this.heightAt(gx, gy);
+      const dx = gx - prev.x;
+      const dz = gy - prev.z;
       if (g.state === 'moving' && Math.hypot(dx, dz) > 0.5) this.drillHeading[i] = Math.atan2(dz, dx);
-      else if (g.state === 'drilling') this.drillHeading[i] = Math.atan2(-g.y, -g.x); // мачтой к центру карьера
-      d.root.position.set(g.x, h + 1, g.y);
+      else if (g.state === 'drilling') this.drillHeading[i] = Math.atan2(-gy, -gx); // мачтой к центру карьера
+      d.root.position.set(gx, h + 1, gy);
       d.root.rotation.y = -this.drillHeading[i];
       const lowered = g.state === 'moving' ? -1.45 : 0;
       d.mast.rotation.z += (lowered - d.mast.rotation.z) * 0.08;
