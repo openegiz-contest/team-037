@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three';
 
-export const EQUIP_SCALE = 4.5;
+export const EQUIP_SCALE = 2.2;
 
 const std = (color: string, extra: Partial<THREE.MeshStandardMaterialParameters> = {}) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.65, metalness: 0.15, ...extra });

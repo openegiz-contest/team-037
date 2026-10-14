@@ -65,11 +65,67 @@ export function makeHeightAt(cfg: SimConfig): (x: number, y: number) => number {
   return (x, y) => heightFromS(cfg, scaleAt(cfg, x, y), x, y);
 }
 
+/** Обочина: полоса, на которой врезка дороги плавно переходит в естественный склон, м. */
+const SHOULDER = 14;
+const CELL = 120;
+
+/**
+ * Рельеф с дорогами, врезанными в борта: в пределах ширины дороги поверхность ровная — высота
+ * линейно между узлами ребра (съезд — ровный уклон, кольцевая берма — горизонталь), дальше
+ * обочиной переходит в естественный склон. Так широкая карьерная дорога лежит на полке,
+ * а не висит над уступами.
+ */
+export function makeRoadHeightAt(sim: Simulation, base: (x: number, y: number) => number): (x: number, y: number) => number {
+  const g = sim.layout.graph;
+  type Seg = { ax: number; ay: number; vx: number; vy: number; l2: number; ha: number; hb: number; half: number };
+  const grid = new Map<number, Seg[]>();
+  const key = (i: number, j: number) => i * 100003 + j;
+  for (const e of g.edges) {
+    if (e.kind === 'lot' || e.kind === 'park') continue;
+    const a = g.nodes[e.a];
+    const b = g.nodes[e.b];
+    const half = roadWidth(e.kind) / 2;
+    const seg: Seg = { ax: a.x, ay: a.y, vx: b.x - a.x, vy: b.y - a.y, l2: (b.x - a.x) ** 2 + (b.y - a.y) ** 2 || 1, ha: base(a.x, a.y), hb: base(b.x, b.y), half };
+    const r = half + SHOULDER;
+    const i0 = Math.floor((Math.min(a.x, b.x) - r) / CELL);
+    const i1 = Math.floor((Math.max(a.x, b.x) + r) / CELL);
+    const j0 = Math.floor((Math.min(a.y, b.y) - r) / CELL);
+    const j1 = Math.floor((Math.max(a.y, b.y) + r) / CELL);
+    for (let i = i0; i <= i1; i++)
+      for (let j = j0; j <= j1; j++) {
+        const k = key(i, j);
+        let list = grid.get(k);
+        if (!list) grid.set(k, (list = []));
+        list.push(seg);
+      }
+  }
+  return (x, y) => {
+    const h0 = base(x, y);
+    const list = grid.get(key(Math.floor(x / CELL), Math.floor(y / CELL)));
+    if (!list) return h0;
+    let best = Infinity;
+    let roadH = h0;
+    let half = 0;
+    for (const s of list) {
+      const t = clamp(((x - s.ax) * s.vx + (y - s.ay) * s.vy) / s.l2, 0, 1);
+      const d = Math.hypot(x - s.ax - s.vx * t, y - s.ay - s.vy * t) - s.half;
+      if (d < best) {
+        best = d;
+        roadH = s.ha + (s.hb - s.ha) * t;
+        half = s.half;
+      }
+    }
+    if (best <= 0 || half === 0) return best <= 0 ? roadH : h0;
+    if (best >= SHOULDER) return h0;
+    return roadH + (h0 - roadH) * smoothstep(0, SHOULDER, best);
+  };
+}
+
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 /** Верх блока: чаша с уступами + поверхность до краёв блока. */
-export function buildTerrain(cfg: SimConfig, blk: Block | null): THREE.Mesh {
-  const A = 240; // сегментов по углу
+export function buildTerrain(cfg: SimConfig, blk: Block | null, heightAt?: (x: number, y: number) => number): THREE.Mesh {
+  const A = 480; // сегментов по углу (мельче — чтобы полки дорог были ровными)
   const sList: number[] = [];
   for (let i = 0; i <= 30; i++) sList.push(3.6 - (i / 30) * 2.6);
   const inner = cfg.pit.benchCount * 12;
@@ -97,7 +153,7 @@ export function buildTerrain(cfg: SimConfig, blk: Block | null): THREE.Mesh {
       const x = blk ? clamp(p.x, blk.minX, blk.maxX) : p.x;
       const y = blk ? clamp(p.y, blk.minY, blk.maxY) : p.y;
       const s = s0 >= 1 ? scaleAt(cfg, x, y) : s0;
-      const h = heightFromS(cfg, s, x, y);
+      const h = heightAt ? heightAt(x, y) : heightFromS(cfg, s, x, y);
       pos[k] = x;
       pos[k + 1] = h;
       pos[k + 2] = y;
@@ -162,6 +218,11 @@ export function buildWater(cfg: SimConfig): THREE.Mesh {
   return m;
 }
 
+/** Ширина дороги, м сцены: съезды шире (двустороннее движение карьерных самосвалов). */
+export function roadWidth(kind: string): number {
+  return kind === 'ramp' ? 78 : kind === 'surface' || kind === 'rim' ? 70 : 62;
+}
+
 /** Ленты дорог по рёбрам графа, повторяющие рельеф. */
 export function buildRoads(sim: Simulation, heightAt: (x: number, y: number) => number): THREE.Mesh {
   const g = sim.layout.graph;
@@ -175,7 +236,7 @@ export function buildRoads(sim: Simulation, heightAt: (x: number, y: number) => 
     if (e.kind === 'lot' || e.kind === 'park') continue;
     const a = g.nodes[e.a];
     const b = g.nodes[e.b];
-    const width = e.kind === 'ramp' ? 52 : e.kind === 'surface' || e.kind === 'rim' ? 46 : 40;
+    const width = roadWidth(e.kind);
     const color = e.kind === 'ramp' ? cRamp : e.kind === 'surface' || e.kind === 'rim' ? cSurf : cRing;
     const segs = Math.max(1, Math.ceil(e.len / 20));
     const dx = (b.x - a.x) / e.len;
@@ -241,10 +302,10 @@ export function scatterRocks(sim: Simulation, blk: Block, heightAt: (x: number, 
     const x = blk.minX + rnd() * (blk.maxX - blk.minX);
     const y = blk.minY + rnd() * (blk.maxY - blk.minY);
     if (avoid.some((a) => Math.hypot(a.x - x, a.y - y) < a.r)) continue;
-    if (segs.some(([a, b]) => distSeg(x, y, a.x, a.y, b.x, b.y) < 40)) continue;
+    if (segs.some(([a, b]) => distSeg(x, y, a.x, a.y, b.x, b.y) < 50)) continue;
     const h = heightAt(x, y);
     if (h < -PIT_DEPTH + 8) continue; // не на воде
-    const r = 3 + rnd() * rnd() * 11;
+    const r = 1.2 + rnd() * rnd() * 4.5;
     e.set(rnd() * 3, rnd() * 3, rnd() * 3);
     q.setFromEuler(e);
     m.compose(new THREE.Vector3(x, h + r * 0.35, y), q, new THREE.Vector3(r * (0.8 + rnd() * 0.5), r * (0.6 + rnd() * 0.3), r));

@@ -31,12 +31,14 @@ import {
   type ExcavatorModel,
   type TruckModel,
 } from './models';
-import { blockBounds, buildRoads, buildTerrain, buildWater, makeHeightAt, PIT_DEPTH, scatterRocks, type Block } from './terrain';
+import { blockBounds, buildRoads, buildTerrain, buildWater, makeHeightAt, makeRoadHeightAt, PIT_DEPTH, roadWidth, scatterRocks, type Block } from './terrain';
 
 export type CameraPreset = 'overview' | 'crusher' | 'bottom' | 'side';
 /** Здания, у которых есть «внутренний двойник» (мнемосхема). */
 /** Наибольший радиус конуса склада дроблёной руды (при полном складе), м сцены. */
 const STOCKPILE_MAX_R = 140;
+/** Смещение самосвала от оси дороги к своей полосе, м сцены. */
+const LANE_OFFSET = 15;
 
 export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile';
 
@@ -82,6 +84,7 @@ export class MineScene {
   private readonly heightAt: (x: number, y: number) => number;
   private readonly trucks: TruckModel[] = [];
   private readonly heading: number[] = [];
+  private readonly laneK: number[] = [];
   private readonly excavators: ExcavatorModel[] = [];
   private readonly exLabels: CSS2DObject[] = [];
   /** Буровые станки и сетки скважин на блоках. */
@@ -132,7 +135,7 @@ export class MineScene {
     opts: { light?: boolean; onSlow?: () => void } = {},
   ) {
     const cfg = sim.cfg;
-    this.heightAt = makeHeightAt(cfg);
+    this.heightAt = makeRoadHeightAt(sim, makeHeightAt(cfg));
     this.light = !!opts.light;
     this.onSlow = opts.onSlow ?? null;
     const light = this.light;
@@ -184,7 +187,7 @@ export class MineScene {
     ground.position.y = -12;
     ground.receiveShadow = true;
     this.scene.add(ground);
-    this.scene.add(buildTerrain(cfg, null));
+    this.scene.add(buildTerrain(cfg, null, this.heightAt));
     this.scene.add(buildWater(cfg));
     this.scene.add(buildRoads(sim, this.heightAt));
 
@@ -354,7 +357,7 @@ export class MineScene {
       this.scene.add(m.root);
       this.excavators.push(m);
       const lbl = label('lbl3d');
-      lbl.position.set(0, 120, 0);
+      lbl.position.set(0, 70, 0);
       m.root.add(lbl);
       this.exLabels.push(lbl);
     });
@@ -389,7 +392,7 @@ export class MineScene {
       this.trucks.push(m);
       this.heading.push(Math.atan2(sim.parkingFrame().oy, sim.parkingFrame().ox));
       const al = label('lbl3d alert');
-      al.position.set(0, 80, 0);
+      al.position.set(0, 45, 0);
       al.visible = false;
       m.root.add(al);
       this.alertLabels.push(al);
@@ -733,8 +736,16 @@ export class MineScene {
     // Самосвалы.
     sim.trucks.forEach((t, i) => {
       const m = this.trucks[i];
-      const x = t.px + (t.x - t.px) * alpha;
-      const y = t.py + (t.y - t.py) * alpha;
+      let x = t.px + (t.x - t.px) * alpha;
+      let y = t.py + (t.y - t.py) * alpha;
+      // В рейсе — своя полоса (правостороннее движение): встречные не едут друг сквозь друга.
+      const lane = t.state === 'empty' || t.state === 'loaded' ? 1 : 0;
+      this.laneK[i] = (this.laneK[i] ?? 0) + (lane - (this.laneK[i] ?? 0)) * 0.1;
+      if (this.laneK[i] > 0.01) {
+        const off = LANE_OFFSET * this.laneK[i];
+        x += -Math.sin(this.heading[i]) * off;
+        y += Math.cos(this.heading[i]) * off;
+      }
       m.root.position.set(x, this.heightAt(x, y) + 3, y);
       const dx = t.x - t.px;
       const dy = t.y - t.py;
@@ -1090,7 +1101,7 @@ export class MineScene {
           const b = g.nodes[e.b];
           const mx = (a.x + b.x) / 2;
           const my = (a.y + b.y) / 2;
-          const strip = new THREE.Mesh(new THREE.BoxGeometry(e.len, 3, 38), mat);
+          const strip = new THREE.Mesh(new THREE.BoxGeometry(e.len, 3, roadWidth(e.kind) * 0.8), mat);
           strip.position.set(mx, this.heightAt(mx, my) + 4, my);
           strip.rotation.y = -Math.atan2(b.y - a.y, b.x - a.x);
           grp.add(strip);
