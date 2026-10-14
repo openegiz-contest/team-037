@@ -121,6 +121,8 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
         _parents: parent,
         model_class: 'гусеничный станок шарошечного бурения, скважины Ø 250 мм',
         hole_depth_m: 16,
+        operator: g.operator.name,
+        operator_years: g.operator.years,
         sensors: drillSensorAttributes(),
       },
       features: serializeDrill(sim, i),
@@ -383,6 +385,13 @@ export function serializeDrill(sim: Simulation, i: number): Features {
     meters_shift: f(Math.round(g.metersShift), 'm'),
     holes_shift: f(g.holesShift, 'holes'),
     repair_left: f(Math.round(g.brokenLeft), 's'),
+    // Стиль машиниста по датчикам станка: MWD (время и скорость бурения), GNSS (отклонение устья), момент (заклинивания).
+    hole_offset: f(g.holeOffset, 'm'),
+    op_drill_time: f(Math.round(g.opStats.drillSec), 's'),
+    op_offset_avg: f(g.opStats.holes ? Math.round((g.opStats.offsetSum / g.opStats.holes) * 100) / 100 : 0, 'm'),
+    op_holes: f(g.opStats.holes, 'holes'),
+    op_jams: f(g.opStats.jams, 'pcs'),
+    op_expected_m: f(r1(g.opStats.expectedM), 'm'),
   };
 }
 
@@ -581,6 +590,12 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     g.metersShift = num(fs, 'meters_shift');
     g.holesShift = num(fs, 'holes_shift');
     g.brokenLeft = num(fs, 'repair_left');
+    g.holeOffset = num(fs, 'hole_offset');
+    g.opStats.drillSec = num(fs, 'op_drill_time');
+    g.opStats.holes = num(fs, 'op_holes');
+    g.opStats.offsetSum = num(fs, 'op_offset_avg') * g.opStats.holes;
+    g.opStats.jams = num(fs, 'op_jams');
+    g.opStats.expectedM = num(fs, 'op_expected_m');
   });
 
   // Агрегаты внутри зданий.

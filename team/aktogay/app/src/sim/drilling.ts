@@ -28,6 +28,33 @@ export interface DrillBlock {
 
 export type DrillState = 'drilling' | 'moving' | 'idle' | 'broken';
 
+/** Машинист бурового станка (вымышленный): стиль работы. */
+export interface DrillOperator {
+  name: string;
+  years: number;
+  /** Темп бурения: множитель скорости проходки, 0.92…1.08. */
+  pace: number;
+  /** Точность наведения на проектную точку: среднее отклонение устья скважины, м (0.1…0.6). */
+  offsetM: number;
+  /** Бережность 0.55…0.98: чем выше, тем реже заклинивание става. */
+  care: number;
+}
+
+/** Телеметрия машиниста за смену. */
+export interface DrillOperatorStats {
+  /** Чистое время бурения, с (для средней скорости проходки). */
+  drillSec: number;
+  /** Сумма отклонений устьев от проекта, м, и число скважин. */
+  offsetSum: number;
+  holes: number;
+  /** Заклинивания бурового става. */
+  jams: number;
+  /** Сколько метров пробурил бы машинист нормального темпа за то же время на той же породе. */
+  expectedM: number;
+}
+
+const OPERATOR_NAMES = ['Бахыт С.', 'Николай Р.', 'Ержан Т.', 'Андрей К.'];
+
 export interface DrillRig {
   id: number;
   name: string;
@@ -51,6 +78,11 @@ export interface DrillRig {
   pulldown: number;
   torque: number;
   air: number;
+  /** Машинист смены и его телеметрия. */
+  operator: DrillOperator;
+  opStats: DrillOperatorStats;
+  /** Отклонение текущей скважины от проекта, м (GNSS). */
+  holeOffset: number;
 }
 
 export const HOLE_DEPTH_M = 16;
@@ -66,11 +98,14 @@ export class DrillOps {
   /** Запас взорванной горной массы у экскаваторов, т. */
   readonly stockT: number[];
   private readonly rng: Rng;
+  /** События машинистов (заклинивания, отклонения) — отдельный поток, чтобы не сдвигать остальное. */
+  private readonly opRng: Rng;
   /** Взрывы, о переносе которых уже написали в журнал. */
   readonly postponed = new Set<number>();
 
   constructor(private readonly sim: Simulation) {
     this.rng = new Rng(subSeed(sim.seed, 9500));
+    this.opRng = new Rng(subSeed(sim.seed, 9650));
     const r = new Rng(subSeed(sim.seed, 9501));
     const planned = sim.blasts.filter((b) => !b.manual && b.phase !== 'done').map((b) => b.target);
     this.blocks = sim.excavators.map((ex) => {
@@ -125,6 +160,19 @@ export class DrillOps {
         pulldown: 0,
         torque: 0,
         air: 0,
+        operator: (() => {
+          const o = new Rng(subSeed(sim.seed, 9600 + i));
+          const skill = o.next();
+          return {
+            name: OPERATOR_NAMES[(i + Math.floor(o.next() * 2) * 2) % OPERATOR_NAMES.length],
+            years: Math.round(2 + 20 * (0.7 * skill + 0.3 * o.next())),
+            pace: 0.92 + 0.16 * (0.6 * skill + 0.4 * o.next()),
+            offsetM: 0.6 - 0.5 * (0.5 * skill + 0.5 * o.next()),
+            care: 0.55 + 0.43 * (0.5 * skill + 0.5 * o.next()),
+          };
+        })(),
+        opStats: { drillSec: 0, offsetSum: 0, holes: 0, jams: 0, expectedM: 0 },
+        holeOffset: 0,
       };
     });
   }
@@ -252,7 +300,9 @@ export class DrillOps {
         g.air = 2;
         continue;
       }
-      g.penetration = Math.max(10, 32 / b.hardness + n(1.5));
+      g.penetration = Math.max(10, (32 / b.hardness) * g.operator.pace + n(1.5));
+      g.opStats.drillSec += dt;
+      g.opStats.expectedM += ((32 / b.hardness) * dt) / 3600;
       g.holeDepth += (g.penetration * dt) / 3600;
       g.metersShift += (g.penetration * dt) / 3600;
       g.pulldown = Math.round(250 * b.hardness + n(12));
@@ -261,6 +311,17 @@ export class DrillOps {
       if (g.holeDepth >= HOLE_DEPTH_M) {
         g.holeDepth = 0;
         g.holesShift++;
+        // Отклонение устья от проекта (GNSS) и заклинивание става — по стилю машиниста.
+        const op = g.operator;
+        g.holeOffset = Math.round(op.offsetM * (0.5 + this.opRng.next()) * 100) / 100;
+        g.opStats.offsetSum += g.holeOffset;
+        g.opStats.holes++;
+        const jam = this.opRng.next() < (1 - op.care) * 0.12;
+        if (jam) {
+          g.opStats.jams++;
+          sim.addLog(`Буровой ${g.name} (${op.name}): заклинивание бурового става, освобождение ~8 мин`, 'warn');
+        }
+        const extra = jam ? 480 : 0;
         b.holesDone = Math.min(b.holesTotal, b.holesDone + 1);
         if (b.holesDone >= b.holesTotal) {
           sim.addLog(`Блок у ${sim.excavators[b.exId].name} обурен (${b.holesTotal} скважин) — готов к взрыву`, 'info');
@@ -269,7 +330,7 @@ export class DrillOps {
           const p = this.holePos(b, Math.min(b.holesTotal - 1, b.holesDone + g.id));
           g.x = p.x;
           g.y = p.y;
-          g.reposition = REPOSITION_SEC;
+          g.reposition = REPOSITION_SEC + extra;
         }
       }
     }
@@ -310,4 +371,70 @@ export class DrillOps {
     g.state = 'moving';
     sim.addLog(`Буровой станок ${g.name} переезжает на блок у ${sim.excavators[t].name}`, 'info');
   }
+}
+
+// ───────────────────────────── рейтинг машинистов ─────────────────────────────
+
+export interface DrillerRating {
+  rigId: number;
+  name: string;
+  years: number;
+  /** Средняя скорость проходки, м/ч (MWD); темп относительно нормы для той же породы; отклонение устьев, м (GNSS); заклиниваний на 100 м. */
+  paceMh: number | null;
+  paceIndex: number | null;
+  offsetM: number | null;
+  jams100: number | null;
+  holesPerHour: number;
+  scores: { pace: number; precision: number; care: number };
+  total: number;
+  advice: string;
+  enough: boolean;
+}
+
+/** Оценка 0–100 по нормативу: 50 — норматив, края — заметно лучше / хуже. */
+const normScore = (v: number, norm: number, span: number, higherIsBetter: boolean) => {
+  const z = (v - norm) / span;
+  return Math.round(Math.max(0, Math.min(100, 50 + (higherIsBetter ? z : -z) * 50)));
+};
+
+/**
+ * Машинистов всего двое, поэтому их сравнивают не друг с другом, а с нормативами: темп проходки
+ * относительно нормы для той же породы (норма — 32 м/ч на средней крепости), отклонение устья ≤ 0,3 м, не больше 1 заклинивания на 100 м.
+ */
+export function rateDrillers(ops: DrillOps, shiftSec: number): DrillerRating[] {
+  return ops.rigs.map((g) => {
+    const st = g.opStats;
+    const meters = g.metersShift;
+    const paceMh = st.drillSec > 600 ? (meters / st.drillSec) * 3600 : null;
+    // Скорость сама по себе зависит от крепости породы — сравниваем с нормой для пройденной породы.
+    const paceIndex = st.expectedM > 5 ? meters / st.expectedM : null;
+    const offsetM = st.holes > 0 ? st.offsetSum / st.holes : null;
+    const jams100 = meters > 20 ? (st.jams / meters) * 100 : null;
+    const scores = {
+      pace: paceIndex !== null ? normScore(paceIndex, 1, 0.06, true) : 50,
+      precision: offsetM !== null ? normScore(offsetM, 0.3, 0.2, false) : 50,
+      care: jams100 !== null ? normScore(jams100, 1, 1.2, false) : 50,
+    };
+    const total = Math.round(0.4 * scores.pace + 0.35 * scores.precision + 0.25 * scores.care);
+    let advice: string;
+    if (scores.precision < 35) advice = 'Инструктаж по наведению на точку: отклонения портят сетку и дробление';
+    else if (scores.care < 35) advice = 'Беречь став: часто заклинивает, теряется время';
+    else if (scores.pace >= 60 && scores.precision >= 50) advice = 'Ставить на блоки под ближайший плановый взрыв';
+    else if (scores.pace < 40) advice = 'Блоки без спешки — не под ближайший плановый взрыв';
+    else advice = 'Любой блок';
+    return {
+      rigId: g.id,
+      name: g.operator.name,
+      years: g.operator.years,
+      paceMh,
+      paceIndex,
+      offsetM,
+      jams100,
+      holesPerHour: shiftSec > 0 ? g.holesShift / (shiftSec / 3600) : 0,
+      scores,
+      total,
+      advice,
+      enough: st.holes >= 3,
+    };
+  });
 }

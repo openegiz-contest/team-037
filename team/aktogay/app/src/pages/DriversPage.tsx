@@ -7,6 +7,8 @@ import { PageHeader } from '../components/PageHeader';
 import type { Selection } from '../render/drawMine';
 import { rampPicks, rateDrivers, type DriverRating, type Simulation } from '../sim';
 import { TRUCK_COLOR } from '../ui/theme';
+import { rateDrillers, type DrillerRating } from '../sim/drilling';
+import { VALUE_LABEL } from '../ui/twinLabels';
 
 type SortKey = 'total' | 'ramp' | 'fuel' | 'safety' | 'output';
 
@@ -30,6 +32,7 @@ interface Props {
 
 export function DriversPage({ sim, now, running, onToggleRun, onLocate }: Props) {
   const [sort, setSort] = useState<SortKey>('total');
+  const [tab, setTab] = useState<'trucks' | 'drills'>('trucks');
   const minute = Math.floor(sim.now / 60);
   // Пересчёт раз в модельную минуту.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -47,14 +50,34 @@ export function DriversPage({ sim, now, running, onToggleRun, onLocate }: Props)
         title="Водители"
         subtitle={
           <>
-            У каждого водителя свой стиль. Двойник видит его по телеметрии самосвала: темп на съездах (GNSS), расход в движении (датчик топлива), резкие торможения
-            (акселерометр рамы) — и подсказывает, кого ставить на длинные спуски с грузом. Водители вымышленные.
+            {tab === 'trucks'
+              ? 'У каждого водителя свой стиль. Двойник видит его по телеметрии самосвала: темп на съездах (GNSS), расход в движении (датчик топлива), резкие торможения (акселерометр рамы) — и подсказывает, кого ставить на длинные спуски с грузом.'
+              : 'Машинисты буровых станков. Стиль видно по датчикам станка: скорость проходки (MWD), отклонение устья скважины от проекта (GNSS), заклинивания става (датчик момента). Сравнение — с нормативами.'}{' '}
+            Люди вымышленные.
           </>
         }
         now={now}
         running={running}
         onToggleRun={onToggleRun}
-      />
+      >
+        <div className="flex overflow-hidden rounded-lg border border-line text-[13px]">
+          {(
+            [
+              ['trucks', 'Водители самосвалов'],
+              ['drills', 'Машинисты буровых'],
+            ] as const
+          ).map(([k, l]) => (
+            <button key={k} onClick={() => setTab(k)} className={`px-3 py-1.5 font-semibold ${tab === k ? 'bg-amber-500 text-black' : 'text-ink-2 hover:bg-panel-2'}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </PageHeader>
+
+      {tab === 'drills' ? (
+        <DrillersView sim={sim} />
+      ) : (
+      <>
 
       {!enough && (
         <div className="panel px-4 py-3 text-[13px] text-ink-3">Данных пока мало: рейтинг появится, когда самосвалы проедут хотя бы 15 км (≈ первый час смены).</div>
@@ -136,6 +159,100 @@ export function DriversPage({ sim, now, running, onToggleRun, onLocate }: Props)
             </table>
           </div>
         </section>
+      </div>
+      </>
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────────── машинисты буровых станков ─────────────────────────────
+
+const NORMS: { key: keyof DrillerRating['scores']; label: string; value: (r: DriverRatingLike) => string; norm: string }[] = [
+  { key: 'pace', label: 'Темп бурения', value: (r) => (r.paceIndex !== null ? `${Math.round(r.paceIndex * 100)}% нормы · ${r.paceMh?.toFixed(1)} м/ч` : '—'), norm: 'норма — по крепости пройденной породы (MWD)' },
+  { key: 'precision', label: 'Точность наведения', value: (r) => (r.offsetM !== null ? `${(r.offsetM * 100).toFixed(0)} см` : '—'), norm: 'отклонение устья ≤ 30 см' },
+  { key: 'care', label: 'Бережность к ставу', value: (r) => (r.jams100 !== null ? `${r.jams100.toFixed(1)} на 100 м` : '—'), norm: 'заклиниваний ≤ 1 на 100 м' },
+];
+type DriverRatingLike = DrillerRating;
+
+function DrillersView({ sim }: { sim: Simulation }) {
+  const minute = Math.floor(sim.now / 60);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const rating = useMemo(() => rateDrillers(sim.drill, sim.now), [sim, minute]);
+  const ready = rating.filter((r) => r.enough);
+  const nextBlast = sim.blasts.filter((b) => b.phase === 'planned' || b.phase === 'warning').sort((a, b) => a.t - b.t)[0];
+  const best = [...ready].sort((a, b) => b.scores.pace + b.scores.precision - (a.scores.pace + a.scores.precision))[0];
+  return (
+    <div className="flex flex-col gap-4">
+      {ready.length === 0 && <div className="panel px-4 py-3 text-[13px] text-ink-3">Данных пока мало: оценка появится после первых трёх скважин у каждого машиниста.</div>}
+      {best && nextBlast && sim.drill.drilled(nextBlast.target) < 1 && (
+        <div className="panel border-amber-500/50 px-4 py-3 text-[13.5px]">
+          <b className="text-amber-300">Рекомендация:</b> блок под плановый взрыв у {sim.excavators[nextBlast.target].name} (
+          {sim.drill.blocks[nextBlast.target].holesDone}/{sim.drill.blocks[nextBlast.target].holesTotal} скважин) — поручить <b>{best.name}</b> (станок{' '}
+          {sim.drill.rigs[best.rigId].name}): у него лучший темп и точность, взрыв не придётся переносить.
+        </div>
+      )}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {rating.map((r) => {
+          const g = sim.drill.rigs[r.rigId];
+          const col = r.total >= 65 ? '#22c55e' : r.total >= 40 ? '#f59e0b' : '#ef4444';
+          return (
+            <section key={r.rigId} className="panel p-4">
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-[18px] font-bold">{r.name}</div>
+                  <div className="text-[12.5px] text-ink-3">
+                    машинист станка {g.name} · стаж {r.years} лет · сейчас: {VALUE_LABEL[g.state] ?? g.state}
+                    {g.target !== null ? ` · блок у ${sim.excavators[g.target].name}` : ''}
+                  </div>
+                </div>
+                <span className="num rounded-lg px-3 py-1 text-[22px] font-bold" style={{ background: `${col}22`, color: col }}>
+                  {r.enough ? r.total : '—'}
+                </span>
+              </div>
+              <div className="mt-4 flex flex-col gap-3">
+                {NORMS.map((n) => {
+                  const sc = r.scores[n.key];
+                  const c = sc >= 60 ? '#22c55e' : sc >= 40 ? '#f59e0b' : '#ef4444';
+                  return (
+                    <div key={n.key}>
+                      <div className="flex items-baseline justify-between text-[13px]">
+                        <span className="text-ink-2">{n.label}</span>
+                        <span className="num font-semibold">{n.value(r)}</span>
+                      </div>
+                      <div className="mt-1 h-2 overflow-hidden rounded bg-panel-2">
+                        <div className="h-full rounded" style={{ width: `${r.enough ? sc : 0}%`, background: c }} />
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-ink-3">{n.norm}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-lg bg-panel-2 px-2 py-2">
+                  <div className="num text-[18px] font-bold">{g.holesShift}</div>
+                  <div className="text-[11px] text-ink-3">скважин за смену</div>
+                </div>
+                <div className="rounded-lg bg-panel-2 px-2 py-2">
+                  <div className="num text-[18px] font-bold">{Math.round(g.metersShift)}</div>
+                  <div className="text-[11px] text-ink-3">метров</div>
+                </div>
+                <div className="rounded-lg bg-panel-2 px-2 py-2">
+                  <div className="num text-[18px] font-bold">{g.opStats.jams}</div>
+                  <div className="text-[11px] text-ink-3">заклиниваний</div>
+                </div>
+              </div>
+              <div className="mt-3 rounded-lg border border-line px-3 py-2 text-[12.5px] text-ink-2">
+                <span className="text-ink-3">Где использовать: </span>
+                {r.advice}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+      <div className="panel px-4 py-3 text-[12px] leading-relaxed text-ink-3">
+        Почему это важно: точность наведения определяет сетку скважин, а значит дробление при взрыве; темп — успеют ли обурить блок к плановому взрыву (иначе
+        экскаватор останется без взорванной массы). Машинистов двое, поэтому их сравнивают не друг с другом, а с нормативами.
       </div>
     </div>
   );

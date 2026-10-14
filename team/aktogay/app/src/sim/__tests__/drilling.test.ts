@@ -28,3 +28,20 @@ describe('бурение → взрыв → экскавация', () => {
     expect(stopped).toBeGreaterThan(0);
   });
 });
+
+import { rateDrillers } from '../drilling';
+
+describe('машинисты буровых станков', () => {
+  it('стиль виден в телеметрии и рейтинге', () => {
+    const sim = new Simulation({ seed: 42, truckCount: 20, strategy: 'smart' });
+    sim.runToEnd();
+    const r = rateDrillers(sim.drill, sim.now);
+    expect(r).toHaveLength(2);
+    for (const x of r) {
+      expect(x.enough).toBe(true);
+      expect(x.paceMh).toBeGreaterThan(15);
+      expect(x.offsetM).toBeGreaterThan(0);
+    }
+    if (process.env.SHOW_DRILLERS) console.log(r.map((x) => `${x.name} ${x.total} pace ${x.paceMh?.toFixed(1)} off ${x.offsetM?.toFixed(2)} jams ${x.jams100?.toFixed(2)} | ${x.advice}`));
+  });
+});
