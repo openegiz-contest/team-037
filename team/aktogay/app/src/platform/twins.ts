@@ -15,7 +15,7 @@ import type { Simulation } from '../sim/engine';
 import { MATERIALS, TRUCK_STATES, type Blast, type Destination, type FailureType, type Material, type StrategyName, type TruckState } from '../sim/types';
 import { gradeAt } from '../sim/ore';
 import { UNIT_DEFS, type UnitState } from '../sim/equipment';
-import { drillSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
+import { drillSensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -37,6 +37,7 @@ export const thingIds = (v: StrategyName) => {
     roads: `${ns}:roads`,
     blasting: `${ns}:blasting`,
     shift: `${ns}:shift`,
+    stockpile: `${ns}:stockpile`,
     unit: (key: string) => `${ns}:${key}`,
     drill: (i: number) => `${ns}:drill-${i + 1}`,
   };
@@ -97,13 +98,26 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
   });
   out[id.crusher] = {
     policyId: POLICY,
-    attributes: { name: 'Первичная дробилка ККД', kind: 'crusher', _isType: false, _parents: parent, bin_capacity_t: cfg.dumps.crusher.binCapT, feeds: id.plant, sensors: crusherSensorAttributes() },
+    attributes: { name: 'Первичная дробилка ККД', kind: 'crusher', _isType: false, _parents: parent, bin_capacity_t: cfg.dumps.crusher.binCapT, crusher_tpm: cfg.dumps.crusher.crusherTpm, feeds: id.stockpile, sensors: crusherSensorAttributes() },
     features: serializeCrusher(sim),
   };
   out[id.plant] = {
     policyId: POLICY,
     attributes: { name: 'Обогатительная фабрика', kind: 'concentrator', _isType: false, _parents: parent, feed_tpm: cfg.dumps.crusher.plantFeedTpm, target_grade_pct: cfg.grade.targetPct, sensors: plantSensorAttributes() },
     features: serializePlant(sim),
+  };
+  out[id.stockpile] = {
+    policyId: POLICY,
+    attributes: {
+      name: 'Склад дроблёной руды',
+      kind: 'stockpile',
+      _isType: false,
+      _parents: parent,
+      live_capacity_t: cfg.dumps.crusher.stockpileCapT,
+      feeds: id.plant,
+      sensors: stockpileSensorAttributes(),
+    },
+    features: serializeStockpile(sim),
   };
   out[id.leach] = { policyId: POLICY, attributes: { name: 'Площадка кучного выщелачивания', kind: 'heap-leach', _isType: false, _parents: parent, sensors: leachSensorAttributes() }, features: serializeDump(sim, 1) };
   out[id.waste] = { policyId: POLICY, attributes: { name: 'Отвал вскрыши', kind: 'waste-dump', _isType: false, _parents: parent, sensors: wasteSensorAttributes() }, features: serializeDump(sim, 2) };
@@ -300,7 +314,7 @@ export function serializeExcavator(sim: Simulation, i: number): Features {
 export function serializeCrusher(sim: Simulation): Features {
   const c = sim.crusher;
   return {
-    state: f(c.binT <= 0.01 ? 'starved' : c.active.length > 0 ? 'receiving' : 'crushing'),
+    state: f(sim.stockpile.crushing ? 'crushing' : c.active.length > 0 ? 'receiving' : 'waiting'),
     bin: f(Math.round(c.binT), 't'),
     bin_cu: f(r3(c.binCuT), 't'),
     bin_grade: f(r3(sim.binGrade), '% Cu'),
@@ -315,9 +329,9 @@ export function serializeCrusher(sim: Simulation): Features {
 export function serializePlant(sim: Simulation): Features {
   const st = sim.stats;
   return {
-    state: f(sim.crusher.binT <= 0.01 ? 'stopped' : 'running'),
-    feed_rate: f(sim.crusher.binT <= 0.01 ? 0 : sim.cfg.dumps.crusher.plantFeedTpm * 60, 't/h'),
-    feed_grade: f(r3(sim.binGrade), '% Cu'),
+    state: f(sim.stockpile.t <= 0.01 ? 'stopped' : 'running'),
+    feed_rate: f(sim.stockpile.t <= 0.01 ? 0 : sim.cfg.dumps.crusher.plantFeedTpm * 60, 't/h'),
+    feed_grade: f(r3(sim.feedGrade), '% Cu'),
     feed_total: f(Math.round(st.plantFeedT), 't'),
     cu_feed: f(r1(st.cuFeedT), 't'),
     cu_concentrate: f(r1(st.cuConcT), 't'),
@@ -362,6 +376,28 @@ export function serializeBlasting(sim: Simulation): Features {
     active: f(live.filter((b) => b.phase === 'active').length),
     announced: f(live.filter((b) => b.phase === 'warning').length),
     blasts: f(JSON.stringify(sim.blasts.map((b) => ({ id: b.id, t: b.t, dur: b.dur, x: Math.round(b.x), y: Math.round(b.y), r: b.radius, ex: b.exIds, ph: b.phase, m: b.manual, label: b.label, tg: b.target })))),
+  };
+}
+
+/** Признаки склада дроблёной руды. */
+export function serializeStockpile(sim: Simulation): Features {
+  const s = sim.stockpile;
+  const feedTph = sim.cfg.dumps.crusher.plantFeedTpm * 60;
+  const out = s.t > 0.01 ? feedTph : 0;
+  const inflow = Math.round(s.lastIn * 3600);
+  // Пыль: при отсыпке с высоты — выше, особенно когда штабель низкий (большая высота падения).
+  const dust = s.crushing ? 2.5 + 6 * (1 - s.t / s.capT) : 0.4;
+  return {
+    state: f(s.t <= 0.01 ? 'depleted' : s.t >= s.capT - 1 ? 'full' : s.crushing ? 'filling' : 'draining'),
+    level: f(Math.round(s.t), 't'),
+    fill: f(r1((s.t / s.capT) * 100), '%'),
+    hours_left: f(r1(s.t / feedTph), 'h'),
+    pile_grade: f(r3(sim.feedGrade), '% Cu'),
+    cu: f(r3(s.cuT), 't'),
+    inflow: f(inflow, 't/h'),
+    outflow: f(out, 't/h'),
+    inflow_total: f(Math.round(s.inflowT), 't'),
+    dust: f(r1(dust), 'mg/m3'),
   };
 }
 
@@ -441,6 +477,7 @@ export function serializeAll(sim: Simulation, v: StrategyName, k: Kpis): Record<
   out[id.roads] = serializeRoads(sim);
   out[id.blasting] = serializeBlasting(sim);
   for (const d of UNIT_DEFS) out[id.unit(d.key)] = serializeUnit(sim, d.key);
+  out[id.stockpile] = serializeStockpile(sim);
   sim.drill.rigs.forEach((_, i) => (out[id.drill(i)] = serializeDrill(sim, i)));
   return out;
 }
@@ -598,6 +635,17 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     g.opStats.expectedM = num(fs, 'op_expected_m');
   });
 
+  // Склад дроблёной руды.
+  const spf = things.get(id.stockpile);
+  if (spf) {
+    const s = sim.stockpile;
+    s.t = num(spf, 'level', s.t);
+    s.cuT = num(spf, 'cu', s.cuT);
+    s.inflowT = num(spf, 'inflow_total', s.inflowT);
+    s.lastIn = num(spf, 'inflow') / 3600;
+    s.crushing = s.lastIn > 0;
+  }
+
   // Агрегаты внутри зданий.
   for (const u of sim.equipment.units) {
     const fs = things.get(id.unit(u.def.key));
@@ -737,8 +785,9 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
         minedTotal: k.minedTotal,
         mined: { ...k.mined },
         binT: c.binT,
+        stockT: sim.stockpile.t,
         queues: sim.excavators.map((e) => e.queue.length),
-        feedGrade: c.binT > 1 ? sim.binGrade : null,
+        feedGrade: sim.stockpile.t > 1 ? sim.feedGrade : null,
       });
     }
   }

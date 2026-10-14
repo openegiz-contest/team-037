@@ -39,7 +39,7 @@ const rows: Row[] = [
   { key: 'idleH', label: 'Простои самосвалов, ч', get: (k) => k.truckIdleH, better: 'down', fmt: n1 },
   { key: 'exIdleH', label: 'Простои экскаваторов, ч', get: (k) => k.excavatorIdleH, better: 'down', fmt: n1 },
   { key: 'idleCost', label: 'Стоимость простоев, ₸', get: (k) => k.idleCostKzt, better: 'down', fmt: mln },
-  { key: 'crMin', label: 'Простой дробилки, мин', get: (k) => k.crusherIdleMin, better: 'down', fmt: n1 },
+  { key: 'crMin', label: 'Простой фабрики, мин', get: (k) => k.crusherIdleMin, better: 'down', fmt: n1 },
   { key: 'crCost', label: 'Стоимость простоя дробилки, ₸', get: (k) => k.crusherIdleCostKzt, better: 'down', fmt: mln },
   { key: 'grade', label: 'Отклонение среднего Cu на фабрике от цели, п.п.', get: (k) => Math.abs(k.feedGradePct - 0.35), better: 'down', fmt: (v) => v.toFixed(3) },
   { key: 'band', label: 'Качество в целевом коридоре, % времени', get: (k) => k.gradeInBandPct, better: 'up', fmt: n1 },
@@ -107,7 +107,7 @@ lines.push(`Умная стратегия добыла не меньше фик�
 lines.push('');
 lines.push('## По сменам');
 lines.push('');
-lines.push('| seed | Добыто (фикс), т | Добыто (умная), т | Δ | Простой дробилки фикс, мин | умная, мин | Эффект, ₸/год |');
+lines.push('| seed | Добыто (фикс), т | Добыто (умная), т | Δ | Простой фабрики фикс, мин | умная, мин | Эффект, ₸/год |');
 lines.push('|---:|---:|---:|---:|---:|---:|---:|');
 lines.push(...perSeed);
 lines.push('');

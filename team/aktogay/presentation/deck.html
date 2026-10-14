@@ -68,7 +68,7 @@
 <section class="slide" style="justify-content:center; background: radial-gradient(1100px 700px at 85% 15%, rgba(217,89,38,.16), transparent 60%), radial-gradient(900px 600px at 0% 100%, rgba(57,135,229,.10), transparent 60%), var(--bg);">
   <div class="kicker">Конкурс «Цифровой рудник на OpenEgiz» · Команда 037</div>
   <h1 style="font-size:96px; margin-top:34px;">Цифровой двойник<br>карьера <span class="accent">Актогай</span></h1>
-  <div class="lead" style="font-size:32px; max-width:1400px;">Открытый медный карьер в реальном времени на платформе OpenEgiz: 100 двойников в Eclipse Ditto, умная диспетчеризация самосвалов, прогноз отказов по датчикам, сценарии «что если» и расчёт эффекта в тенге.</div>
+  <div class="lead" style="font-size:32px; max-width:1400px;">Открытый медный карьер в реальном времени на платформе OpenEgiz: 102 двойника в Eclipse Ditto, умная диспетчеризация самосвалов, прогноз отказов по датчикам, сценарии «что если» и расчёт эффекта в тенге.</div>
   <div class="row" style="margin-top:56px; gap:16px; flex-wrap:wrap;">
     <span class="tag">make aktogay — одна команда</span>
     <span class="tag">Ditto · MQTT · InfluxDB · Grafana</span>
@@ -85,10 +85,10 @@
   <div class="lead">Самосвалы закреплены за экскаваторами на всю смену. План хорош для спокойного дня, но на поломку, закрытый съезд или взрыв никто не реагирует вовремя.</div>
   <div class="body grid" style="grid-template-columns: repeat(3, 1fr);">
     <div class="card">
-      <div class="big">51,1 <span style="font-size:30px">мин</span></div>
-      <div class="bigsub">простоя дробилки за смену при закреплении</div>
-      <h3 style="margin-top:28px">Пустой бункер = стоит фабрика</h3>
-      <p>Сульфидная руда кончается в бункере — обогатительная фабрика простаивает. Это самая дорогая потеря: ≈15 млн ₸ за час (оценка).</p>
+      <div class="big">14,1 <span style="font-size:30px">мин</span></div>
+      <div class="bigsub">простоя фабрики за смену при закреплении — даже со складом-буфером на 1,5 ч</div>
+      <h3 style="margin-top:28px">Пустой склад = стоит фабрика</h3>
+      <p>Сульфидная руда кончается на складе перед фабрикой — обогатительная фабрика простаивает. Это самая дорогая потеря: ≈15 млн ₸ за час (оценка).</p>
     </div>
     <div class="card">
       <div class="big">2,4 <span style="font-size:30px">мин</span></div>
@@ -138,7 +138,7 @@
 <!-- 4. Модель рудника -->
 <section class="slide">
   <div class="kicker">Модель рудника <span class="crit">· критерий 25 баллов</span></div>
-  <h2>100 двойников в Eclipse Ditto, связанных в иерархию</h2>
+  <h2>102 двойника в Eclipse Ditto, связанных в иерархию</h2>
   <div class="body grid" style="grid-template-columns: 1.1fr 1fr;">
     <div class="card" style="padding:30px 34px;">
 <div class="tree"><b>org.aktogay:aktogay</b>              <i>площадка, Восточный Казахстан</i>
@@ -188,7 +188,7 @@
       <div class="arrow">→</div>
       <div class="node"><div class="t">MQTT</div><div class="s">telemetry/&lt;thing&gt;<br>Ditto modify /features</div></div>
       <div class="arrow">→</div>
-      <div class="node hl"><div class="t">Eclipse Ditto</div><div class="s">100 двойников<br>policy basic_policy</div></div>
+      <div class="node hl"><div class="t">Eclipse Ditto</div><div class="s">102 двойника<br>policy basic_policy</div></div>
       <div class="arrow">→</div>
       <div class="node"><div class="t">Telegraf → InfluxDB</div><div class="s">mqtt_consumer<br>тег thingId</div></div>
       <div class="arrow">→</div>
@@ -302,7 +302,7 @@
   + прогноз очереди (включая едущих)
   + погрузка + задержка, которую создадим другим
   − отставание от доли плана (мёртвая зона ±2 рейса)
-  − угроза простоя дробилки (прогноз бункера 35 мин)
+  − угроза простоя фабрики (прогноз бункера и склада, 35 мин)
   − выравнивание качества руды</div>
       <p>«Своя петля» и порог перезакрепления — машины не гоняют через весь карьер ради мелкой выгоды.</p>
     </div>
@@ -350,24 +350,24 @@
     <div class="card" style="padding:28px 30px;">
       <table>
         <tr><th>Показатель за смену</th><th class="n">Без системы</th><th class="n">С системой</th><th class="n">Δ</th></tr>
-        <tr><td>Простой дробилки, мин</td><td class="n">51,1</td><td class="n">20,3</td><td class="n"><span class="pill g">−60%</span></td></tr>
-        <tr><td>Аварийные отказы самосвалов</td><td class="n">4,4</td><td class="n">1,2</td><td class="n"><span class="pill g">−73%</span></td></tr>
-        <tr><td>Средняя очередь, мин</td><td class="n">2,4</td><td class="n">1,6</td><td class="n"><span class="pill g">−33%</span></td></tr>
-        <tr><td>Руда на ОФ в коридоре качества, % времени</td><td class="n">67,3</td><td class="n">80,2</td><td class="n"><span class="pill g">+13 п.п.</span></td></tr>
-        <tr><td>Медь в концентрате, т</td><td class="n">102,3</td><td class="n">106,5</td><td class="n"><span class="pill g">+4,1%</span></td></tr>
-        <tr><td>Добыто всего, т</td><td class="n">98 459</td><td class="n">100 751</td><td class="n"><span class="pill g">+2,3%</span></td></tr>
+        <tr><td>Простой фабрики без руды, мин</td><td class="n">14,1</td><td class="n">0,0</td><td class="n"><span class="pill g">−99,8%</span></td></tr>
+        <tr><td>Аварийные отказы самосвалов</td><td class="n">4,4</td><td class="n">1,1</td><td class="n"><span class="pill g">−74%</span></td></tr>
+        <tr><td>Средняя очередь, мин</td><td class="n">2,5</td><td class="n">1,6</td><td class="n"><span class="pill g">−33%</span></td></tr>
+        <tr><td>Руда на ОФ в коридоре качества, % времени</td><td class="n">87,2</td><td class="n">95,5</td><td class="n"><span class="pill g">+8,3 п.п.</span></td></tr>
+        <tr><td>Медь в концентрате, т</td><td class="n">108,8</td><td class="n">110,3</td><td class="n"><span class="pill g">+1,3%</span></td></tr>
+        <tr><td>Добыто всего, т</td><td class="n">98 532</td><td class="n">103 065</td><td class="n"><span class="pill g">+4,6%</span></td></tr>
       </table>
-      <p style="margin-top:20px; font-size:20px; color:var(--ink3);">Seed 1–20, 20 самосвалов, 12-часовые смены. Система добыла не меньше в 19 сменах из 20.</p>
+      <p style="margin-top:20px; font-size:20px; color:var(--ink3);">Seed 1–20, 20 самосвалов, 12-часовые смены. Система добыла не меньше во всех 20 сменах.</p>
     </div>
     <div class="grid" style="gap:22px;">
       <div class="card" style="border-color: rgba(245,158,11,.55); background: linear-gradient(160deg, rgba(245,158,11,.12), var(--panel) 60%);">
         <div style="font: 600 18px/1 'JetBrains Mono', monospace; letter-spacing:.12em; text-transform:uppercase; color: var(--amber);">Экономический эффект</div>
-        <div class="big" style="margin-top:18px; font-size:80px;">≈12 <span style="font-size:40px">млрд ₸/год</span></div>
+        <div class="big" style="margin-top:18px; font-size:80px;">≈8,9 <span style="font-size:40px">млрд ₸/год</span></div>
         <div class="bigsub">на моделируемый сегмент парка (20 самосвалов, 5 экскаваторов). Дополнительная добыча в деньги не переводится — оценка консервативная; ставки — оценки из config.ts.</div>
       </div>
       <div class="card">
         <h3>Честно о границах</h3>
-        <p>Эффект зависит от дефицита техники: 15 самосвалов — <b class="accent">+5,8%</b> добычи и ≈36 млрд ₸/год; 25 самосвалов — добыча на уровне (−0,3%), узкое место — экскаваторы, но простой дробилки всё равно <b class="accent">−53%</b>.</p>
+        <p>Эффект зависит от дефицита техники: 15 самосвалов — <b class="accent">+6,5%</b> добычи и ≈34 млрд ₸/год; 25 самосвалов — добыча почти на уровне (+0,9%), узкое место — экскаваторы, склад полон и фабрика не стоит в обоих вариантах; эффект ≈5,9 млрд ₸/год за счёт качества руды и плановых ремонтов.</p>
       </div>
     </div>
   </div>
@@ -392,7 +392,7 @@
     <div class="card">
       <h3>Проверено</h3>
       <ul>
-        <li>Чистая копия ветки <code>main</code> в Ubuntu 24.04 (WSL2 + Docker): <span class="good">100 двойников</span>, время смены растёт, данные в InfluxDB, интерфейс и Grafana открываются</li>
+        <li>Чистая копия ветки <code>main</code> в Ubuntu 24.04 (WSL2 + Docker): <span class="good">102 двойника</span>, время смены растёт, данные в InfluxDB, интерфейс и Grafana открываются</li>
         <li>Сценарий через Ditto: поломка → <code>broken</code>, отмена → снова в работе</li>
         <li>Headless Chrome <b>без видеокарты</b> (SwiftShader): «Графика: Авто» → лёгкий режим, ошибок нет</li>
         <li>30 автотестов движка, в т.ч. детерминизм по seed</li>

@@ -30,8 +30,8 @@ export interface UnitDef {
 
 export const UNIT_DEFS: UnitDef[] = [
   { key: 'crusher-drive', name: 'Конусная дробилка', building: 'crusher', keyFeatures: ['state', 'power', 'bearing_temp', 'vibration'], sensors: ['ток и мощность двигателя', 'давление гидросистемы', 'температура подшипников', 'вибрация'], bearingC: 62, alarmC: 80 },
-  { key: 'conveyor-1', name: 'Конвейер дробилка → бункер', building: 'crusher', keyFeatures: ['state', 'load', 'motor_current', 'bearing_temp'], sensors: ['конвейерные весы', 'скорость ленты', 'ток привода', 'датчик схода ленты'], bearingC: 48, alarmC: 70 },
-  { key: 'conveyor-2', name: 'Конвейер бункер → фабрика', building: 'crusher', keyFeatures: ['state', 'load', 'motor_current', 'bearing_temp'], sensors: ['конвейерные весы', 'скорость ленты', 'ток привода', 'датчик схода ленты'], bearingC: 48, alarmC: 70 },
+  { key: 'conveyor-1', name: 'Конвейер дробилка → склад', building: 'crusher', keyFeatures: ['state', 'load', 'motor_current', 'bearing_temp'], sensors: ['конвейерные весы', 'скорость ленты', 'ток привода', 'датчик схода ленты'], bearingC: 48, alarmC: 70 },
+  { key: 'conveyor-2', name: 'Конвейер склад → фабрика', building: 'crusher', keyFeatures: ['state', 'load', 'motor_current', 'bearing_temp'], sensors: ['конвейерные весы', 'скорость ленты', 'ток привода', 'датчик схода ленты'], bearingC: 48, alarmC: 70 },
   { key: 'sag-mill', name: 'Мельница ПСИ', building: 'plant', keyFeatures: ['state', 'power', 'mill_load', 'bearing_temp'], sensors: ['мощность привода', 'загрузка (весы опор)', 'обороты', 'температура подшипников', 'плотность пульпы'], bearingC: 58, alarmC: 75 },
   { key: 'ball-mill', name: 'Шаровая мельница', building: 'plant', keyFeatures: ['state', 'power', 'mill_load', 'bearing_temp'], sensors: ['мощность привода', 'загрузка', 'расход воды', 'температура подшипников'], bearingC: 55, alarmC: 72 },
   { key: 'cyclones', name: 'Гидроциклоны', building: 'plant', keyFeatures: ['state', 'pressure', 'p80', 'pulp_density'], sensors: ['давление на входе', 'гранулометр слива (P80)', 'плотномер'], bearingC: 0, alarmC: 0 },
@@ -96,11 +96,10 @@ export class PlantEquipment {
     const sim = this.sim;
     const cfg = sim.cfg;
     this.next = sim.now + UPDATE_SEC;
-    const c = sim.crusher;
-    const crushing = c.active.length > 0;
-    const feedOn = c.binT > 0.01;
+    const crushing = sim.stockpile.crushing;
+    const feedOn = sim.stockpile.t > 0.01;
     const n = (sd: number) => (this.rng.next() * 2 - 1) * sd;
-    const g = sim.binGrade || cfg.grade.targetPct;
+    const g = sim.feedGrade || cfg.grade.targetPct;
     const dt = init ? 0 : UPDATE_SEC;
 
     const bearing = (u: UnitRuntime, load: number) => {

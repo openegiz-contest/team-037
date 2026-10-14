@@ -16,6 +16,7 @@ export const KIND_LABEL: Record<string, string> = {
   'shift-log': 'Хронология смены',
   unit: 'Агрегат',
   'drill-rig': 'Буровой станок',
+  stockpile: 'Склад дроблёной руды',
 };
 
 export const FEATURE_LABEL: Record<string, string> = {
@@ -43,7 +44,7 @@ export const FEATURE_LABEL: Record<string, string> = {
   fuel: 'Топливо',
   fuel_cost: 'Стоимость топлива',
   fuel_per_t: 'Топливо на тонну',
-  crusher_idle_min: 'Простой дробилки',
+  crusher_idle_min: 'Простой фабрики',
   crusher_idle_cost: 'Стоимость простоя дробилки',
   unplanned_failures: 'Аварийные отказы',
   prevented_failures: 'Отказов предотвращено',
@@ -131,6 +132,17 @@ export const FEATURE_LABEL: Record<string, string> = {
   active: 'Идёт оцепление',
   announced: 'Объявлено',
   blasts: 'Взрывы смены',
+  // склад дроблёной руды
+  level: 'Руда на складе',
+  fill: 'Заполнение склада',
+  hours_left: 'Запас для фабрики',
+  pile_grade: 'Cu в штабеле',
+  cu: 'Медь в штабеле',
+  inflow: 'Отсыпка с дробилки',
+  outflow: 'Выдача на фабрику',
+  inflow_total: 'Отсыпано за смену',
+  dust: 'Запылённость',
+  crusher_tpm: 'Производительность дробилки',
   // буровые станки и подготовка блоков
   target_ex: 'Блок у экскаватора (номер)',
   block: 'Бурит блок у',
@@ -228,10 +240,16 @@ export const UNIT_LABEL: Record<string, string> = {
   kN: 'кН',
   'kN*m': 'кН·м',
   holes: 'скв.',
+  'mg/m3': 'мг/м³',
   shifts: 'смен',
 };
 
 export const VALUE_LABEL: Record<string, string> = {
+  // склад
+  filling: 'идёт отсыпка',
+  draining: 'расходуется',
+  depleted: 'пуст',
+  full: 'полон',
   // буровые станки, экскаватор без запаса
   drilling: 'бурит',
   moving: 'переезд',
@@ -286,7 +304,14 @@ export function stateTone(state: string | undefined): 'ok' | 'busy' | 'warn' | '
     case 'stopped':
     case 'stop':
     case 'nostock':
+    case 'depleted':
       return 'bad';
+    case 'full':
+      return 'warn';
+    case 'filling':
+      return 'ok';
+    case 'draining':
+      return 'busy';
     case 'queue':
     case 'waiting':
     case 'blast':

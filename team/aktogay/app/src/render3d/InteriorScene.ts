@@ -357,7 +357,8 @@ export class InteriorScene {
     let tip = 0;
     this.updaters.push((dt, now) => {
       const dumping = c.active.length > 0;
-      const starved = c.binT <= 0.01;
+      const sp = sim.stockpile;
+      const starved = sp.t <= 0.01;
       const blink = Math.floor(now / 400) % 2 === 0;
       // Самосвал: опрокидывание кузова при разгрузке.
       truck.root.visible = dumping || c.queue.length > 0;
@@ -378,20 +379,21 @@ export class InteriorScene {
         }
         fall.instanceMatrix.needsUpdate = true;
       }
-      // Дробилка: конус «качается», когда есть руда в разгрузке.
-      const crushing = dumping;
+      // Дробилка: конус «качается», пока дробит (руда идёт из бункера на склад).
+      const crushing = sp.crushing;
       mantle.rotation.y += dt * (crushing ? 6 : 0.6);
       mantle.rotation.z = crushing ? Math.sin(now / 90) * 0.06 : 0;
       up.update(dt, crushing ? 2.6 : 0, crushing);
       out.update(dt, starved ? 0 : 2.6, !starved);
       // Уровень руды в бункере, цвет — по качеству.
-      const pct = Math.max(0.002, Math.min(1, c.binT / c.binCapT));
+      // Силос в цехе — склад дроблёной руды (буфер фабрики).
+      const pct = Math.max(0.002, Math.min(1, sp.t / sp.capT));
       const h = pct * (binH - 0.6);
       fill.scale.y = h;
       fill.position.set(18, 2 + h / 2, 0);
       cap.position.set(18, 2 + h + 0.1, 0);
       cap.visible = pct > 0.01;
-      const inBand = Math.abs(sim.binGrade - cfg.grade.targetPct) <= cfg.grade.bandPct;
+      const inBand = Math.abs(sim.feedGrade - cfg.grade.targetPct) <= cfg.grade.bandPct;
       fillMat.color.set(pct < 0.2 ? '#b45309' : inBand ? MATERIAL_COLOR.sulfide : '#d6a24a');
       // Маяки.
       bCrusher.mat.color.set(crushing ? '#22c55e' : '#f59e0b');
@@ -404,18 +406,19 @@ export class InteriorScene {
     // Подписи.
     this.label(-30, 24, 0, () => {
       const a = c.active[0];
-      return `<b>ПЛОЩАДКА РАЗГРУЗКИ</b><br>${a ? `разгружается <span class="v">${sim.trucks[a.truck]?.name ?? ''}</span>` : 'свободно'}<br>ждут: <span class="v">${c.queue.length}</span>`;
+      return `<b>ПЛОЩАДКА РАЗГРУЗКИ</b><br>${a ? `разгружается <span class="v">${sim.trucks[a.truck]?.name ?? ''}</span>` : 'свободно'}<br>ждут: <span class="v">${c.queue.length}</span><br>приёмный бункер: <span class="v">${fmtInt(c.binT)} т</span>`;
     });
-    this.label(-8, 1, 7, () => `<b>КОНУСНАЯ ДРОБИЛКА</b><br>${c.active.length ? '<span class="ok">ДРОБИТ</span>' : c.binT <= 0.01 ? '<span class="bad">ЖДЁТ РУДУ</span>' : 'вхолостую'}${unitLine(sim, 'crusher-drive', [['power', 'мощность', 'кВт'], ['bearing_temp', 'подшипник', '°C'], ['vibration', 'вибрация', 'мм/с']])}`);
+    this.label(-8, 1, 7, () => `<b>КОНУСНАЯ ДРОБИЛКА</b><br>${sim.stockpile.crushing ? '<span class="ok">ДРОБИТ</span>' : c.binT > 0.01 ? '<span class="warn">склад полон</span>' : 'ждёт руду'}${unitLine(sim, 'crusher-drive', [['power', 'мощность', 'кВт'], ['bearing_temp', 'подшипник', '°C'], ['vibration', 'вибрация', 'мм/с']])}`);
     this.label(4, 14, 4, () => `<b>КОНВЕЙЕР 1</b>${unitLine(sim, 'conveyor-1', [['load', 'нагрузка', 'т/ч'], ['bearing_temp', 'подшипник', '°C']])}`);
     this.label(27, binH - 4, 4, () => {
-      const pct = Math.round((c.binT / c.binCapT) * 100);
-      const g = sim.binGrade;
+      const sp = sim.stockpile;
+      const pct = Math.round((sp.t / sp.capT) * 100);
+      const g = sim.feedGrade;
       const ok = Math.abs(g - cfg.grade.targetPct) <= cfg.grade.bandPct;
-      const left = c.binT / cfg.dumps.crusher.plantFeedTpm;
-      return `<b>БУНКЕР</b><br><span class="v">${fmtInt(c.binT)} т (${pct}%)</span><br>Cu: <span class="${ok ? 'ok' : 'bad'}">${c.binT > 0.01 ? g.toFixed(3) + '%' : '—'}</span><br>${c.binT > 0.01 ? `запас: <span class="v">${Math.round(left)} мин</span>` : '<span class="bad">ПУСТО — ОФ СТОИТ</span>'}`;
+      const left = sp.t / (cfg.dumps.crusher.plantFeedTpm * 60);
+      return `<b>СКЛАД ДРОБЛЁНОЙ РУДЫ</b><br><span class="v">${fmtInt(sp.t)} т (${pct}%)</span><br>Cu: <span class="${ok ? 'ok' : 'bad'}">${sp.t > 0.01 ? g.toFixed(3) + '%' : '—'}</span><br>${sp.t > 0.01 ? `запас фабрике: <span class="v">${left.toFixed(1)} ч</span>` : '<span class="bad">ПУСТО — ОФ СТОИТ</span>'}`;
     });
-    this.label(42, 6, 0, () => (c.binT > 0.01 ? `<b>КОНВЕЙЕР 2 → ОФ</b>${unitLine(sim, 'conveyor-2', [['load', 'нагрузка', 'т/ч'], ['motor_current', 'ток', 'А'], ['bearing_temp', 'подшипник', '°C']])}` : `<b>КОНВЕЙЕР 2</b><br><span class="bad">СТОИТ</span>${unitLine(sim, 'conveyor-2', [])}`));
+    this.label(42, 6, 0, () => (sim.stockpile.t > 0.01 ? `<b>КОНВЕЙЕР 2 → ОФ</b>${unitLine(sim, 'conveyor-2', [['load', 'нагрузка', 'т/ч'], ['motor_current', 'ток', 'А'], ['bearing_temp', 'подшипник', '°C']])}` : `<b>КОНВЕЙЕР 2</b><br><span class="bad">СТОИТ</span>${unitLine(sim, 'conveyor-2', [])}`));
 
     this.camera.position.set(22, 24, 40);
     this.controls.target.set(-2, 8, 0);
@@ -585,7 +588,7 @@ export class InteriorScene {
     const sim = this.sim;
     const st = sim.stats;
     const cfg = sim.cfg;
-    const running = () => sim.crusher.binT > 0.01;
+    const running = () => sim.stockpile.t > 0.01;
 
     // Конвейер питания с анализатором над лентой.
     const feed = new Conveyor([[-64, 9, 0], [-40, 9, 0]], this.light ? 10 : 18);
@@ -706,7 +709,7 @@ export class InteriorScene {
         }
         bubbles.instanceMatrix.needsUpdate = true;
       }
-      const inBand = Math.abs(sim.binGrade - cfg.grade.targetPct) <= cfg.grade.bandPct;
+      const inBand = Math.abs(sim.feedGrade - cfg.grade.targetPct) <= cfg.grade.bandPct;
       const pg = on ? (inBand ? '#22c55e' : '#f59e0b') : '#3b3f45';
       pgnaa.mat.color.set(pg);
       pgnaa.mat.emissive.set(pg);
@@ -720,8 +723,8 @@ export class InteriorScene {
     const recovery = () => (st.cuFeedT > 0 ? (st.cuConcT / st.cuFeedT) * 100 : cfg.grade.recoveryMax * 100);
     this.label(-54, 17, 4, () => {
       const on = running();
-      const ok = Math.abs(sim.binGrade - cfg.grade.targetPct) <= cfg.grade.bandPct;
-      return `<b>ПИТАНИЕ · PGNAA</b><br>${on ? `<span class="v">${fmtInt(cfg.dumps.crusher.plantFeedTpm * 60)} т/ч</span><br>Cu: <span class="${ok ? 'ok' : 'bad'}">${sim.binGrade.toFixed(3)}%</span>` : '<span class="bad">НЕТ РУДЫ</span>'}`;
+      const ok = Math.abs(sim.feedGrade - cfg.grade.targetPct) <= cfg.grade.bandPct;
+      return `<b>ПИТАНИЕ · PGNAA</b><br>${on ? `<span class="v">${fmtInt(cfg.dumps.crusher.plantFeedTpm * 60)} т/ч</span><br>Cu: <span class="${ok ? 'ok' : 'bad'}">${sim.feedGrade.toFixed(3)}%</span>` : '<span class="bad">НЕТ РУДЫ</span>'}`;
     });
     this.label(-28, 19, -4, () => `<b>МЕЛЬНИЦА ПСИ</b><br>${running() ? '<span class="ok">ИЗМЕЛЬЧЕНИЕ</span>' : '<span class="bad">СТОИТ</span>'}${unitLine(sim, 'sag-mill', [['power', 'мощность', 'МВт'], ['mill_load', 'загрузка', '%'], ['bearing_temp', 'подшипник', '°C']])}`);
     this.label(-6, 12, 6, () => `<b>ШАРОВАЯ МЕЛЬНИЦА</b><br>${running() ? 'работает' : '<span class="bad">стоит</span>'}${unitLine(sim, 'ball-mill', [['power', 'мощность', 'МВт'], ['bearing_temp', 'подшипник', '°C']])}`);

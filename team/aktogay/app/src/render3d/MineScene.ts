@@ -22,6 +22,7 @@ import {
   makeLeachPad,
   makeLightMast,
   makeDrillRig,
+  glowSprite,
   type DrillModel,
   makePlant,
   makeTruck,
@@ -34,7 +35,7 @@ import { blockBounds, buildRoads, buildTerrain, buildWater, makeHeightAt, PIT_DE
 
 export type CameraPreset = 'overview' | 'crusher' | 'bottom' | 'side';
 /** Здания, у которых есть «внутренний двойник» (мнемосхема). */
-export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste';
+export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile';
 
 const BG = '#0a1526';
 
@@ -275,6 +276,34 @@ export class MineScene {
       post.castShadow = true;
       this.scene.add(post);
     }
+    // Склад дроблёной руды: конус под конвейером на ~55% пути от дробилки к фабрике.
+    {
+      const at = this.conveyorFrom.clone().lerp(this.conveyorTo, 0.55);
+      const ground = this.heightAt(at.x, at.z);
+      this.stockpileAt = new THREE.Vector3(at.x, ground, at.z);
+      const mat = new THREE.MeshStandardMaterial({ color: '#8b6b47', roughness: 1, flatShading: true });
+      this.stockpileCone = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 18, 1), mat);
+      this.stockpileCone.castShadow = true;
+      this.stockpileCone.receiveShadow = true;
+      this.scene.add(this.stockpileCone);
+      // Пыль при отсыпке.
+      this.stockpileDust = glowSprite('#d8c7a6', 160);
+      (this.stockpileDust.material as THREE.SpriteMaterial).opacity = 0;
+      this.scene.add(this.stockpileDust);
+      const lbl = label('holo');
+      lbl.position.set(at.x, ground + 260, at.z);
+      this.scene.add(lbl);
+      this.panels.push({
+        obj: lbl,
+        render: () => {
+          const sp = sim.stockpile;
+          const h = sp.t / (cfg.dumps.crusher.plantFeedTpm * 60);
+          return `<b>СКЛАД ДРОБЛЁНОЙ РУДЫ</b><br>${fmtInt(sp.t)} т из ${fmtInt(sp.capT)} (${Math.round((sp.t / sp.capT) * 100)}%)<br>запас фабрике: <span class="${sp.t <= 0.01 ? 'bad' : h < 0.5 ? 'warn' : 'v'}">${h.toFixed(1)} ч</span><br>${sp.crushing ? 'идёт отсыпка' : 'отсыпки нет'}<div class="hint">▸ клик по складу — что внутри</div>`;
+        },
+      });
+      this.stockpileCone.userData = { building: 'stockpile' };
+      this.buildings.push(this.stockpileCone);
+    }
     this.ore = new THREE.InstancedMesh(ROCK_GEO, new THREE.MeshStandardMaterial({ color: '#8b6b47', roughness: 1, flatShading: true }), 40);
     this.scene.add(this.ore);
 
@@ -348,12 +377,14 @@ export class MineScene {
     const c = sim.crusher;
     panel(new THREE.Vector3(this.crusherPos.x, this.crusherPos.y + 240, this.crusherPos.z), () => {
       const pct = Math.round((c.binT / c.binCapT) * 100);
-      const starving = c.binT <= 0.01;
-      return `<b>ДРОБИЛКА ККД</b><br>Бункер: <span class="v">${fmtInt(c.binT)} т (${pct}%)</span><br>Подача на ОФ: <span class="v">${cfg.dumps.crusher.plantFeedTpm} т/мин</span><br>Статус: ${
+      const sp = sim.stockpile;
+      const starving = sp.t <= 0.01;
+      const hours = sp.t / (cfg.dumps.crusher.plantFeedTpm * 60);
+      return `<b>ДРОБИЛКА ККД</b><br>Приёмный бункер: <span class="v">${fmtInt(c.binT)} т (${pct}%)</span><br>Склад: <span class="${starving ? 'bad' : hours < 0.5 ? 'warn' : 'v'}">${fmtInt(sp.t)} т · ${hours.toFixed(1)} ч</span><br>Статус ОФ: ${
         starving ? '<span class="bad">ПРОСТОЙ</span>' : '<span class="ok">РАБОТА</span>'
-      }<br>Очередь: <span class="v">${c.queue.length}</span><br>Содержание Cu: ${
-        c.binT > 1
-          ? `<span class="${Math.abs(sim.binGrade - cfg.grade.targetPct) <= cfg.grade.bandPct ? 'ok' : 'bad'}">${sim.binGrade.toFixed(2)}%</span> (цель ${cfg.grade.targetPct}%)`
+      }<br>Очередь: <span class="v">${c.queue.length}</span><br>Cu на ОФ: ${
+        sp.t > 1
+          ? `<span class="${Math.abs(sim.feedGrade - cfg.grade.targetPct) <= cfg.grade.bandPct ? 'ok' : 'bad'}">${sim.feedGrade.toFixed(2)}%</span> (цель ${cfg.grade.targetPct}%)`
           : '—'
       }`;
     });
@@ -542,6 +573,25 @@ export class MineScene {
     }
   }
   private lastDrillLabel = 0;
+
+  private stockpileAt = new THREE.Vector3();
+  private stockpileCone!: THREE.Mesh;
+  private stockpileDust!: THREE.Sprite;
+
+  /** Склад: высота конуса по запасу, пыль при отсыпке. */
+  private syncStockpile(now: number): void {
+    const sp = this.sim.stockpile;
+    const frac = Math.max(0.02, sp.t / Math.max(1, sp.capT));
+    const r = 60 + 140 * Math.sqrt(frac);
+    const h = r * 0.62; // угол естественного откоса ~32°
+    this.stockpileCone.scale.set(r, h, r);
+    this.stockpileCone.position.set(this.stockpileAt.x, this.stockpileAt.y + h / 2, this.stockpileAt.z);
+    const dust = this.stockpileDust;
+    const m = dust.material as THREE.SpriteMaterial;
+    const target = sp.crushing ? 0.35 + 0.25 * (1 - frac) : 0;
+    m.opacity += (target - m.opacity) * 0.05;
+    dust.position.set(this.stockpileAt.x + Math.sin(now / 2000) * 20, this.stockpileAt.y + h + 90, this.stockpileAt.z);
+  }
 
   /** Здание под курсором — для «внутреннего двойника». */
   pickBuilding(clientX: number, clientY: number): BuildingKind | null {
@@ -732,7 +782,8 @@ export class MineScene {
     const fillCol = frac < 0.2 ? '#ef4444' : frac < 0.45 ? '#f59e0b' : '#22c55e';
     this.crusher.fillMat.color.set(fillCol);
     this.crusher.fillMat.emissive.set(fillCol);
-    const starving = c.binT <= 0.01;
+    const starving = sim.stockpile.t <= 0.01;
+    this.syncStockpile(now);
     this.conveyorMat.emissive.set(starving ? (blink ? '#7f1d1d' : '#000000') : '#000000');
     this.conveyorMat.color.set(starving ? '#7f1d1d' : '#6b7280');
     for (let k = 0; k < this.ore.count; k++) {

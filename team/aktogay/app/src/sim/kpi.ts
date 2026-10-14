@@ -127,7 +127,7 @@ export interface Effect {
 /**
  * Экономический эффект «умной» диспетчеризации относительно «фиксированной».
  * Значения за прошедшую часть смены экстраполируются на полную смену, затем на год:
- *   Эффект/год = [ΔПростои + ΔПростой дробилки + ΔТопливо на тонну × тонны] × смен в году.
+ *   Эффект/год = [ΔПростои + ΔПростой фабрики + ΔТопливо на тонну × тонны] × смен в году.
  * Дополнительная добыча показывается отдельно и в деньги не переводится (консервативная оценка).
  */
 export function computeEffect(base: Kpis, smart: Kpis, sim: Simulation): Effect {
@@ -144,7 +144,7 @@ export function computeEffect(base: Kpis, smart: Kpis, sim: Simulation): Effect 
       formula: `(${kzt(base.idleCostKzt)} − ${kzt(smart.idleCostKzt)}) × ${shiftScale.toFixed(2)}`,
     },
     {
-      label: 'Простой дробилки (остановка ОФ)',
+      label: 'Простой фабрики без руды',
       perShiftKzt: crusher,
       formula: `(${base.crusherIdleMin.toFixed(1)} − ${smart.crusherIdleMin.toFixed(1)}) мин × ${kzt(cfg.economics.crusherDowntimeKztPerH)}/ч × ${shiftScale.toFixed(2)}`,
     },

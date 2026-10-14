@@ -233,6 +233,8 @@ export interface HistoryPoint {
   minedTotal: number;
   mined: Record<Material, number>;
   binT: number;
+  /** Руда на складе, т. */
+  stockT: number;
   queues: number[];
   /** Содержание Cu в питании фабрики, % (null — фабрика стоит). */
   feedGrade: number | null;

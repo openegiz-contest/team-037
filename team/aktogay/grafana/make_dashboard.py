@@ -113,7 +113,7 @@ add({
 })
 stat("Добыто за смену, т", both("mine", "mined_total"), 0, 2, "none", 0)
 stat("Темп, т/ч", both("mine", "tph"), 4, 2, "none", 0)
-stat("Простой дробилки, мин", both("mine", "crusher_idle_min"), 8, 2, "none", 1)
+stat("Простой фабрики без руды, мин", both("mine", "crusher_idle_min"), 8, 2, "none", 1)
 stat("Качество руды в норме, % времени", both("mine", "grade_in_band_pct"), 12, 2, "percent", 1)
 stat("Аварийные отказы самосвалов", both("mine", "unplanned_failures"), 16, 2, "none", 0)
 stat("Отказов предотвращено (ППР)", both("mine", "prevented_failures"), 20, 2, "none", 0)
@@ -127,7 +127,7 @@ add({
     )},
 })
 series("Темп добычи, т/ч", both("mine", "tph"), 0, 24, "none")
-series("Бункер дробилки, т (пусто = фабрика стоит)", both("crusher", "bin"), 12, 24, "none")
+series("Склад дроблёной руды, т (пусто = фабрика стоит)", both("stockpile", "level"), 12, 24, "none")
 series("Содержание меди в питании фабрики, % Cu (цель 0,35 ± 0,03)", both("plant", "feed_grade"), 0, 32, "none")
 series("Средняя очередь у экскаватора, мин", both("mine", "avg_queue_min"), 12, 32, "m")
 series("Риск отказа самосвалов (реальная работа), %", per_thing("truck-", "failure_risk"), 0, 40, "percent", 12, 8, False)
@@ -147,9 +147,14 @@ series("Буровые: пробурено скважин на блоке (из 
 series("Буровые: скорость проходки, м/ч (по крепости породы)", per_thing("drill-", "penetration"), 8, 71, "none", 8)
 series("Запас взорванной горной массы у экскаваторов, т", per_thing("excavator-", "stock"), 16, 71, "none", 8)
 
-row("Водители самосвалов", 79)
-bars("Резкие торможения за смену (акселерометр рамы)", per_thing("truck-", "drv_harsh"), 0, 80, "none", 12, 10)
-bars("Пробег за смену (GNSS)", per_thing("truck-", "drv_dist"), 12, 80, "lengthm", 12, 10)
+row("Склад дроблёной руды и дробилка", 79)
+series("Запас руды для фабрики, ч", both("stockpile", "hours_left"), 0, 80, "h", 8)
+series("Приёмный бункер дробилки, т", both("crusher", "bin"), 8, 80, "none", 8)
+series("Отсыпка на склад, т/ч (0 — дробилка ждёт руду или склад полон)", both("stockpile", "inflow"), 16, 80, "none", 8)
+
+row("Водители самосвалов", 88)
+bars("Резкие торможения за смену (акселерометр рамы)", per_thing("truck-", "drv_harsh"), 0, 89, "none", 12, 10)
+bars("Пробег за смену (GNSS)", per_thing("truck-", "drv_dist"), 12, 89, "lengthm", 12, 10)
 
 dash = {
     "uid": "aktogay-digital-mine",

@@ -351,9 +351,9 @@ function ImpactTable({ sims, kpis }: { sims: Simulation[]; kpis: Kpis[] }) {
   const [f, s] = kpis;
   const rows: { label: string; a: number; b: number; fmt: (v: number) => string; better: 'lower' | 'higher' }[] = [
     { label: 'Добыто, т', a: f.minedTotal, b: s.minedTotal, fmt: fmtInt, better: 'higher' },
-    { label: 'Простой дробилки, мин', a: f.crusherIdleMin, b: s.crusherIdleMin, fmt: (v) => v.toFixed(1), better: 'lower' },
+    { label: 'Простой фабрики, мин', a: f.crusherIdleMin, b: s.crusherIdleMin, fmt: (v) => v.toFixed(1), better: 'lower' },
     { label: 'Средняя очередь, мин', a: f.avgQueueMin, b: s.avgQueueMin, fmt: (v) => v.toFixed(2), better: 'lower' },
-    { label: 'Руда в бункере сейчас, т', a: sims[0].crusher.binT, b: sims[1].crusher.binT, fmt: fmtInt, better: 'higher' },
+    { label: 'Руда на складе и в бункере, т', a: sims[0].oreBufferT, b: sims[1].oreBufferT, fmt: fmtInt, better: 'higher' },
     { label: 'Качество руды в норме, %', a: f.gradeInBandPct, b: s.gradeInBandPct, fmt: (v) => v.toFixed(1), better: 'higher' },
     { label: 'Аварийные отказы', a: f.unplannedFailures, b: s.unplannedFailures, fmt: (v) => String(v), better: 'lower' },
   ];

@@ -259,7 +259,7 @@ export function drawDynamic(ctx: CanvasRenderingContext2D, sim: Simulation, v: V
   // Конвейер дробилка → фабрика.
   const crusher = sim.crusher;
   const plant = sim.layout.plant;
-  const starving = crusher.binT <= 0.01;
+  const starving = sim.stockpile.t <= 0.01;
   ctx.strokeStyle = starving ? (blinkOn ? '#ef4444' : '#5b1a1a') : '#e0b341';
   ctx.lineWidth = Math.max(2, 14 * v.scale);
   ctx.setLineDash([8, 6]);

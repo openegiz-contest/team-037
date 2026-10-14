@@ -21,8 +21,9 @@ const TITLE: Record<BuildingKind, string> = {
   garage: 'Гараж, АЗС и стоянка',
   leach: 'Площадка кучного выщелачивания',
   waste: 'Отвал вскрыши',
+  stockpile: 'Склад дроблёной руды',
 };
-const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump' };
+const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile' };
 
 // Цвета схемы (тёмный «экран»).
 const C = {
@@ -83,6 +84,7 @@ export function BuildingView({ sim, kind, onClose, onTruck, light = false }: Pro
         {!show3d && kind === 'plant' && <Plant sim={sim} />}
         {!show3d && kind === 'garage' && <Garage sim={sim} onTruck={onTruck} />}
         {(kind === 'leach' || kind === 'waste') && <Dump sim={sim} kind={kind} onTruck={onTruck} />}
+        {kind === 'stockpile' && <Stockpile sim={sim} />}
         {(kind === 'crusher' || kind === 'plant' || kind === 'garage') && <UnitStrip sim={sim} building={kind} />}
         {sensors.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -237,13 +239,14 @@ function Crusher({ sim, onTruck }: { sim: Simulation; onTruck: (id: number) => v
   const c = sim.crusher;
   const cfg = sim.cfg;
   const pct = c.binCapT > 0 ? Math.min(1, c.binT / c.binCapT) : 0;
-  const starved = c.binT <= 0.01;
-  const crushing = c.active.length > 0;
+  const sp = sim.stockpile;
+  const starved = sp.t <= 0.01;
+  const crushing = sp.crushing;
   const g = sim.binGrade;
   const inBand = Math.abs(g - cfg.grade.targetPct) <= cfg.grade.bandPct;
-  const fillCol = pct < 0.2 ? C.bad : pct < 0.45 ? C.warn : C.ok;
-  const outTph = starved ? 0 : cfg.dumps.crusher.plantFeedTpm * 60;
-  const minutesLeft = starved ? 0 : c.binT / cfg.dumps.crusher.plantFeedTpm;
+  const fillCol = pct > 0.85 ? C.warn : C.ok;
+  const outTph = crushing ? Math.round(sp.lastIn * 3600) : 0;
+  const minutesLeft = (sp.t / cfg.dumps.crusher.plantFeedTpm);
   return (
     <div className={starved ? 'mn-stopped' : ''}>
       <svg viewBox="0 0 1000 330" className="w-full">
@@ -265,7 +268,7 @@ function Crusher({ sim, onTruck }: { sim: Simulation; onTruck: (id: number) => v
         <Flow d="M125 150 L125 205 L270 205" running={crushing} label={crushing ? `руда ${fmtInt(cfg.truck.payloadT)} т/рейс` : 'нет разгрузки'} lx={195} ly={230} />
 
         {/* дробилка */}
-        <Unit x={270} y={140} w={190} h={130} title="Конусная дробилка" value={starved ? 'ждёт руду' : crushing ? 'дробит' : 'вхолостую'} tone={crushing ? C.ok : starved ? C.bad : C.line}>
+        <Unit x={270} y={140} w={190} h={130} title="Конусная дробилка" value={crushing ? 'дробит' : c.binT > 0.01 ? 'склад полон' : 'ждёт руду'} tone={crushing ? C.ok : C.line}>
           <g transform="translate(365 205)">
             <polygon points="-38,-26 38,-26 18,30 -18,30" fill="#2b323b" stroke={C.pipe} />
             <g className={crushing ? 'mn-spin' : undefined}>
@@ -281,7 +284,7 @@ function Crusher({ sim, onTruck }: { sim: Simulation; onTruck: (id: number) => v
           <rect x={520} y={40} width={150} height={230} rx={8} fill={C.box} stroke={fillCol} strokeWidth={1.8} />
           <rect x={524} y={44 + (1 - pct) * 222} width={142} height={pct * 222} rx={5} fill={fillCol} fillOpacity={0.35} />
           <text x={595} y={62} textAnchor="middle" fontSize={13} fontWeight={700} fill={C.text}>
-            Бункер
+            Приёмный бункер
           </text>
           <text x={595} y={150} textAnchor="middle" fontSize={30} fontWeight={800} fill={fillCol} fontFamily="var(--font-mono)">
             {Math.round(pct * 100)}%
@@ -296,19 +299,19 @@ function Crusher({ sim, onTruck }: { sim: Simulation; onTruck: (id: number) => v
         <SensorDot x={540} y={24} label="радарный уровнемер" />
 
         {/* питатель и конвейер */}
-        <Flow d="M670 240 L960 240" running={!starved} label={starved ? 'конвейер стоит' : `${fmtInt(outTph)} т/ч → на фабрику`} lx={815} ly={226} />
+        <Flow d="M670 240 L960 240" running={crushing} label={crushing ? `${fmtInt(outTph)} т/ч → на склад` : 'конвейер на склад стоит'} lx={815} ly={226} />
         <SensorDot x={760} y={270} label="конвейерные весы" />
         <text x={960} y={265} textAnchor="end" fontSize={12} fill={C.dim}>
-          ОФ →
+          склад →
         </text>
-        <text x={815} y={90} textAnchor="middle" fontSize={13} fill={starved ? C.bad : minutesLeft < 20 ? C.warn : C.dim}>
-          {starved ? 'ПРОСТОЙ: фабрика без руды' : `запаса руды на ${Math.round(minutesLeft)} мин работы фабрики`}
+        <text x={815} y={90} textAnchor="middle" fontSize={13} fill={starved ? C.bad : minutesLeft < 30 ? C.warn : C.dim}>
+          {starved ? 'ПРОСТОЙ: склад пуст, фабрика без руды' : `на складе ${fmtInt(sp.t)} т — фабрике на ${(minutesLeft / 60).toFixed(1)} ч`}
         </text>
       </svg>
       <Stats>
         <Stat label="Принято за смену" value={`${fmtInt(c.tonnes)} т`} />
-        <Stat label="Простой без руды" value={`${(c.starvedSec / 60).toFixed(1)} мин`} tone={c.starvedSec > 0 ? C.bad : undefined} />
-        <Stat label="Cu в бункере" value={starved ? '—' : `${g.toFixed(3)} %`} tone={inBand ? C.ok : C.warn} />
+        <Stat label="Простой фабрики без руды" value={`${(c.starvedSec / 60).toFixed(1)} мин`} tone={c.starvedSec > 0 ? C.bad : undefined} />
+        <Stat label="Cu в бункере" value={c.binT <= 0.01 ? '—' : `${g.toFixed(3)} %`} tone={inBand ? C.ok : C.warn} />
         <Stat label="Цель по качеству" value={`${cfg.grade.targetPct} ± ${cfg.grade.bandPct} %`} />
       </Stats>
       {c.queue.length > 0 && (
@@ -320,14 +323,68 @@ function Crusher({ sim, onTruck }: { sim: Simulation; onTruck: (id: number) => v
   );
 }
 
+// ───────────────────────────── склад дроблёной руды ─────────────────────────────
+
+function Stockpile({ sim }: { sim: Simulation }) {
+  const sp = sim.stockpile;
+  const cfg = sim.cfg;
+  const frac = Math.min(1, sp.t / sp.capT);
+  const feedTph = cfg.dumps.crusher.plantFeedTpm * 60;
+  const hours = sp.t / feedTph;
+  const empty = sp.t <= 0.01;
+  const inflow = Math.round(sp.lastIn * 3600);
+  const col = empty ? C.bad : hours < 0.5 ? C.warn : C.ok;
+  // Конус: основание 520, высота по запасу.
+  const H = 40 + 170 * Math.sqrt(frac);
+  const W = 120 + 380 * Math.sqrt(frac);
+  return (
+    <div className={empty ? 'mn-stopped' : ''}>
+      <svg viewBox="0 0 1000 330" className="w-full">
+        <Flow d="M20 60 L440 60" running={sp.crushing} label={sp.crushing ? `с дробилки ${fmtInt(inflow)} т/ч` : 'отсыпки нет'} lx={200} ly={45} />
+        <SensorDot x={60} y={90} label="весы отсыпки" />
+        {sp.crushing && <path d="M440 64 L440 300" stroke={C.ore} strokeWidth={10} strokeDasharray="4 10" className="mn-flow slow" opacity={0.7} />}
+        <polygon points={`${440 - W / 2},300 ${440},${300 - H} ${440 + W / 2},300`} fill={C.ore} fillOpacity={0.45} stroke={C.ore} />
+        <line x1={150} y1={300} x2={760} y2={300} stroke={C.line} />
+        <rect x={300} y={302} width={280} height={18} rx={4} fill={C.box} stroke={C.line} />
+        <text x={440} y={315} textAnchor="middle" fontSize={11} fill={C.dim}>
+          тоннель с питателями
+        </text>
+        <Flow d="M580 311 L980 311" running={!empty} label={empty ? 'фабрика без руды' : `на фабрику ${fmtInt(feedTph)} т/ч`} lx={780} ly={296} />
+        <SensorDot x={640} y={250} label="весы питателей" />
+        <SensorDot x={180} y={180} label="лидар объёма" />
+        {sp.crushing && <SensorDot x={560} y={140} label={`пыль ${(2.5 + 6 * (1 - frac)).toFixed(1)} мг/м³ — водяная завеса`} />}
+        <text x={440} y={300 - H / 2} textAnchor="middle" fontSize={24} fontWeight={800} fill={C.text} fontFamily="var(--font-mono)">
+          {fmtInt(sp.t)} т
+        </text>
+        <text x={800} y={140} textAnchor="middle" fontSize={34} fontWeight={800} fill={col} fontFamily="var(--font-mono)">
+          {hours.toFixed(1)} ч
+        </text>
+        <text x={800} y={165} textAnchor="middle" fontSize={13} fill={C.dim}>
+          запас для фабрики
+        </text>
+      </svg>
+      <Stats>
+        <Stat label="На складе" value={`${fmtInt(sp.t)} / ${fmtInt(sp.capT)} т`} />
+        <Stat label="Заполнение" value={`${Math.round(frac * 100)} %`} tone={col} />
+        <Stat label="Cu в штабеле" value={empty ? '—' : `${sim.feedGrade.toFixed(3)} %`} />
+        <Stat label="Отсыпано за смену" value={`${fmtInt(sp.inflowT)} т`} />
+      </Stats>
+      <div className="mt-2 text-[11.5px] text-ink-3">
+        Склад — буфер между карьером и фабрикой: дробилка отсыпает руду с конвейера, фабрика забирает её питателями из тоннеля под штабелем. Активная ёмкость
+        масштабирована под моделируемый сегмент парка (~1,5 ч работы фабрики).
+      </div>
+    </div>
+  );
+}
+
 // ───────────────────────────── фабрика ─────────────────────────────
 
 function Plant({ sim }: { sim: Simulation }) {
   const st = sim.stats;
   const cfg = sim.cfg;
-  const running = sim.crusher.binT > 0.01;
+  const running = sim.stockpile.t > 0.01;
   const feedTph = running ? cfg.dumps.crusher.plantFeedTpm * 60 : 0;
-  const g = sim.binGrade;
+  const g = sim.feedGrade;
   const inBand = Math.abs(g - cfg.grade.targetPct) <= cfg.grade.bandPct;
   const recovery = st.cuFeedT > 0 ? (st.cuConcT / st.cuFeedT) * 100 : cfg.grade.recoveryMax * 100;
   const inBandPct = st.feedSec > 0 ? (st.feedInBandSec / st.feedSec) * 100 : 100;

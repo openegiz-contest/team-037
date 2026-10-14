@@ -627,7 +627,7 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
           <div className="mt-3 grid grid-cols-3 gap-3">
             <Summary label="Добыча" value={fmtDelta(deltaPct(kpis[0].minedTotal, kpis[1].minedTotal))} good={kpis[1].minedTotal >= kpis[0].minedTotal} />
             <Summary
-              label="Простой дробилки"
+              label="Простой фабрики"
               value={fmtDelta(deltaPct(kpis[0].crusherIdleMin, kpis[1].crusherIdleMin))}
               good={kpis[1].crusherIdleMin <= kpis[0].crusherIdleMin}
             />

@@ -186,7 +186,7 @@
     },
     {
       "type": "stat",
-      "title": "Простой дробилки, мин",
+      "title": "Простой фабрики без руды, мин",
       "gridPos": {
         "x": 8,
         "y": 2,
@@ -584,7 +584,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Бункер дробилки, т (пусто = фабрика стоит)",
+      "title": "Склад дроблёной руды, т (пусто = фабрика стоит)",
       "gridPos": {
         "x": 12,
         "y": 24,
@@ -650,7 +650,7 @@
             "type": "influxdb",
             "uid": "opentwins-influxdb"
           },
-          "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and (r.thingId == \"org.aktogay.smart:crusher\" or r.thingId == \"org.aktogay.fixed:crusher\") and r._field == \"value_bin_properties_value\")\n  |> map(fn: (r) => ({r with _field: if r.thingId == \"org.aktogay.smart:crusher\" then \"Реальная работа\" else \"Без системы (расчёт)\"}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
+          "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and (r.thingId == \"org.aktogay.smart:stockpile\" or r.thingId == \"org.aktogay.fixed:stockpile\") and r._field == \"value_level_properties_value\")\n  |> map(fn: (r) => ({r with _field: if r.thingId == \"org.aktogay.smart:stockpile\" then \"Реальная работа\" else \"Без системы (расчёт)\"}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
       "id": 10,
@@ -1592,7 +1592,7 @@
     },
     {
       "type": "row",
-      "title": "Водители самосвалов",
+      "title": "Склад дроблёной руды и дробилка",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -1605,11 +1605,256 @@
       "id": 25
     },
     {
+      "type": "timeseries",
+      "title": "Запас руды для фабрики, ч",
+      "gridPos": {
+        "x": 0,
+        "y": 80,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Реальная работа"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Без системы (расчёт)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "opentwins-influxdb"
+          },
+          "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and (r.thingId == \"org.aktogay.smart:stockpile\" or r.thingId == \"org.aktogay.fixed:stockpile\") and r._field == \"value_hours_left_properties_value\")\n  |> map(fn: (r) => ({r with _field: if r.thingId == \"org.aktogay.smart:stockpile\" then \"Реальная работа\" else \"Без системы (расчёт)\"}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
+        }
+      ],
+      "id": 26,
+      "datasource": {
+        "type": "influxdb",
+        "uid": "opentwins-influxdb"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Приёмный бункер дробилки, т",
+      "gridPos": {
+        "x": 8,
+        "y": 80,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Реальная работа"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Без системы (расчёт)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "opentwins-influxdb"
+          },
+          "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and (r.thingId == \"org.aktogay.smart:crusher\" or r.thingId == \"org.aktogay.fixed:crusher\") and r._field == \"value_bin_properties_value\")\n  |> map(fn: (r) => ({r with _field: if r.thingId == \"org.aktogay.smart:crusher\" then \"Реальная работа\" else \"Без системы (расчёт)\"}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
+        }
+      ],
+      "id": 27,
+      "datasource": {
+        "type": "influxdb",
+        "uid": "opentwins-influxdb"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Отсыпка на склад, т/ч (0 — дробилка ждёт руду или склад полон)",
+      "gridPos": {
+        "x": 16,
+        "y": 80,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Реальная работа"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Без системы (расчёт)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "opentwins-influxdb"
+          },
+          "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and (r.thingId == \"org.aktogay.smart:stockpile\" or r.thingId == \"org.aktogay.fixed:stockpile\") and r._field == \"value_inflow_properties_value\")\n  |> map(fn: (r) => ({r with _field: if r.thingId == \"org.aktogay.smart:stockpile\" then \"Реальная работа\" else \"Без системы (расчёт)\"}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
+        }
+      ],
+      "id": 28,
+      "datasource": {
+        "type": "influxdb",
+        "uid": "opentwins-influxdb"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Водители самосвалов",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 88,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "datasource": null,
+      "id": 29
+    },
+    {
       "type": "bargauge",
       "title": "Резкие торможения за смену (акселерометр рамы)",
       "gridPos": {
         "x": 0,
-        "y": 80,
+        "y": 89,
         "w": 12,
         "h": 10
       },
@@ -1645,7 +1890,7 @@
           "query": "import \"strings\"\nfrom(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId =~ /^org\\.aktogay\\.smart:truck-/ and r._field == \"value_drv_harsh_properties_value\")\n  |> map(fn: (r) => ({r with _field: strings.trimPrefix(v: r.thingId, prefix: \"org.aktogay.smart:\")}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 26,
+      "id": 30,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -1656,7 +1901,7 @@
       "title": "Пробег за смену (GNSS)",
       "gridPos": {
         "x": 12,
-        "y": 80,
+        "y": 89,
         "w": 12,
         "h": 10
       },
@@ -1692,7 +1937,7 @@
           "query": "import \"strings\"\nfrom(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId =~ /^org\\.aktogay\\.smart:truck-/ and r._field == \"value_drv_dist_properties_value\")\n  |> map(fn: (r) => ({r with _field: strings.trimPrefix(v: r.thingId, prefix: \"org.aktogay.smart:\")}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 27,
+      "id": 31,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"

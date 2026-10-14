@@ -384,6 +384,49 @@ export const DRILL_SENSORS: SensorSpec[] = [
   },
 ];
 
+export const STOCKPILE_SENSORS: SensorSpec[] = [
+  {
+    id: 'level',
+    name: 'Сканер объёма штабеля',
+    hardware: '3D-лидар на галерее конвейера + сверка съёмкой с дрона',
+    location: 'галерея над складом',
+    measures: 'объём и масса руды в штабеле, т',
+    features: ['level', 'fill', 'hours_left'],
+    periodS: 10,
+    purpose: 'запас руды для фабрики в часах',
+  },
+  {
+    id: 'scale_in',
+    name: 'Конвейерные весы отсыпки',
+    hardware: 'тензометрические весы на конвейере дробилка → склад',
+    location: 'конвейер отсыпки',
+    measures: 'поступление руды на склад, т/ч',
+    features: ['inflow', 'inflow_total'],
+    periodS: 1,
+    purpose: 'баланс склада, работа дробилки',
+  },
+  {
+    id: 'scale_out',
+    name: 'Весы питателей в тоннеле',
+    hardware: 'весы на конвейере под штабелем',
+    location: 'тоннель под складом',
+    measures: 'выдача на фабрику, т/ч',
+    features: ['outflow'],
+    periodS: 1,
+    purpose: 'сколько руды забирает фабрика',
+  },
+  {
+    id: 'dust',
+    name: 'Датчики запылённости',
+    hardware: 'оптические пылемеры PM10 у склада + анемометр',
+    location: 'вокруг штабеля',
+    measures: 'концентрация пыли, мг/м³',
+    features: ['dust'],
+    periodS: 10,
+    purpose: 'включение водяных завес при отсыпке, охрана труда',
+  },
+];
+
 /** Паспорт датчиков по типу двойника (attributes.kind). */
 export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   'haul-truck': TRUCK_SENSORS,
@@ -394,6 +437,7 @@ export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   'waste-dump': WASTE_SENSORS,
   garage: GARAGE_SENSORS,
   'drill-rig': DRILL_SENSORS,
+  stockpile: STOCKPILE_SENSORS,
 };
 
 /** Компактная запись для attributes.sensors двойника в Ditto. */
@@ -407,3 +451,4 @@ export const leachSensorAttributes = () => sensorAttributes(LEACH_SENSORS);
 export const wasteSensorAttributes = () => sensorAttributes(WASTE_SENSORS);
 export const garageSensorAttributes = () => sensorAttributes(GARAGE_SENSORS);
 export const drillSensorAttributes = () => sensorAttributes(DRILL_SENSORS);
+export const stockpileSensorAttributes = () => sensorAttributes(STOCKPILE_SENSORS);

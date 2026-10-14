@@ -161,8 +161,9 @@ export class SmartStrategy implements DispatchStrategy {
   gradeBonus(sim: Simulation, truck: Truck): number[] {
     const gc = sim.cfg.grade;
     const c = sim.crusher;
-    let t = c.binT;
-    let cu = c.binCuT;
+    // Шихтуется всё, что ещё не ушло на фабрику: приёмный бункер + склад.
+    let t = c.binT + sim.stockpile.t;
+    let cu = c.binCuT + sim.stockpile.cuT;
     for (const o of sim.trucks) {
       if (o === truck || o.material !== 'sulfide' || o.loadT <= 0) continue;
       t += o.loadT;
@@ -201,7 +202,7 @@ export class SmartStrategy implements DispatchStrategy {
     }
     // Прогноз бункера дробилки на горизонте доставки: всё, что уже везут или грузят на сульфид,
     // минус потребление фабрики. Очередь у дробилки допустима — её простой дороже простоя самосвала.
-    const projected = sim.crusher.binT + committed.sulfide - cfg.dumps.crusher.plantFeedTpm * cfg.smart.binHorizonMin;
+    const projected = sim.oreBufferT + committed.sulfide - cfg.dumps.crusher.plantFeedTpm * cfg.smart.binHorizonMin;
     const urgency = clamp((cfg.smart.binLowT - projected) / cfg.smart.binLowT, 0, 1);
     bonus.sulfide += cfg.smart.crusherWeightSec * urgency;
     return bonus;

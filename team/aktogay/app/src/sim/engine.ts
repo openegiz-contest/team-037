@@ -67,6 +67,11 @@ export class Simulation {
   readonly dumps: DumpSite[] = [];
   readonly garageNode: number;
   readonly stats: SimStats;
+  /**
+   * Склад дроблёной руды между дробилкой и фабрикой: дробилка перегружает руду из приёмного
+   * бункера на склад, фабрика забирает со склада. Простой фабрики — когда склад пуст.
+   */
+  readonly stockpile = { t: 0, cuT: 0, capT: 0, inflowT: 0, crushing: false, lastIn: 0 };
   readonly history: HistoryPoint[] = [];
   readonly log: LogEntry[] = [];
   closures: RoadClosure[] = [];
@@ -192,6 +197,9 @@ export class Simulation {
     this.dumps.push(mkDump('crusher', 'Дробилка ККД', 'sulfide', this.layout.crusher, d.crusher.bays, d.crusher.dumpMin));
     this.dumps.push(mkDump('leach', 'Кучное выщелачивание', 'oxide', this.layout.leach, d.leach.bays, d.leach.dumpMin));
     this.dumps.push(mkDump('waste', 'Отвал вскрыши', 'waste', this.layout.waste, d.waste.bays, d.waste.dumpMin));
+    this.stockpile.capT = d.crusher.stockpileCapT;
+    this.stockpile.t = d.crusher.stockpileInitialT;
+    this.stockpile.cuT = (d.crusher.stockpileInitialT * this.cfg.grade.targetPct) / 100;
 
     const perMaterial: Record<Material, number> = { sulfide: 0, oxide: 0, waste: 0 };
     for (const e of this.excavators) perMaterial[e.material]++;
@@ -542,8 +550,8 @@ export class Simulation {
     const tl = this.timeline;
     this.trucks.forEach((t, i) => (tl.trucks[i] += TRUCK_CODE[t.state]));
     this.excavators.forEach((e, i) => (tl.excavators[i] += EX_CODE[e.state]));
-    const c = this.crusher;
-    tl.crusher += c.binT <= 0.01 ? 's' : String(Math.min(9, Math.floor((c.binT / c.binCapT) * 10)));
+    const sp = this.stockpile;
+    tl.crusher += sp.t <= 0.01 ? 's' : String(Math.min(9, Math.floor((sp.t / sp.capT) * 10)));
     const groups = this.layout.closureGroups;
     tl.closures += String(Math.min(9, this.closures.filter((x) => groups.some((g) => g.label === x.label)).length));
     tl.minutes++;
@@ -643,6 +651,7 @@ export class Simulation {
       }
     }
 
+    this.crush(dt);
     this.feedPlant(dt);
     this.buildLaneOccupancy();
     for (const t of this.trucks) this.updateTruck(t, dt);
@@ -1095,20 +1104,50 @@ export class Simulation {
     return c.binT > 1e-6 ? (c.binCuT / c.binT) * 100 : this.cfg.grade.targetPct;
   }
 
+  /** Содержание меди в руде, которую фабрика забирает со склада, %. */
+  get feedGrade(): number {
+    const s = this.stockpile;
+    return s.t > 1e-6 ? (s.cuT / s.t) * 100 : this.cfg.grade.targetPct;
+  }
+
+  /** Руда, доступная фабрике: приёмный бункер + склад, т. */
+  get oreBufferT(): number {
+    return this.crusher.binT + this.stockpile.t;
+  }
+
+  /** Дробилка: перегрузка из приёмного бункера на склад (пока склад не полон). */
+  private crush(dt: number): void {
+    const c = this.crusher;
+    const s = this.stockpile;
+    const move = Math.min(c.binT, (this.cfg.dumps.crusher.crusherTpm / 60) * dt, Math.max(0, s.capT - s.t));
+    s.crushing = move > 1e-6;
+    s.lastIn = move / dt;
+    if (move <= 0) return;
+    const cu = c.binT > 1e-6 ? (c.binCuT * move) / c.binT : 0;
+    c.binT -= move;
+    c.binCuT = Math.max(0, c.binCuT - cu);
+    if (c.binT <= 1e-6) c.binCuT = 0;
+    s.t += move;
+    s.cuT += cu;
+    s.inflowT += move;
+  }
+
   private feedPlant(dt: number): void {
     const c = this.crusher;
+    const s = this.stockpile;
     const need = (this.cfg.dumps.crusher.plantFeedTpm / 60) * dt;
-    const grade = this.binGrade;
-    const fed = Math.min(c.binT, need);
-    if (c.binT >= need) c.binT -= need;
+    const grade = this.feedGrade;
+    const fed = Math.min(s.t, need);
+    if (s.t >= need) s.t -= need;
     else {
-      c.starvedSec += dt * (1 - c.binT / need);
-      c.binT = 0;
+      // Склад пуст — фабрика стоит (учитывается как простой дробильно-обогатительного передела).
+      c.starvedSec += dt * (1 - s.t / need);
+      s.t = 0;
     }
     if (fed > 0) {
       const cu = (fed * grade) / 100;
       const r = recovery(this.cfg, grade);
-      c.binCuT = Math.max(0, c.binCuT - cu);
+      s.cuT = Math.max(0, s.cuT - cu);
       const st = this.stats;
       st.plantFeedT += fed;
       st.cuFeedT += cu;
@@ -1117,7 +1156,7 @@ export class Simulation {
       st.feedSec += dt * (fed / need);
       if (inBand(this.cfg, grade)) st.feedInBandSec += dt * (fed / need);
     }
-    if (c.binT <= 1e-6) c.binCuT = 0;
+    if (s.t <= 1e-6) s.cuT = 0;
   }
 
   private updateDump(d: DumpSite, dt: number): void {
@@ -1272,8 +1311,9 @@ export class Simulation {
       minedTotal: total,
       mined: { ...this.stats.mined },
       binT: this.crusher.binT,
+      stockT: this.stockpile.t,
       queues: this.excavators.map((e) => e.queue.length),
-      feedGrade: this.crusher.binT > 1 ? this.binGrade : null,
+      feedGrade: this.stockpile.t > 1 ? this.feedGrade : null,
     });
   }
 

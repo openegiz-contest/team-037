@@ -147,7 +147,18 @@ export interface SimConfig {
     repairMin: [number, number];
   };
   dumps: {
-    crusher: { bays: number; dumpMin: number; binCapT: number; binInitialT: number; plantFeedTpm: number };
+    crusher: {
+      bays: number;
+      dumpMin: number;
+      binCapT: number;
+      binInitialT: number;
+      plantFeedTpm: number;
+      /** Производительность дробилки (бункер → склад), т/мин. */
+      crusherTpm: number;
+      /** Склад дроблёной руды: активная (забираемая питателями) ёмкость и запас на начало смены, т. */
+      stockpileCapT: number;
+      stockpileInitialT: number;
+    };
     leach: { bays: number; dumpMin: number };
     waste: { bays: number; dumpMin: number };
   };
@@ -284,7 +295,8 @@ export const DEFAULT_CONFIG: SimConfig = {
     repairMin: [40, 120],
   },
   dumps: {
-    crusher: { bays: 1, dumpMin: 1.2, binCapT: 1000, binInitialT: 1000, plantFeedTpm: 50 }, // оценка
+    // оценка: склад ~1,5 ч работы фабрики (масштабирован под сегмент парка), дробилка быстрее фабрики в 1,6 раза
+    crusher: { bays: 1, dumpMin: 1.2, binCapT: 1000, binInitialT: 1000, plantFeedTpm: 50, crusherTpm: 80, stockpileCapT: 4500, stockpileInitialT: 2700 },
     leach: { bays: 2, dumpMin: 1.0 },
     waste: { bays: 3, dumpMin: 0.8 },
   },

@@ -40,6 +40,7 @@ const KEY_METRICS: Record<string, string[]> = {
   'haul-truck': ['state', 'payload', 'fuel', 'engine_temp', 'failure_risk'],
   excavator: ['state', 'queue', 'face_grade', 'stock', 'stock_shifts'],
   'drill-rig': ['state', 'block', 'holes_done', 'penetration', 'hole_depth'],
+  stockpile: ['state', 'level', 'hours_left', 'fill', 'dust'],
   crusher: ['state', 'bin', 'bin_grade', 'starved'],
   concentrator: ['state', 'feed_rate', 'feed_grade', 'cu_concentrate'],
   'heap-leach': ['tonnes_total', 'queue'],
@@ -51,14 +52,14 @@ const KEY_METRICS: Record<string, string[]> = {
 };
 
 /** Тип двойника → «внутренний двойник» здания (мнемосхема на карте). */
-const INSIDE: Record<string, BuildingKind> = { crusher: 'crusher', concentrator: 'plant', garage: 'garage', 'heap-leach': 'leach', 'waste-dump': 'waste' };
+const INSIDE: Record<string, BuildingKind> = { stockpile: 'stockpile', crusher: 'crusher', concentrator: 'plant', garage: 'garage', 'heap-leach': 'leach', 'waste-dump': 'waste' };
 
 const GROUPS: { title: string; kinds: string[] }[] = [
   { title: 'Карьер', kinds: ['open-pit'] },
   { title: 'Экскаваторы', kinds: ['excavator'] },
   { title: 'Буровые станки', kinds: ['drill-rig'] },
   { title: 'Самосвалы', kinds: ['haul-truck'] },
-  { title: 'Переработка', kinds: ['crusher', 'concentrator', 'heap-leach', 'waste-dump'] },
+  { title: 'Переработка', kinds: ['crusher', 'stockpile', 'concentrator', 'heap-leach', 'waste-dump'] },
   { title: 'Агрегаты цехов', kinds: ['unit'] },
   { title: 'Инфраструктура', kinds: ['garage', 'road-network', 'blasting', 'shift-log'] },
 ];
@@ -190,6 +191,10 @@ function summary(r: TwinRecord): [string, keyof typeof TONE_COLOR] {
       const a = Number(v('active') ?? 0);
       const w = Number(v('announced') ?? 0);
       return [a ? 'оцепление' : w ? 'объявлен взрыв' : 'нет', a ? 'bad' : w ? 'warn' : 'idle'];
+    }
+    case 'stockpile': {
+      const s = String(v('state') ?? '');
+      return [`${Math.round(Number(v('level') ?? 0)).toLocaleString('ru-RU')} т · ${v('hours_left')} ч`, s === 'depleted' ? 'bad' : Number(v('hours_left')) < 0.5 ? 'warn' : 'ok'];
     }
     case 'drill-rig': {
       const s = String(v('state') ?? '');

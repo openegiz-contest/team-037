@@ -75,7 +75,7 @@ const TILES: Tile[] = [
   { label: 'Производительность', value: (k) => k.tph, fmt: fmtInt, unit: 'т/ч', better: 'up' },
   { label: 'План смены', value: (k) => k.planTotalPct, fmt: fmt1, unit: '%', better: 'up' },
   {
-    label: 'Простой дробилки',
+    label: 'Простой фабрики',
     value: (k) => k.crusherIdleMin,
     fmt: fmt1,
     unit: 'мин',
