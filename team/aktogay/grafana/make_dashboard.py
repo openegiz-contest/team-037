@@ -20,19 +20,24 @@ def both(name: str, feature: str) -> str:
         f'  |> filter(fn: (r) => r._measurement == "mqtt_consumer" and (r.thingId == "{SMART}:{name}" or r.thingId == "{FIXED}:{name}") '
         f'and r._field == "value_{feature}_properties_value")\n'
         f'  |> map(fn: (r) => ({{r with _field: if r.thingId == "{SMART}:{name}" then "Реальная работа" else "Без системы (расчёт)"}}))\n'
-        '  |> keep(columns: ["_time", "_value", "_field"])'
+        '  |> keep(columns: ["_time", "_value", "_field"])\n'
+        '  |> group(columns: ["_field"])\n'
+        '  |> sort(columns: ["_time"])'
     )
 
 
 def per_thing(prefix: str, feature: str, ns: str = SMART) -> str:
     rx = ns.replace(".", "\\.")  # точки в регулярном выражении Flux экранируются одной обратной косой
     return (
+        'import "strings"\n'
         'from(bucket: "default")\n'
         "  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n"
         f'  |> filter(fn: (r) => r._measurement == "mqtt_consumer" and r.thingId =~ /^{rx}:{prefix}/ '
         f'and r._field == "value_{feature}_properties_value")\n'
-        '  |> map(fn: (r) => ({r with _field: r.thingId}))\n'
-        '  |> keep(columns: ["_time", "_value", "_field"])'
+        f'  |> map(fn: (r) => ({{r with _field: strings.trimPrefix(v: r.thingId, prefix: "{ns}:")}}))\n'
+        '  |> keep(columns: ["_time", "_value", "_field"])\n'
+        '  |> group(columns: ["_field"])\n'
+        '  |> sort(columns: ["_time"])'
     )
 
 
@@ -71,6 +76,32 @@ def series(title, query, x, y, unit="none", w=12, h=8, legend=True):
     })
 
 
+def row(title, y):
+    add({"type": "row", "title": title, "collapsed": False, "gridPos": {"x": 0, "y": y, "w": 24, "h": 1}, "panels": [], "datasource": None})
+
+
+def timeline(title, query, x, y, mapping, w=12, h=8):
+    """Состояния объектов во времени (строковые признаки): значение -> (подпись, цвет)."""
+    add({
+        "type": "state-timeline", "title": title, "gridPos": {"x": x, "y": y, "w": w, "h": h},
+        "fieldConfig": {"defaults": {"color": {"mode": "fixed", "fixedColor": "#6b7480"}, "mappings": [
+            {"type": "value", "options": {k: {"text": t, "color": c} for k, (t, c) in mapping.items()}}
+        ], "custom": {"fillOpacity": 85, "lineWidth": 0}}},
+        "options": {"showValue": "never", "mergeValues": True, "rowHeight": 0.85, "legend": {"showLegend": True, "displayMode": "list", "placement": "bottom"}},
+        "targets": [{"refId": "A", "datasource": DS, "query": query}],
+    })
+
+
+def bars(title, query, x, y, unit="none", w=12, h=8):
+    """Последнее значение по каждому объекту — горизонтальные полосы (рейтинг)."""
+    add({
+        "type": "bargauge", "title": title, "gridPos": {"x": x, "y": y, "w": w, "h": h},
+        "fieldConfig": {"defaults": {"unit": unit, "color": {"mode": "continuous-GrYlRd"}, "min": 0}},
+        "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}, "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": True, "sizing": "auto"},
+        "targets": [{"refId": "A", "datasource": DS, "query": query}],
+    })
+
+
 add({
     "type": "text", "title": "", "gridPos": {"x": 0, "y": 0, "w": 24, "h": 2}, "datasource": None,
     "options": {"mode": "markdown", "content": (
@@ -101,8 +132,24 @@ series("Содержание меди в питании фабрики, % Cu (ц
 series("Средняя очередь у экскаватора, мин", both("mine", "avg_queue_min"), 12, 32, "m")
 series("Риск отказа самосвалов (реальная работа), %", per_thing("truck-", "failure_risk"), 0, 40, "percent", 12, 8, False)
 series("Очередь у экскаваторов (реальная работа), самосвалов", per_thing("excavator-", "queue"), 12, 40, "none")
-series("Мощность мельниц фабрики (реальная работа), МВт", per_thing("(sag|ball)-mill", "power"), 0, 48, "none")
-series("Температура подшипников агрегатов (реальная работа), °C", per_thing("(crusher-drive|conveyor-|sag-mill|ball-mill)", "bearing_temp"), 12, 48, "celsius")
+row("Фабрика и агрегаты цехов", 48)
+series("Мощность мельниц фабрики (реальная работа), МВт", per_thing("(sag|ball)-mill", "power"), 0, 49, "none")
+series("Температура подшипников агрегатов (реальная работа), °C", per_thing("(crusher-drive|conveyor-|sag-mill|ball-mill)", "bearing_temp"), 12, 49, "celsius")
+timeline("Агрегаты цехов: состояние (реальная работа)", per_thing("(crusher-drive|conveyor-|sag-mill|ball-mill|cyclones|flotation|thickener)", "state"), 0, 57,
+         {"run": ("работает", "#22c55e"), "idling": ("холостой ход", "#38bdf8"), "stop": ("стоит", "#ef4444")}, 24, 7)
+
+row("Буровзрывная подготовка: бурение → взрыв → экскавация", 64)
+timeline("Буровые станки: состояние", per_thing("drill-", "state"), 0, 65,
+         {"drilling": ("бурит", "#22c55e"), "moving": ("переезд", "#38bdf8"), "idle": ("ожидает", "#6b7480"), "broken": ("поломка", "#ef4444")}, 12, 6)
+timeline("Экскаваторы: состояние (фиолетовый — нет взорванной массы)", per_thing("excavator-", "state"), 12, 65,
+         {"working": ("грузит", "#22c55e"), "waiting": ("ждёт самосвал", "#f59e0b"), "broken": ("поломка", "#ef4444"), "blast": ("оцепление", "#f97316"), "nostock": ("нет взорванной массы", "#a855f7")}, 12, 6)
+series("Буровые: пробурено скважин на блоке (из 30)", per_thing("drill-", "holes_done"), 0, 71, "none", 8)
+series("Буровые: скорость проходки, м/ч (по крепости породы)", per_thing("drill-", "penetration"), 8, 71, "none", 8)
+series("Запас взорванной горной массы у экскаваторов, т", per_thing("excavator-", "stock"), 16, 71, "none", 8)
+
+row("Водители самосвалов", 79)
+bars("Резкие торможения за смену (акселерометр рамы)", per_thing("truck-", "drv_harsh"), 0, 80, "none", 12, 10)
+bars("Пробег за смену (GNSS)", per_thing("truck-", "drv_dist"), 12, 80, "lengthm", 12, 10)
 
 dash = {
     "uid": "aktogay-digital-mine",
