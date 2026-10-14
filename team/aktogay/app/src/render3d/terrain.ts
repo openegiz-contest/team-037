@@ -75,11 +75,27 @@ const CELL = 120;
  * обочиной переходит в естественный склон. Так широкая карьерная дорога лежит на полке,
  * а не висит над уступами.
  */
-export function makeRoadHeightAt(sim: Simulation, base: (x: number, y: number) => number): (x: number, y: number) => number {
+export interface Pad {
+  x: number;
+  y: number;
+  /** Единичный вектор «вдоль» площадки. */
+  ux: number;
+  uy: number;
+  halfAlong: number;
+  halfAcross: number;
+}
+
+export function makeRoadHeightAt(
+  sim: Simulation,
+  base: (x: number, y: number) => number,
+  pads: Pad[] = [],
+): (x: number, y: number) => number {
   const g = sim.layout.graph;
   type Seg = { ax: number; ay: number; vx: number; vy: number; l2: number; ha: number; hb: number; half: number };
   const grid = new Map<number, Seg[]>();
   const key = (i: number, j: number) => i * 100003 + j;
+  // Ровные площадки (буровые блоки на рабочем уступе): высота — по центру площадки.
+  const padList = pads.map((p) => ({ ...p, h: base(p.x, p.y), r: Math.hypot(p.halfAlong, p.halfAcross) + SHOULDER }));
   for (const e of g.edges) {
     if (e.kind === 'lot' || e.kind === 'park') continue;
     const a = g.nodes[e.a];
@@ -102,11 +118,24 @@ export function makeRoadHeightAt(sim: Simulation, base: (x: number, y: number) =
   return (x, y) => {
     const h0 = base(x, y);
     const list = grid.get(key(Math.floor(x / CELL), Math.floor(y / CELL)));
-    if (!list) return h0;
     let best = Infinity;
     let roadH = h0;
     let half = 0;
-    for (const s of list) {
+    for (const p of padList) {
+      const dx = x - p.x;
+      const dy = y - p.y;
+      if (dx * dx + dy * dy > p.r * p.r) continue;
+      const a = Math.abs(dx * p.ux + dy * p.uy) - p.halfAlong;
+      const c = Math.abs(-dx * p.uy + dy * p.ux) - p.halfAcross;
+      const d = a > 0 && c > 0 ? Math.hypot(a, c) : Math.max(a, c);
+      if (d < best) {
+        best = d;
+        roadH = p.h;
+        half = 1;
+      }
+    }
+    if (!list && half === 0) return h0;
+    for (const s of list ?? []) {
       const t = clamp(((x - s.ax) * s.vx + (y - s.ay) * s.vy) / s.l2, 0, 1);
       const d = Math.hypot(x - s.ax - s.vx * t, y - s.ay - s.vy * t) - s.half;
       if (d < best) {

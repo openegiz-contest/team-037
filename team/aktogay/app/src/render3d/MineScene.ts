@@ -37,6 +37,8 @@ export type CameraPreset = 'overview' | 'crusher' | 'bottom' | 'side';
 /** Здания, у которых есть «внутренний двойник» (мнемосхема). */
 /** Наибольший радиус конуса склада дроблёной руды (при полном складе), м сцены. */
 const STOCKPILE_MAX_R = 140;
+/** Насколько раздвигаем на экране два станка на одном блоке, м сцены. */
+const DRILL_SPREAD = 40;
 /** Смещение самосвала от оси дороги к своей полосе, м сцены. */
 const LANE_OFFSET = 15;
 
@@ -135,7 +137,9 @@ export class MineScene {
     opts: { light?: boolean; onSlow?: () => void } = {},
   ) {
     const cfg = sim.cfg;
-    this.heightAt = makeRoadHeightAt(sim, makeHeightAt(cfg));
+    // Под каждым буровым блоком — ровная рабочая площадка (сетка скважин и станки стоят на ней).
+    const pads = sim.drill.blocks.map((b) => ({ x: b.x, y: b.y, ux: b.ux, uy: b.uy, halfAlong: 20 + DRILL_SPREAD + 18, halfAcross: 16 + 14 }));
+    this.heightAt = makeRoadHeightAt(sim, makeHeightAt(cfg), pads);
     this.light = !!opts.light;
     this.onSlow = opts.onSlow ?? null;
     const light = this.light;
@@ -564,7 +568,7 @@ export class MineScene {
     const rigs = sim.drill.rigs;
     rigs.forEach((g, i) => {
       const d = this.drills[i];
-      // Модели увеличены (×5,5): два станка на одном блоке в 8–40 м друг от друга слились бы в один.
+      // Модели увеличены: два станка на одном блоке в 8–40 м друг от друга слились бы в один.
       // Раздвигаем их вдоль уступа на экране, на скважины в модели это не влияет.
       let gx = g.x;
       let gy = g.y;
@@ -572,8 +576,8 @@ export class MineScene {
       if (other && g.state !== 'moving' && other.state !== 'moving' && Math.hypot(other.x - g.x, other.y - g.y) < 160 && g.target !== null) {
         const b = sim.drill.blocks[g.target];
         const side = i === 0 ? -1 : 1;
-        gx += b.ux * 110 * side;
-        gy += b.uy * 110 * side;
+        gx += b.ux * DRILL_SPREAD * side;
+        gy += b.uy * DRILL_SPREAD * side;
       }
       const prev = d.root.position;
       const h = this.heightAt(gx, gy);
