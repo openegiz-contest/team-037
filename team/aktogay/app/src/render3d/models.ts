@@ -408,11 +408,6 @@ export function makePlant(): THREE.Group {
     water.position.set(x, 16.2, -135);
     root.add(water);
   }
-  // Склад дроблёной руды (конус) перед фабрикой.
-  const pile = new THREE.Mesh(new THREE.ConeGeometry(55, 48, 14), std('#a07e52', { roughness: 1, flatShading: true }));
-  pile.position.set(150, 26, 110);
-  pile.castShadow = true;
-  root.add(pile);
   const stack = cyl(5, 7, 120, MAT.wall, 16);
   stack.position.set(130, 62, -50);
   root.add(stack);

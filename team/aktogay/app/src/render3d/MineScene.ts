@@ -35,6 +35,9 @@ import { blockBounds, buildRoads, buildTerrain, buildWater, makeHeightAt, PIT_DE
 
 export type CameraPreset = 'overview' | 'crusher' | 'bottom' | 'side';
 /** Здания, у которых есть «внутренний двойник» (мнемосхема). */
+/** Наибольший радиус конуса склада дроблёной руды (при полном складе), м сцены. */
+const STOCKPILE_MAX_R = 140;
+
 export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile';
 
 const BG = '#0a1526';
@@ -95,6 +98,9 @@ export class MineScene {
   private readonly ore: THREE.InstancedMesh;
   private readonly conveyorFrom = new THREE.Vector3();
   private readonly conveyorTo = new THREE.Vector3();
+  private readonly stackHead = new THREE.Vector3();
+  private readonly reclaimFrom = new THREE.Vector3();
+  private readonly stackerMat: THREE.MeshStandardMaterial;
   private readonly panels: { obj: CSS2DObject; render: () => string }[] = [];
   private readonly closures = new Map<string, THREE.Group>();
   private readonly blastViz = new Map<number, { grp: THREE.Group; zone: THREE.Mesh; lbl: CSS2DObject; boomAt: number | null; dust: THREE.Mesh; flash: THREE.Mesh }>();
@@ -242,7 +248,6 @@ export class MineScene {
       { x: garage.position.x, y: garage.position.z, r: 170 },
       { x: sim.parkingSlot(2 * sim.parking.cols + 2).x, y: sim.parkingSlot(2 * sim.parking.cols + 2).y, r: 460 },
     ];
-    if (!light) this.scene.add(scatterRocks(sim, blk, this.heightAt, avoid));
     for (let i = 0; i < 10; i++) {
       const th = (i / 10) * Math.PI * 2 + 0.3;
       const a = cfg.pit.semiMajorM * 1.1;
@@ -255,32 +260,57 @@ export class MineScene {
       this.scene.add(mast);
     }
 
-    // Конвейер дробилка → фабрика.
-    this.conveyorFrom.set(this.crusherPos.x, this.crusherPos.y + 95, this.crusherPos.z);
-    this.conveyorTo.set(pp.x, plant.position.y + 80, pp.y);
-    const len = this.conveyorFrom.distanceTo(this.conveyorTo);
+    // Склад дроблёной руды — сбоку от линии дробилка → фабрика (со стороны, дальней от карьера):
+    // штабелеукладчик с дробилки на вершину конуса, из тоннеля под штабелем — конвейер на фабрику.
     this.conveyorMat = new THREE.MeshStandardMaterial({ color: '#2f3338', emissive: '#000000', roughness: 0.8 });
-    const belt = new THREE.Mesh(new THREE.BoxGeometry(len, 4, 14), this.conveyorMat);
-    belt.position.copy(this.conveyorFrom).lerp(this.conveyorTo, 0.5);
-    belt.lookAt(this.conveyorTo);
-    belt.rotateY(Math.PI / 2);
-    belt.castShadow = true;
-    this.scene.add(belt);
-    // Опоры конвейера.
-    const nSup = Math.max(2, Math.floor(len / 60));
-    for (let i = 1; i < nSup; i++) {
-      const p = this.conveyorFrom.clone().lerp(this.conveyorTo, i / nSup);
-      const ground = this.heightAt(p.x, p.z);
-      const post = new THREE.Mesh(new THREE.BoxGeometry(4, p.y - ground, 4), new THREE.MeshStandardMaterial({ color: '#8b939c', metalness: 0.5, roughness: 0.4 }));
-      post.position.set(p.x, (p.y + ground) / 2, p.z);
-      post.castShadow = true;
-      this.scene.add(post);
-    }
-    // Склад дроблёной руды: конус под конвейером на ~55% пути от дробилки к фабрике.
+    this.stackerMat = new THREE.MeshStandardMaterial({ color: '#6b7280', roughness: 0.8 });
+    const postMat = new THREE.MeshStandardMaterial({ color: '#8b939c', metalness: 0.5, roughness: 0.4 });
+    const beltBetween = (from: THREE.Vector3, to: THREE.Vector3, mat: THREE.Material, keepOut?: { x: number; z: number; r: number }) => {
+      const len = from.distanceTo(to);
+      const belt = new THREE.Mesh(new THREE.BoxGeometry(len, 4, 14), mat);
+      belt.position.copy(from).lerp(to, 0.5);
+      belt.lookAt(to);
+      belt.rotateY(Math.PI / 2);
+      belt.castShadow = true;
+      this.scene.add(belt);
+      const nSup = Math.max(2, Math.floor(len / 60));
+      for (let i = 1; i < nSup; i++) {
+        const q = from.clone().lerp(to, i / nSup);
+        if (keepOut && Math.hypot(q.x - keepOut.x, q.z - keepOut.z) < keepOut.r) continue; // опоры не ставим в штабель
+        const ground = this.heightAt(q.x, q.z);
+        if (q.y - ground < 6) continue;
+        const post = new THREE.Mesh(new THREE.BoxGeometry(4, q.y - ground, 4), postMat);
+        post.position.set(q.x, (q.y + ground) / 2, q.z);
+        post.castShadow = true;
+        this.scene.add(post);
+      }
+    };
     {
-      const at = this.conveyorFrom.clone().lerp(this.conveyorTo, 0.55);
-      const ground = this.heightAt(at.x, at.z);
-      this.stockpileAt = new THREE.Vector3(at.x, ground, at.z);
+      const cx = this.crusherPos.x;
+      const cz = this.crusherPos.z;
+      const dx = pp.x - cx;
+      const dz = pp.y - cz;
+      const d = Math.hypot(dx, dz) || 1;
+      let nx = -dz / d;
+      let nz = dx / d;
+      const mx = cx + dx * 0.4;
+      const mz = cz + dz * 0.4;
+      if (Math.hypot(mx + nx, mz + nz) < Math.hypot(mx - nx, mz - nz)) {
+        nx = -nx;
+        nz = -nz;
+      }
+      const sx = mx + nx * 210;
+      const sz = mz + nz * 210;
+      const ground = this.heightAt(sx, sz);
+      this.stockpileAt = new THREE.Vector3(sx, ground, sz);
+      this.conveyorFrom.set(cx, this.crusherPos.y + 95, cz);
+      this.stackHead.set(sx, ground + STOCKPILE_MAX_R * 0.62 + 18, sz);
+      this.reclaimFrom.set(sx, ground + 3, sz);
+      this.conveyorTo.set(pp.x, plant.position.y + 80, pp.y);
+      beltBetween(this.conveyorFrom, this.stackHead, this.stackerMat);
+      beltBetween(this.reclaimFrom, this.conveyorTo, this.conveyorMat, { x: sx, z: sz, r: STOCKPILE_MAX_R + 10 });
+      avoid.push({ x: sx, y: sz, r: STOCKPILE_MAX_R + 60 });
+
       const mat = new THREE.MeshStandardMaterial({ color: '#8b6b47', roughness: 1, flatShading: true });
       this.stockpileCone = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 18, 1), mat);
       this.stockpileCone.castShadow = true;
@@ -291,7 +321,7 @@ export class MineScene {
       (this.stockpileDust.material as THREE.SpriteMaterial).opacity = 0;
       this.scene.add(this.stockpileDust);
       const lbl = label('holo');
-      lbl.position.set(at.x, ground + 260, at.z);
+      lbl.position.set(sx, ground + 230, sz);
       this.scene.add(lbl);
       this.panels.push({
         obj: lbl,
@@ -304,6 +334,7 @@ export class MineScene {
       this.stockpileCone.userData = { building: 'stockpile' };
       this.buildings.push(this.stockpileCone);
     }
+    if (!light) this.scene.add(scatterRocks(sim, blk, this.heightAt, avoid));
     this.ore = new THREE.InstancedMesh(ROCK_GEO, new THREE.MeshStandardMaterial({ color: '#8b6b47', roughness: 1, flatShading: true }), 40);
     this.scene.add(this.ore);
 
@@ -443,8 +474,19 @@ export class MineScene {
     let target: THREE.Vector3;
     switch (p) {
       case 'crusher':
-        target = this.crusherPos.clone().add(new THREE.Vector3(0, 30, 0));
-        pos = target.clone().add(new THREE.Vector3(-650, 420, 650));
+      {
+        // Вся цепочка переработки: дробилка → склад → фабрика, вид со стороны карьера.
+        const pl = this.sim.layout.plant;
+        target = new THREE.Vector3(
+          (this.crusherPos.x + this.stockpileAt.x + pl.x) / 3,
+          this.stockpileAt.y + 40,
+          (this.crusherPos.z + this.stockpileAt.z + pl.y) / 3,
+        );
+        // Камера — со стороны склада (дальней от карьера): склад впереди, дробилка и фабрика по бокам.
+        const along = new THREE.Vector3(this.crusherPos.x - pl.x, 0, this.crusherPos.z - pl.y).normalize();
+        const out = new THREE.Vector3(this.stockpileAt.x - target.x, 0, this.stockpileAt.z - target.z).normalize();
+        pos = target.clone().addScaledVector(out, 850).addScaledVector(along, 250).add(new THREE.Vector3(0, 600, 0));
+      }
         break;
       case 'bottom':
         target = new THREE.Vector3(0, -PIT_DEPTH + 40, 0);
@@ -582,7 +624,7 @@ export class MineScene {
   private syncStockpile(now: number): void {
     const sp = this.sim.stockpile;
     const frac = Math.max(0.02, sp.t / Math.max(1, sp.capT));
-    const r = 60 + 140 * Math.sqrt(frac);
+    const r = 35 + (STOCKPILE_MAX_R - 35) * Math.sqrt(frac);
     const h = r * 0.62; // угол естественного откоса ~32°
     this.stockpileCone.scale.set(r, h, r);
     this.stockpileCone.position.set(this.stockpileAt.x, this.stockpileAt.y + h / 2, this.stockpileAt.z);
@@ -590,7 +632,7 @@ export class MineScene {
     const m = dust.material as THREE.SpriteMaterial;
     const target = sp.crushing ? 0.35 + 0.25 * (1 - frac) : 0;
     m.opacity += (target - m.opacity) * 0.05;
-    dust.position.set(this.stockpileAt.x + Math.sin(now / 2000) * 20, this.stockpileAt.y + h + 90, this.stockpileAt.z);
+    dust.position.set(this.stockpileAt.x + Math.sin(now / 2000) * 20, this.stackHead.y - 10, this.stockpileAt.z);
   }
 
   /** Здание под курсором — для «внутреннего двойника». */
@@ -786,11 +828,16 @@ export class MineScene {
     this.syncStockpile(now);
     this.conveyorMat.emissive.set(starving ? (blink ? '#7f1d1d' : '#000000') : '#000000');
     this.conveyorMat.color.set(starving ? '#7f1d1d' : '#6b7280');
+    const crushing = sim.stockpile.crushing;
+    this.stackerMat.color.set(crushing ? '#6b7280' : '#3a3f45');
+    const half = this.ore.count / 2;
     for (let k = 0; k < this.ore.count; k++) {
-      const f = (now / 9000 + k / this.ore.count) % 1;
-      const p = this.conveyorFrom.clone().lerp(this.conveyorTo, f);
+      const stacker = k < half;
+      const f = (now / 7000 + (k % half) / half) % 1;
+      const p = stacker ? this.conveyorFrom.clone().lerp(this.stackHead, f) : this.reclaimFrom.clone().lerp(this.conveyorTo, f);
       p.y += 5;
-      this.tmp.makeScale(starving ? 0 : 1, starving ? 0 : 1, starving ? 0 : 1).setPosition(p);
+      const on = stacker ? crushing : !starving;
+      this.tmp.makeScale(on ? 1 : 0, on ? 1 : 0, on ? 1 : 0).setPosition(p);
       this.ore.setMatrixAt(k, this.tmp);
     }
     this.ore.instanceMatrix.needsUpdate = true;
