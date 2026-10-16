@@ -14,6 +14,7 @@ import { FleetPage } from './pages/FleetPage';
 import { TimelinePage } from './pages/TimelinePage';
 import { DriversPage } from './pages/DriversPage';
 import { GeologyPage } from './pages/GeologyPage';
+import { SiteMapPage } from './pages/SiteMapPage';
 import { DispatchPage } from './pages/DispatchPage';
 import { TerminalPage } from './pages/TerminalPage';
 import { LoginPage } from './pages/LoginPage';
@@ -718,6 +719,7 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
         )}
         {route === 'drivers' && <DriversPage sim={main} now={pageNow} running={isRunning} onToggleRun={toggleRun} onLocate={(sel) => locate('smart', sel)} />}
         {route === 'geology' && <GeologyPage sim={main} now={pageNow} />}
+        {route === 'sitemap' && <SiteMapPage sim={main} now={pageNow} onOpenInside={(k) => openInside('smart', k)} />}
         {route === 'login' && <LoginPage truckCount={main.trucks.length} onLogin={doLogin} />}
         {route === 'dispatch' &&
           (session?.role === 'dispatcher' ? (
