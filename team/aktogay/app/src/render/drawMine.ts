@@ -1,4 +1,5 @@
 /** Отрисовка карьера на Canvas 2D (вид сверху). Статический слой кэшируется, динамический — каждый кадр. */
+import { isLive, smoothTruck } from './smooth';
 import { gradeAt, pitPoint, type Simulation } from '../sim';
 import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
 
@@ -382,8 +383,9 @@ export function drawDynamic(ctx: CanvasRenderingContext2D, sim: Simulation, v: V
   // Самосвалы.
   const tr = Math.max(4.5, 20 * v.scale);
   for (const t of sim.trucks) {
-    const wx = t.px + (t.x - t.px) * o.alpha;
-    const wy = t.py + (t.y - t.py) * o.alpha;
+    const sp = isLive(sim) ? smoothTruck(sim, t.id, t.x, t.y, performance.now()) : null;
+    const wx = sp ? sp.x : t.px + (t.x - t.px) * o.alpha;
+    const wy = sp ? sp.y : t.py + (t.y - t.py) * o.alpha;
     const x = sx(v, wx);
     const y = sy(v, wy);
     if (t.state === 'broken' && !blinkOn) {
