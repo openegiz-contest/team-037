@@ -2,9 +2,9 @@
 import type { ReactNode } from 'react';
 import type { ThemeMode } from '../ui/themeMode';
 
-export type Route = 'mine' | 'effect' | 'twins' | 'scenarios' | 'fleet' | 'timeline' | 'drivers';
+export type Route = 'mine' | 'effect' | 'twins' | 'scenarios' | 'fleet' | 'timeline' | 'drivers' | 'geology';
 
-export const ROUTE_HASH: Record<Route, string> = { mine: '#/', effect: '#/effect', twins: '#/twins', scenarios: '#/scenarios', fleet: '#/fleet', timeline: '#/timeline', drivers: '#/drivers' };
+export const ROUTE_HASH: Record<Route, string> = { mine: '#/', effect: '#/effect', twins: '#/twins', scenarios: '#/scenarios', fleet: '#/fleet', timeline: '#/timeline', drivers: '#/drivers', geology: '#/geology' };
 
 export function routeFromHash(h: string): Route {
   if (h.startsWith('#/twins')) return 'twins';
@@ -13,6 +13,7 @@ export function routeFromHash(h: string): Route {
   if (h.startsWith('#/fleet')) return 'fleet';
   if (h.startsWith('#/timeline')) return 'timeline';
   if (h.startsWith('#/drivers')) return 'drivers';
+  if (h.startsWith('#/geology')) return 'geology';
   return 'mine';
 }
 
@@ -48,6 +49,13 @@ const ICONS: Record<Route | 'grafana' | 'api' | 'collapse' | 'sun' | 'moon', Rea
       <circle cx="19" cy="5" r="2" />
       <circle cx="19" cy="19" r="2" />
       <path d="M7 12h4l6-6M11 12l6 6" />
+    </Icon>
+  ),
+  // пласты породы и рудная линза
+  geology: (
+    <Icon>
+      <path d="M3 8c3-2 6-2 9 0s6 2 9 0M3 14c3-2 6-2 9 0s6 2 9 0" />
+      <ellipse cx="12" cy="17.5" rx="3.5" ry="1.8" />
     </Icon>
   ),
   // водитель с рулём
@@ -114,6 +122,7 @@ const NAV: { route: Route; label: string; hint: string; group: 'ops' | 'analysis
   { route: 'mine', label: 'Карьер', hint: 'Реальная работа карьера: 3D, показатели, прогноз отказов', group: 'ops' },
   { route: 'fleet', label: 'Оборудование', hint: 'Парк техники: добавить и вывести самосвалы и экскаваторы', group: 'ops' },
   { route: 'drivers', label: 'Водители', hint: 'Рейтинг стиля вождения и кого ставить на съезды', group: 'ops' },
+  { route: 'geology', label: 'Геология', hint: 'Где руда: блочная модель, XRF скважин, скан бортов, электроразведка', group: 'ops' },
   { route: 'twins', label: 'Двойники', hint: 'Объекты рудника в Eclipse Ditto', group: 'ops' },
   { route: 'scenarios', label: 'Сценарии', hint: 'Запуск и отмена «что если»', group: 'analysis' },
   { route: 'timeline', label: 'Хронология', hint: 'Цепочки последствий и диаграмма Ганта смены', group: 'analysis' },
