@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
-import { BENCH_M, BLOCK_M, BLOCK_T, buildOreModel, CUTOFF, xrfAssay, type OreModel, type Zone } from '../geo/orebody';
+import { BENCH_M, BLOCK_M, BLOCK_T, blockSummary, buildOreModel, CUTOFF, DEST_RU, holeAssays, type HoleAssay, type OreModel, type Zone } from '../geo/orebody';
 import { pitPoint, type Simulation } from '../sim';
 import { fmtInt } from '../ui/format';
 
@@ -76,7 +76,7 @@ export function GeologyPage({ sim, now }: Props) {
   const dev = DEVICES.find((d) => d.key === device)!;
 
   const stats = useMemo(() => horizonStats(sim, model, z), [sim, model, z]);
-  const holes = useMemo(() => drillAssays(sim, model), [sim, model, Math.floor(now / 60)]);
+  const holes = useMemo(() => holeAssays(sim, model), [sim, model, Math.floor(now / 60)]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-5">
@@ -241,35 +241,10 @@ function horizonStats(sim: Simulation, m: OreModel, z: number) {
   };
 }
 
-interface Hole {
-  x: number;
-  y: number;
-  z: number;
-  cu: number;
-  block: number;
-}
-/** Пробы шлама: все пробуренные в смене скважины буровых блоков. */
-function drillAssays(sim: Simulation, m: OreModel): Hole[] {
-  const out: Hole[] = [];
-  sim.drill.blocks.forEach((b, bi) => {
-    for (let j = 0; j < b.holesDone; j++) {
-      const p = sim.drill.holePos(b, j);
-      const z = m.surface(p.x, p.y) - 8; // середина 16-метровой скважины
-      out.push({ x: p.x, y: p.y, z, cu: xrfAssay(m, p.x, p.y, z, bi * 100 + j), block: bi });
-    }
-  });
-  return out;
-}
+type Hole = HoleAssay;
 
 function XrfPanel({ holes, sim }: { holes: Hole[]; sim: Simulation }) {
-  const rows = sim.drill.blocks.map((b, bi) => {
-    const hs = holes.filter((h) => h.block === bi);
-    const avg = hs.length ? hs.reduce((n, h) => n + h.cu, 0) / hs.length : null;
-    const ore = hs.filter((h) => h.cu >= CUTOFF).length;
-    const ex = sim.excavators[b.exId];
-    const dest = avg === null ? '—' : avg < CUTOFF ? 'в отвал' : ex.material === 'oxide' ? 'на выщелачивание' : 'на фабрику';
-    return { name: ex.name, n: hs.length, total: b.holesTotal, avg, ore, dest };
-  });
+  const rows = blockSummary(sim, holes).map((r) => ({ ...r, dest: DEST_RU[r.dest] }));
   return (
     <section className="panel px-4 py-3">
       <h3 className="text-[13px] font-semibold">Рудный контроль по блокам</h3>

@@ -17,9 +17,15 @@ export const KIND_LABEL: Record<string, string> = {
   unit: 'Агрегат',
   'drill-rig': 'Буровой станок',
   stockpile: 'Склад дроблёной руды',
+  orebody: 'Геология',
 };
 
 export const FEATURE_LABEL: Record<string, string> = {
+  // геология
+  assays_total: 'Проб XRF за смену',
+  assays_ore: 'Проб с рудой (≥ 0,2 % Cu)',
+  last_assay_cu: 'Последняя проба',
+  last_assay_block: 'Последняя проба: блок у',
   // карьер
   sim_time: 'Время смены',
   finished: 'Смена завершена',
@@ -248,6 +254,10 @@ export const UNIT_LABEL: Record<string, string> = {
 };
 
 export const VALUE_LABEL: Record<string, string> = {
+  to_plant: 'на фабрику',
+  to_leach: 'на выщелачивание',
+  to_dump: 'в отвал',
+  pending: 'ждёт проб',
   // склад
   filling: 'идёт отсыпка',
   draining: 'расходуется',

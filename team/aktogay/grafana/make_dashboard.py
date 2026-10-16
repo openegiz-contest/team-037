@@ -152,6 +152,36 @@ series("Запас руды для фабрики, ч", both("stockpile", "hours
 series("Приёмный бункер дробилки, т", both("crusher", "bin"), 8, 80, "none", 8)
 series("Отсыпка на склад, т/ч (0 — дробилка ждёт руду или склад полон)", both("stockpile", "inflow"), 16, 80, "none", 8)
 
+def geology(field_filter: str, rename: str) -> str:
+    """Признаки двойника геологии (реальный карьер): фильтр по полям и подпись серий."""
+    return (
+        'import "strings"\n'
+        'from(bucket: "default")\n'
+        "  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n"
+        f'  |> filter(fn: (r) => r._measurement == "mqtt_consumer" and r.thingId == "{SMART}:geology" and ({field_filter}))\n'
+        f"  |> map(fn: (r) => ({{r with _field: {rename}}}))\n"
+        '  |> keep(columns: ["_time", "_value", "_field"])\n'
+        '  |> group(columns: ["_field"])\n'
+        '  |> sort(columns: ["_time"])'
+    )
+
+
+row("Геология: рудный контроль (XRF шлама взрывных скважин)", 109)
+add({
+    "type": "bargauge", "title": "Среднее содержание меди по буровым блокам, % Cu (бортовое 0,2)", "gridPos": {"x": 0, "y": 110, "w": 12, "h": 8},
+    "fieldConfig": {"defaults": {"unit": "none", "decimals": 2, "min": 0, "max": 0.6, "color": {"mode": "thresholds"},
+        "thresholds": {"mode": "absolute", "steps": [{"color": "#6b7480", "value": None}, {"color": "#f59e0b", "value": 0.2}, {"color": "#facc15", "value": 0.35}]}}},
+    "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}, "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": True},
+    "targets": [{"refId": "A", "datasource": DS, "query": geology(
+        'r._field =~ /^value_block_[0-9]+_cu_properties_value$/',
+        '"Блок у Э-" + strings.trimSuffix(v: strings.trimPrefix(v: r._field, prefix: "value_block_"), suffix: "_cu_properties_value")',
+    )}],
+})
+series("Проб XRF за смену: всего и с рудой", geology(
+    'r._field == "value_assays_total_properties_value" or r._field == "value_assays_ore_properties_value"',
+    'if r._field == "value_assays_total_properties_value" then "всего проб" else "проб с рудой"',
+), 12, 110, "none")
+
 row("Водители самосвалов", 88)
 bars("Резкие торможения за смену (акселерометр рамы)", per_thing("truck-", "drv_harsh"), 0, 89, "none", 12, 10)
 bars("Пробег за смену (GNSS)", per_thing("truck-", "drv_dist"), 12, 89, "lengthm", 12, 10)

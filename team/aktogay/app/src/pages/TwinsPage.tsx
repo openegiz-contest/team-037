@@ -41,6 +41,7 @@ const KEY_METRICS: Record<string, string[]> = {
   excavator: ['state', 'queue', 'face_grade', 'stock', 'stock_shifts'],
   'drill-rig': ['state', 'block', 'holes_done', 'penetration', 'hole_depth'],
   stockpile: ['state', 'level', 'hours_left', 'fill', 'dust'],
+  orebody: ['assays_total', 'assays_ore', 'last_assay_cu', 'last_assay_block'],
   crusher: ['state', 'bin', 'bin_grade', 'starved'],
   concentrator: ['state', 'feed_rate', 'feed_grade', 'cu_concentrate'],
   'heap-leach': ['tonnes_total', 'queue'],
@@ -56,6 +57,7 @@ const INSIDE: Record<string, BuildingKind> = { stockpile: 'stockpile', crusher: 
 
 const GROUPS: { title: string; kinds: string[] }[] = [
   { title: 'Карьер', kinds: ['open-pit'] },
+  { title: 'Геология', kinds: ['orebody'] },
   { title: 'Экскаваторы', kinds: ['excavator'] },
   { title: 'Буровые станки', kinds: ['drill-rig'] },
   { title: 'Самосвалы', kinds: ['haul-truck'] },
@@ -108,6 +110,10 @@ const counterpart = (id: string) => {
 };
 
 function labelOf(key: string): string {
+  const blk = /^block_(\d+)_(cu|holes|dest)$/.exec(key);
+  if (blk) return `Блок у Э-${blk[1]}: ${{ cu: 'среднее по XRF', holes: 'проб', dest: 'куда пойдёт' }[blk[2] as 'cu' | 'holes' | 'dest']}`;
+  const face = /^face_(\d+)_zone$/.exec(key);
+  if (face) return `Забой Э-${face[1]}: порода`;
   const [f, p] = key.split('.');
   if (p) return `${FEATURE_LABEL[f] ?? f} · ${p}`;
   return FEATURE_LABEL[key] ?? key;
@@ -191,6 +197,10 @@ function summary(r: TwinRecord): [string, keyof typeof TONE_COLOR] {
       const a = Number(v('active') ?? 0);
       const w = Number(v('announced') ?? 0);
       return [a ? 'оцепление' : w ? 'объявлен взрыв' : 'нет', a ? 'bad' : w ? 'warn' : 'idle'];
+    }
+    case 'orebody': {
+      const n = Number(v('assays_total') ?? 0);
+      return [n ? `${n} проб XRF · посл. ${Number(v('last_assay_cu') ?? 0).toFixed(2)} % (${v('last_assay_block')})` : 'проб пока нет', n ? 'ok' : 'idle'];
     }
     case 'stockpile': {
       const s = String(v('state') ?? '');

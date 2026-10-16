@@ -447,6 +447,49 @@ export const STOCKPILE_SENSORS: SensorSpec[] = [
   },
 ];
 
+export const GEOLOGY_SENSORS: SensorSpec[] = [
+  {
+    id: 'core',
+    name: 'Разведочное бурение с отбором керна',
+    hardware: 'колонковые буровые станки + химическая лаборатория (пробы керна по интервалам)',
+    location: 'сеть разведочных скважин по месторождению',
+    measures: 'содержание меди по глубине → блочная модель',
+    features: ['resources'],
+    periodS: 0,
+    purpose: 'границы рудного тела и запасы — основа плана горных работ',
+  },
+  {
+    id: 'xrf',
+    name: 'XRF-анализатор шлама взрывных скважин',
+    hardware: 'рентгенофлуоресцентный анализатор (переносной или на буровом станке)',
+    location: 'буровые блоки на рабочих уступах',
+    measures: 'содержание меди в шламе каждой скважины, %',
+    features: ['assays_total', 'assays_ore', 'last_assay_cu', 'last_assay_block', 'block_*_cu', 'block_*_dest'],
+    periodS: 60,
+    purpose: 'рудный контроль: куда пойдёт блок после взрыва — фабрика, выщелачивание, отвал',
+  },
+  {
+    id: 'hyper',
+    name: 'Гиперспектральная камера на дроне',
+    hardware: 'беспилотник с гиперспектральной камерой (видимый + ближний ИК диапазон)',
+    location: 'облёт бортов карьера',
+    measures: 'минералы на открытых бортах: малахит, халькопирит, пустая порода',
+    features: ['face_*_zone'],
+    periodS: 0,
+    purpose: 'сверка вскрытых бортов с моделью, граница зоны окисления',
+  },
+  {
+    id: 'ip',
+    name: 'Электроразведка методом вызванной поляризации (ВП)',
+    hardware: 'генератор тока + приёмные электроды по профилям',
+    location: 'профили через карьер и вокруг',
+    measures: 'заряжаемость пород — аномалия сульфидов на глубине',
+    features: ['resources'],
+    periodS: 0,
+    purpose: 'руда под дном карьера: планирование углубки и следующих стадий',
+  },
+];
+
 /** Паспорт датчиков по типу двойника (attributes.kind). */
 export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   'haul-truck': TRUCK_SENSORS,
@@ -458,6 +501,7 @@ export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   garage: GARAGE_SENSORS,
   'drill-rig': DRILL_SENSORS,
   stockpile: STOCKPILE_SENSORS,
+  orebody: GEOLOGY_SENSORS,
 };
 
 /** Компактная запись для attributes.sensors двойника в Ditto. */
@@ -472,3 +516,4 @@ export const wasteSensorAttributes = () => sensorAttributes(WASTE_SENSORS);
 export const garageSensorAttributes = () => sensorAttributes(GARAGE_SENSORS);
 export const drillSensorAttributes = () => sensorAttributes(DRILL_SENSORS);
 export const stockpileSensorAttributes = () => sensorAttributes(STOCKPILE_SENSORS);
+export const geologySensorAttributes = () => sensorAttributes(GEOLOGY_SENSORS);

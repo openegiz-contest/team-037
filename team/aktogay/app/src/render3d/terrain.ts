@@ -5,15 +5,12 @@
  * дороги ложатся точно на бермы; при необходимости внешние кольца можно прижать к прямоугольнику (Block).
  */
 import * as THREE from 'three';
-import { pitPoint, pitWarp, type SimConfig, type Simulation } from '../sim';
+import { pitPoint, type SimConfig, type Simulation } from '../sim';
 import { ROCK_GEO } from './models';
+import { BERM, depthFrac, heightFromS, PIT_DEPTH, scaleAt, smoothstep } from '../geo/relief';
 
-/** Глубина карьера, м. Оценка: порядок сотен метров. */
-export const PIT_DEPTH = 240; // реальный Актогай — до ~230 м (открытые источники, 2024)
-/** Доля «ступенчатости» рельефа: 1 — чистые уступы, 0 — гладкий конус. */
-const TERRACE = 0.65;
-/** Доля бермы в шаге уступа (остальное — откос). */
-const BERM = 0.55;
+export { makeHeightAt, PIT_DEPTH } from '../geo/relief';
+
 
 /** Границы блока-диорамы (мировые x, y карты) и отметка его основания. */
 export interface Block {
@@ -30,40 +27,6 @@ export function blockBounds(sim: Simulation): Block {
   return { minX: b.minX - m, maxX: b.maxX + m, minY: b.minY - m, maxY: b.maxY + m, baseY: -PIT_DEPTH - 150 };
 }
 
-function smoothstep(a: number, b: number, x: number): number {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-}
-
-/** Глубина в долях (0 — бровка, 1 — дно) по масштабу эллипса s. */
-function depthFrac(cfg: SimConfig, s: number): number {
-  return Math.min(1, Math.max(0, (1 - s) / (1 - cfg.pit.bottomScale)));
-}
-
-function heightFromS(cfg: SimConfig, s: number, x: number, y: number): number {
-  if (s >= 1) {
-    // Поверхность вокруг: лёгкие холмы, плавно нарастающие от бровки.
-    const k = smoothstep(1, 1.5, s);
-    return k * (7 * Math.sin(x * 0.0021 + 1.3) * Math.cos(y * 0.0027) + 4 * Math.sin(x * 0.006 + y * 0.004));
-  }
-  const n = cfg.pit.benchCount;
-  const u = depthFrac(cfg, s);
-  const step = u * n;
-  const terr = (Math.floor(step) + smoothstep(BERM, 1, step - Math.floor(step))) / n;
-  return -PIT_DEPTH * Math.min(1, TERRACE * terr + (1 - TERRACE) * u);
-}
-
-function scaleAt(cfg: SimConfig, x: number, y: number): number {
-  const a = cfg.pit.semiMajorM;
-  const b = cfg.pit.semiMinorM;
-  const th = Math.atan2(y / b, x / a);
-  return Math.hypot(x / a, y / b) / pitWarp(th);
-}
-
-/** Высота рельефа в произвольной точке (м). */
-export function makeHeightAt(cfg: SimConfig): (x: number, y: number) => number {
-  return (x, y) => heightFromS(cfg, scaleAt(cfg, x, y), x, y);
-}
 
 /** Обочина: полоса, на которой врезка дороги плавно переходит в естественный склон, м. */
 const SHOULDER = 14;

@@ -68,7 +68,7 @@
 <section class="slide" style="justify-content:center; background: radial-gradient(1100px 700px at 85% 15%, rgba(217,89,38,.16), transparent 60%), radial-gradient(900px 600px at 0% 100%, rgba(57,135,229,.10), transparent 60%), var(--bg);">
   <div class="kicker">Конкурс «Цифровой рудник на OpenEgiz» · Команда 037</div>
   <h1 style="font-size:96px; margin-top:34px;">Цифровой двойник<br>карьера <span class="accent">Актогай</span></h1>
-  <div class="lead" style="font-size:32px; max-width:1400px;">Открытый медный карьер в реальном времени на платформе OpenEgiz: 102 двойника в Eclipse Ditto, умная диспетчеризация самосвалов, прогноз отказов по датчикам, сценарии «что если» и расчёт эффекта в тенге.</div>
+  <div class="lead" style="font-size:32px; max-width:1400px;">Открытый медный карьер в реальном времени на платформе OpenEgiz: 104 двойника в Eclipse Ditto, умная диспетчеризация самосвалов, прогноз отказов по датчикам, сценарии «что если» и расчёт эффекта в тенге.</div>
   <div class="row" style="margin-top:56px; gap:16px; flex-wrap:wrap;">
     <span class="tag">make aktogay — одна команда</span>
     <span class="tag">Ditto · MQTT · InfluxDB · Grafana</span>
@@ -138,7 +138,7 @@
 <!-- 4. Модель рудника -->
 <section class="slide">
   <div class="kicker">Модель рудника <span class="crit">· критерий 25 баллов</span></div>
-  <h2>102 двойника в Eclipse Ditto, связанных в иерархию</h2>
+  <h2>104 двойника в Eclipse Ditto, связанных в иерархию</h2>
   <div class="body grid" style="grid-template-columns: 1.1fr 1fr;">
     <div class="card" style="padding:30px 34px;">
 <div class="tree"><b>org.aktogay:aktogay</b>              <i>площадка, Восточный Казахстан</i>
@@ -188,7 +188,7 @@
       <div class="arrow">→</div>
       <div class="node"><div class="t">MQTT</div><div class="s">telemetry/&lt;thing&gt;<br>Ditto modify /features</div></div>
       <div class="arrow">→</div>
-      <div class="node hl"><div class="t">Eclipse Ditto</div><div class="s">102 двойника<br>policy basic_policy</div></div>
+      <div class="node hl"><div class="t">Eclipse Ditto</div><div class="s">104 двойника<br>policy basic_policy</div></div>
       <div class="arrow">→</div>
       <div class="node"><div class="t">Telegraf → InfluxDB</div><div class="s">mqtt_consumer<br>тег thingId</div></div>
       <div class="arrow">→</div>
@@ -392,7 +392,7 @@
     <div class="card">
       <h3>Проверено</h3>
       <ul>
-        <li>Чистая копия ветки <code>main</code> в Ubuntu 24.04 (WSL2 + Docker): <span class="good">102 двойника</span>, время смены растёт, данные в InfluxDB, интерфейс и Grafana открываются</li>
+        <li>Чистая копия ветки <code>main</code> в Ubuntu 24.04 (WSL2 + Docker): <span class="good">104 двойника</span>, время смены растёт, данные в InfluxDB, интерфейс и Grafana открываются</li>
         <li>Сценарий через Ditto: поломка → <code>broken</code>, отмена → снова в работе</li>
         <li>Headless Chrome <b>без видеокарты</b> (SwiftShader): «Графика: Авто» → лёгкий режим, ошибок нет</li>
         <li>30 автотестов движка, в т.ч. детерминизм по seed</li>

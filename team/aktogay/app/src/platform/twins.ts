@@ -14,8 +14,10 @@ import type { Kpis } from '../sim/kpi';
 import type { Simulation } from '../sim/engine';
 import { MATERIALS, TRUCK_STATES, type Blast, type Destination, type FailureType, type Material, type StrategyName, type TruckState } from '../sim/types';
 import { gradeAt } from '../sim/ore';
+import { BENCH_M, BLOCK_M, blockSummary, buildOreModel, CUTOFF, DENSITY, holeAssays, pitResources, type OreModel } from '../geo/orebody';
+import { PIT_DEPTH } from '../geo/relief';
 import { UNIT_DEFS, type UnitState } from '../sim/equipment';
-import { drillSensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
+import { drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -38,6 +40,7 @@ export const thingIds = (v: StrategyName) => {
     blasting: `${ns}:blasting`,
     shift: `${ns}:shift`,
     stockpile: `${ns}:stockpile`,
+    geology: `${ns}:geology`,
     unit: (key: string) => `${ns}:${key}`,
     drill: (i: number) => `${ns}:drill-${i + 1}`,
   };
@@ -77,7 +80,7 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
       _isType: false,
       _parents: SITE_ID,
       strategy: v,
-      depth_m: 330,
+      depth_m: PIT_DEPTH,
       plan_t: cfg.planT,
     },
     features: serializeMine(sim, null),
@@ -119,6 +122,36 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
     },
     features: serializeStockpile(sim),
   };
+  {
+    const m = oreModel(sim);
+    const r = pitResources(sim, m);
+    out[id.geology] = {
+      policyId: POLICY,
+      attributes: {
+        name: 'Геология: рудное тело и рудный контроль',
+        kind: 'orebody',
+        _isType: false,
+        _parents: parent,
+        deposit_type: 'медно-порфировое (модель условная, подогнана к забоям)',
+        cutoff_pct: CUTOFF,
+        block_size_m: [BLOCK_M, BLOCK_M, BENCH_M],
+        density_t_m3: DENSITY,
+        oxide_zone_m: 110,
+        resources_below_pit: {
+          to_depth_m: 480,
+          sulfide_t: Math.round(r.sulfideT),
+          sulfide_cu_pct: r3(r.sulfideCu),
+          oxide_t: Math.round(r.oxideT),
+          oxide_cu_pct: r3(r.oxideCu),
+          waste_t: Math.round(r.wasteT),
+          contained_cu_t: Math.round(r.cuT),
+          strip_ratio: r1(r.strip),
+        },
+        sensors: geologySensorAttributes(),
+      },
+      features: serializeGeology(sim),
+    };
+  }
   out[id.leach] = { policyId: POLICY, attributes: { name: 'Площадка кучного выщелачивания', kind: 'heap-leach', _isType: false, _parents: parent, sensors: leachSensorAttributes() }, features: serializeDump(sim, 1) };
   out[id.waste] = { policyId: POLICY, attributes: { name: 'Отвал вскрыши', kind: 'waste-dump', _isType: false, _parents: parent, sensors: wasteSensorAttributes() }, features: serializeDump(sim, 2) };
   out[id.garage] = { policyId: POLICY, attributes: { name: 'Гараж, АЗС и стоянка', kind: 'garage', _isType: false, _parents: parent, slots: sim.parking.slots.length, sensors: garageSensorAttributes() }, features: serializeGarage(sim) };
@@ -382,6 +415,38 @@ export function serializeBlasting(sim: Simulation): Features {
   };
 }
 
+const oreModels = new WeakMap<Simulation, OreModel>();
+/** Модель рудного тела строится один раз на экземпляр модели (зависит от расстановки экскаваторов). */
+function oreModel(sim: Simulation): OreModel {
+  let m = oreModels.get(sim);
+  if (!m) oreModels.set(sim, (m = buildOreModel(sim)));
+  return m;
+}
+
+/** Признаки двойника геологии: пробы XRF шлама скважин и решение по каждому буровому блоку. */
+export function serializeGeology(sim: Simulation): Features {
+  const m = oreModel(sim);
+  const holes = holeAssays(sim, m);
+  const last = holes[holes.length - 1];
+  const out: Features = {
+    assays_total: f(holes.length, 'pcs'),
+    assays_ore: f(holes.filter((h) => h.cu >= CUTOFF).length, 'pcs'),
+    last_assay_cu: f(last ? r3(last.cu) : 0, '% Cu'),
+    last_assay_block: f(last ? sim.excavators[sim.drill.blocks[last.block].exId].name : '—'),
+  };
+  for (const b of blockSummary(sim, holes)) {
+    const k = b.exId + 1;
+    out[`block_${k}_holes`] = f(b.n, 'pcs');
+    out[`block_${k}_cu`] = f(b.avg === null ? 0 : r3(b.avg), '% Cu');
+    out[`block_${k}_dest`] = f(b.dest === 'unknown' ? 'pending' : `to_${b.dest}`);
+  }
+  for (const e of sim.excavators) {
+    const z = m.surface(e.x, e.y);
+    out[`face_${e.id + 1}_zone`] = f(m.zone(e.x, e.y, z));
+  }
+  return out;
+}
+
 /** Признаки склада дроблёной руды. */
 export function serializeStockpile(sim: Simulation): Features {
   const s = sim.stockpile;
@@ -481,6 +546,7 @@ export function serializeAll(sim: Simulation, v: StrategyName, k: Kpis): Record<
   out[id.blasting] = serializeBlasting(sim);
   for (const d of UNIT_DEFS) out[id.unit(d.key)] = serializeUnit(sim, d.key);
   out[id.stockpile] = serializeStockpile(sim);
+  out[id.geology] = serializeGeology(sim);
   sim.drill.rigs.forEach((_, i) => (out[id.drill(i)] = serializeDrill(sim, i)));
   return out;
 }
