@@ -11,6 +11,16 @@ import type { BuildingKind } from '../render3d/MineScene';
 import { isLive, smoothTruck } from '../render/smooth';
 import { TRUCK_COLOR } from '../ui/theme';
 import { thingIds } from '../platform/twins';
+import { RealMap, type MapMode } from '../components/RealMap';
+
+type ViewMode = 'scheme' | MapMode;
+const MODES: { key: ViewMode; label: string }[] = [
+  { key: 'scheme', label: 'Схема' },
+  { key: 'satellite', label: 'Спутник' },
+  { key: 'hybrid', label: 'Гибрид' },
+  { key: 'topo', label: 'Рельеф' },
+  { key: 'osm', label: 'Карта' },
+];
 
 interface Props {
   sim: Simulation;
@@ -31,6 +41,22 @@ export function SiteMapPage({ sim, now, onOpenInside }: Props) {
   const [layers, setLayers] = useState<Record<Layer, boolean>>({ pit: true, process: true, waste: true, infra: true, utility: true, transport: true });
   const [view, setView] = useState({ x: (BOUNDS.minX + BOUNDS.maxX) / 2, y: (BOUNDS.minY + BOUNDS.maxY) / 2, w: BOUNDS.maxX - BOUNDS.minX });
   const [selId, setSelId] = useState<string | null>('pit');
+  const [mode, setMode] = useState<ViewMode>(() => {
+    try {
+      return (localStorage.getItem('aktogay.mapMode') as ViewMode) || 'scheme';
+    } catch {
+      return 'scheme';
+    }
+  });
+  const [schematic, setSchematic] = useState(false);
+  const chooseMode = (m: ViewMode) => {
+    setMode(m);
+    try {
+      localStorage.setItem('aktogay.mapMode', m);
+    } catch {
+      /* ничего */
+    }
+  };
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 1000, h: 640 });
   const drag = useRef<{ x: number; y: number; vx: number; vy: number; moved: boolean } | null>(null);
@@ -41,7 +67,7 @@ export function SiteMapPage({ sim, now, onOpenInside }: Props) {
     const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [mode]);
 
   const aspect = size.h / Math.max(1, size.w);
   const vh = view.w * aspect;
@@ -84,6 +110,13 @@ export function SiteMapPage({ sim, now, onOpenInside }: Props) {
         now={now}
       />
       <div className="flex flex-wrap items-center gap-1.5">
+        <div className="mr-2 flex overflow-hidden rounded-lg border border-line text-[12.5px]">
+          {MODES.map((m) => (
+            <button key={m.key} onClick={() => chooseMode(m.key)} className={`px-3 py-1 font-semibold ${mode === m.key ? 'bg-amber-500 text-black' : 'text-ink-2 hover:bg-panel-2'}`}>
+              {m.label}
+            </button>
+          ))}
+        </div>
         {LAYERS.map((l) => (
           <button
             key={l.key}
@@ -94,7 +127,13 @@ export function SiteMapPage({ sim, now, onOpenInside }: Props) {
             {l.label}
           </button>
         ))}
-        <span className="ml-auto flex gap-1">
+        {mode !== 'scheme' && (
+          <label className="ml-2 flex items-center gap-1.5 text-[12.5px] text-ink-2" title="Остальные здания комбината — условная схема, их реальное расположение другое">
+            <input type="checkbox" checked={schematic} onChange={(e) => setSchematic(e.target.checked)} className="accent-amber-500" />
+            условные объекты
+          </label>
+        )}
+        <span className={`ml-auto flex gap-1 ${mode !== 'scheme' ? 'hidden' : ''}`}>
           <button onClick={() => zoom(1 / 1.4)} className="rounded-md border border-line px-2.5 py-1 text-[13px]">+</button>
           <button onClick={() => zoom(1.4)} className="rounded-md border border-line px-2.5 py-1 text-[13px]">−</button>
           <button onClick={() => setView({ x: (BOUNDS.minX + BOUNDS.maxX) / 2, y: (BOUNDS.minY + BOUNDS.maxY) / 2, w: BOUNDS.maxX - BOUNDS.minX })} className="rounded-md border border-line px-2.5 py-1 text-[12.5px]">
@@ -104,6 +143,14 @@ export function SiteMapPage({ sim, now, onOpenInside }: Props) {
       </div>
 
       <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
+        {mode !== 'scheme' ? (
+          <div className="relative min-h-[420px] overflow-hidden rounded-[10px] border border-line">
+            <RealMap sim={sim} mode={mode} objects={objects} lines={lines} layers={layers} showSchematic={schematic} selectedId={selId} onPick={setSelId} />
+            <div className="pointer-events-none absolute left-14 top-3 z-[1000] max-w-[440px] rounded-md bg-black/70 px-2.5 py-1.5 text-[11.5px] leading-snug text-white/85">
+              Подложка — реальная местность Актогая. Жёлтый контур — карьер модели, совмещён с настоящим по центру и длинной оси (по контуру карьера в OpenStreetMap). Техника — живые данные модели.
+            </div>
+          </div>
+        ) : (
         <div
           ref={box}
           className="relative min-h-[420px] cursor-grab overflow-hidden rounded-[10px] border border-line active:cursor-grabbing"
@@ -232,6 +279,7 @@ export function SiteMapPage({ sim, now, onOpenInside }: Props) {
             </div>
           </div>
         </div>
+        )}
 
         <aside className="min-h-0 overflow-y-auto">
           {sel ? (

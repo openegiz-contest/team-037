@@ -261,3 +261,20 @@ input[type='range'] {
   font-size: 10.5px;
   opacity: 0.85;
 }
+
+/* Подписи объектов на реальной карте (Leaflet) */
+.leaflet-tooltip.site-tip {
+  background: rgba(11, 13, 16, 0.78);
+  border: 0;
+  border-radius: 4px;
+  box-shadow: none;
+  color: #fde68a;
+  font: 600 11.5px Inter, system-ui, sans-serif;
+  padding: 1px 6px;
+}
+.leaflet-tooltip.site-tip::before {
+  display: none;
+}
+.leaflet-container {
+  font-family: Inter, system-ui, sans-serif;
+}
