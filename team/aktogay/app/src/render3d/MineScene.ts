@@ -89,8 +89,6 @@ export class MineScene {
   private readonly trucks: TruckModel[] = [];
   private readonly heading: number[] = [];
   private readonly laneK: number[] = [];
-  /** Отображаемая позиция на прошлом кадре (без смещения в полосу) — для курса на стенде. */
-  private readonly prevPos: [number, number][] = [];
   private readonly excavators: ExcavatorModel[] = [];
   private readonly exLabels: CSS2DObject[] = [];
   /** Буровые станки и сетки скважин на блоках. */
@@ -749,9 +747,6 @@ export class MineScene {
       const p = live ? smoothTruck(sim, i, t.x, t.y, now) : null;
       let x = p ? p.x : t.px + (t.x - t.px) * alpha;
       let y = p ? p.y : t.py + (t.y - t.py) * alpha;
-      const prevX = this.prevPos[i]?.[0] ?? x;
-      const prevY = this.prevPos[i]?.[1] ?? y;
-      this.prevPos[i] = [x, y];
       // В рейсе — своя полоса (правостороннее движение): встречные не едут друг сквозь друга.
       const lane = t.state === 'empty' || t.state === 'loaded' ? 1 : 0;
       this.laneK[i] = (this.laneK[i] ?? 0) + (lane - (this.laneK[i] ?? 0)) * 0.1;
@@ -761,9 +756,10 @@ export class MineScene {
         y += Math.cos(this.heading[i]) * off;
       }
       m.root.position.set(x, this.heightAt(x, y) + 3, y);
-      const dx = live ? x - prevX : t.x - t.px;
-      const dy = live ? y - prevY : t.y - t.py;
-      if (Math.hypot(dx, dy) > (live ? 0.05 : 0.3) && (t.state === 'empty' || t.state === 'loaded')) {
+      // Курс: на стенде — по направлению всего отрезка между точками (стабильно), иначе — по шагу модели.
+      const dx = p ? p.dx : t.x - t.px;
+      const dy = p ? p.dy : t.y - t.py;
+      if (Math.hypot(dx, dy) > (p ? 2 : 0.3) && (t.state === 'empty' || t.state === 'loaded')) {
         let dir = Math.atan2(dy, dx);
         // С места на стоянке выезжаем задним ходом: нос смотрит против движения.
         const g = sim.layout.graph;
