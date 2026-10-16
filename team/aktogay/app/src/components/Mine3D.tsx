@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Simulation } from '../sim';
 import type { Selection } from '../render/drawMine';
-import { MineScene, type BuildingKind, type CameraPreset } from '../render3d/MineScene';
+import { MineScene, type BuildingKind, type CameraPreset, type FocusTarget } from '../render3d/MineScene';
+import { EquipmentSearch } from './EquipmentSearch';
 
 interface Props {
   sim: Simulation;
@@ -51,15 +52,25 @@ export function Mine3D({ sim, selection, onSelect, showControls = true, light = 
     const onDown = (e: PointerEvent) => {
       down = { x: e.clientX, y: e.clientY };
     };
+    // Клик по зданию открывает его «внутренний двойник» с небольшой задержкой: двойной клик вместо этого подлетает к нему.
+    let buildingTimer = 0;
     const onUp = (e: PointerEvent) => {
       if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5) {
         const sel = scene.pick(e.clientX, e.clientY);
         const b = sel ? null : scene.pickBuilding(e.clientX, e.clientY);
-        if (b && onBuildingRef.current) onBuildingRef.current(b);
-        else onSelectRef.current(sel);
+        if (b && onBuildingRef.current) {
+          window.clearTimeout(buildingTimer);
+          buildingTimer = window.setTimeout(() => onBuildingRef.current?.(b), 280);
+        } else onSelectRef.current(sel);
       }
       down = null;
     };
+    const onDbl = (e: MouseEvent) => {
+      window.clearTimeout(buildingTimer);
+      const t = scene.pickFocus(e.clientX, e.clientY);
+      if (t) focusRef.current(t);
+    };
+    el.addEventListener('dblclick', onDbl);
     // Над зданием — курсор «рука»: его можно открыть.
     let lastMove = 0;
     const onMove = (e: PointerEvent) => {
@@ -74,6 +85,8 @@ export function Mine3D({ sim, selection, onSelect, showControls = true, light = 
       el.removeEventListener('pointerdown', onDown);
       el.removeEventListener('pointerup', onUp);
       el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('dblclick', onDbl);
+      window.clearTimeout(buildingTimer);
       scene.dispose();
       sceneRef.current = null;
     };
@@ -83,6 +96,21 @@ export function Mine3D({ sim, selection, onSelect, showControls = true, light = 
   onSelectRef.current = onSelect;
   const onBuildingRef = useRef(onBuilding);
   onBuildingRef.current = onBuilding;
+
+  /** Найти объект: выделить (техника) и подлететь камерой. */
+  const focus = (t: FocusTarget) => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    setOrbit(false);
+    onSelectRef.current(t.kind === 'truck' || t.kind === 'excavator' ? { kind: t.kind, id: t.id } : null);
+    // Выделение применится в эффекте — подлетаем на следующем кадре, чтобы «Следовать» сработало.
+    requestAnimationFrame(() => {
+      scene.focusOn(t);
+      setFollow(t.kind === 'truck');
+    });
+  };
+  const focusRef = useRef(focus);
+  focusRef.current = focus;
 
   useEffect(() => {
     sceneRef.current?.setSelection(selection);
@@ -116,6 +144,7 @@ export function Mine3D({ sim, selection, onSelect, showControls = true, light = 
           )}
         </div>
       )}
+      {showControls && <EquipmentSearch sim={sim} onPick={focus} />}
       {children}
     </div>
   );

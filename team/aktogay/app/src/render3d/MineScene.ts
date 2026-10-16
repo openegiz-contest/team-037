@@ -44,6 +44,9 @@ const DRILL_SPREAD = 40;
 /** Смещение самосвала от оси дороги к своей полосе, м сцены. */
 const LANE_OFFSET = 15;
 
+/** Что можно найти и к чему подлететь камерой. */
+export type FocusTarget = { kind: 'truck' | 'excavator' | 'drill'; id: number } | { kind: 'building'; id: BuildingKind };
+
 export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile';
 
 const BG = '#0a1526';
@@ -371,6 +374,7 @@ export class MineScene {
     // Буровые станки и сетки скважин (по блоку у каждого забоя).
     sim.drill.rigs.forEach((_, i) => {
       const d = makeDrillRig();
+      d.root.userData = { kind: 'drill', id: i };
       this.scene.add(d.root);
       this.drills.push(d);
       this.drillHeading.push(0);
@@ -532,6 +536,58 @@ export class MineScene {
       start: performance.now(),
       dur: 1300,
     };
+  }
+
+  /** Где сейчас объект на сцене и какого он размера (для подлёта камеры). */
+  private focusPoint(t: FocusTarget): { at: THREE.Vector3; size: number } | null {
+    if (t.kind === 'truck') return this.trucks[t.id] ? { at: this.trucks[t.id].root.position.clone(), size: 60 } : null;
+    if (t.kind === 'excavator') return this.excavators[t.id] ? { at: this.excavators[t.id].root.position.clone(), size: 80 } : null;
+    if (t.kind === 'drill') return this.drills[t.id] ? { at: this.drills[t.id].root.position.clone(), size: 60 } : null;
+    if (t.id === 'stockpile') return { at: this.stockpileAt.clone(), size: 220 };
+    const obj = this.buildings.find((b) => b.userData.building === t.id);
+    if (!obj) return null;
+    const box = new THREE.Box3().setFromObject(obj);
+    const size = box.getSize(new THREE.Vector3());
+    return { at: box.getCenter(new THREE.Vector3()), size: Math.max(120, Math.min(600, Math.max(size.x, size.z) * 0.6)) };
+  }
+
+  /**
+   * Подлететь камерой к объекту: со стороны, откуда смотрим сейчас, на расстояние по его размеру.
+   * За самосвалом после подлёта камера следует (режим «Следовать»).
+   */
+  focusOn(t: FocusTarget): boolean {
+    const f = this.focusPoint(t);
+    if (!f) return false;
+    const target = f.at.clone().add(new THREE.Vector3(0, f.size * 0.15, 0));
+    const dir = this.camera.position.clone().sub(this.controls.target);
+    dir.y = 0;
+    if (dir.lengthSq() < 1) dir.set(1, 0, 1);
+    dir.normalize();
+    const dist = f.size * 2.6;
+    const pos = target.clone().addScaledVector(dir, dist).add(new THREE.Vector3(0, dist * 0.55, 0));
+    this.controls.autoRotate = false;
+    this.follow = t.kind === 'truck';
+    this.flyTo(pos, target);
+    return true;
+  }
+
+  /** Любой объект под курсором — для двойного клика (техника, буровые, здания). */
+  pickFocus(clientX: number, clientY: number): FocusTarget | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, this.camera);
+    const objs = [...this.trucks.map((t) => t.root), ...this.excavators.map((e) => e.root), ...this.drills.map((d) => d.root)];
+    const hit = ray.intersectObjects(objs, true)[0];
+    if (hit) {
+      let o: THREE.Object3D | null = hit.object;
+      while (o && !o.userData.kind) o = o.parent;
+      if (o) return { kind: o.userData.kind, id: o.userData.id };
+    }
+    const sel = this.pick(clientX, clientY);
+    if (sel) return sel;
+    const b = this.pickBuilding(clientX, clientY);
+    return b ? { kind: 'building', id: b } : null;
   }
 
   /** Объект под курсором (клиентские координаты). */
