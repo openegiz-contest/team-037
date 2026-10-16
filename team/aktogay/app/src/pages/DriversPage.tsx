@@ -5,7 +5,7 @@
 import { useMemo, useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import type { Selection } from '../render/drawMine';
-import { rampPicks, rateDrivers, type DriverRating, type Simulation } from '../sim';
+import { FATIGUE_ALERT, rampPicks, rateDrivers, type DriverRating, type Simulation } from '../sim';
 import { TRUCK_COLOR } from '../ui/theme';
 import { rateDrillers, type DrillerRating } from '../sim/drilling';
 import { VALUE_LABEL } from '../ui/twinLabels';
@@ -42,6 +42,8 @@ export function DriversPage({ sim, now, running, onToggleRun, onLocate }: Props)
   const rows = [...rating].sort((a, b) => (sort === 'total' ? b.total - a.total : b.scores[sort] - a.scores[sort]));
   const attention = rating.filter((r) => r.enough && (r.scores.safety < 25 || r.scores.fuel < 25));
   const harshTotal = sim.trucks.reduce((n, t) => n + t.driverStats.harsh, 0);
+  const tired = rating.filter((r) => r.fatigue >= FATIGUE_ALERT || r.fatigueEvents > 0);
+  const casTotal = sim.trucks.reduce((n, t) => n + t.driverStats.cas, 0);
   const deep = sim.excavators.filter((e) => e.material === 'sulfide').sort((a, b) => sim.cfg.excavators[b.id].ring - sim.cfg.excavators[a.id].ring)[0];
 
   return (
@@ -83,11 +85,12 @@ export function DriversPage({ sim, now, running, onToggleRun, onLocate }: Props)
         <div className="panel px-4 py-3 text-[13px] text-ink-3">Данных пока мало: рейтинг появится, когда самосвалы проедут хотя бы 15 км (≈ первый час смены).</div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Tile label="Средний итог парка" value={String(Math.round(rating.reduce((n, r) => n + r.total, 0) / Math.max(1, rating.length)))} hint="из 100, относительно парка" />
         <Tile label="Лучший на съездах" value={picks[0]?.name ?? '—'} hint={picks[0] ? `${sim.trucks[picks[0].truckId].name} · ${picks[0].rampKmh?.toFixed(1)} км/ч на уклоне` : 'нужно больше данных'} />
         <Tile label="Нужен инструктаж" value={String(attention.length)} hint="низкая аккуратность или экономичность" tone={attention.length ? '#f59e0b' : undefined} />
-        <Tile label="Резких торможений за смену" value={String(harshTotal)} hint="по всему парку" />
+        <Tile label="Резких торможений за смену" value={String(harshTotal)} hint={`по всему парку · CAS: ${casTotal} сближений`} />
+        <Tile label="Признаки усталости" value={String(tired.length)} hint={tired.length ? `камера в кабине · ${tired.slice(0, 2).map((r) => r.name).join(', ')} — пауза 15 мин` : 'камера в кабине: все в норме'} tone={tired.length ? '#f59e0b' : undefined} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
@@ -148,6 +151,7 @@ export function DriversPage({ sim, now, running, onToggleRun, onLocate }: Props)
                       </button>
                     </th>
                   ))}
+                  <th className="whitespace-nowrap px-2 py-2 font-medium" title="индекс усталости по камере в кабине, эпизоды «микросна», предупреждения системы предотвращения столкновений">Усталость · CAS</th>
                   <th className="min-w-[220px] px-3 py-2 font-medium">Где использовать</th>
                 </tr>
               </thead>
@@ -291,7 +295,18 @@ function Row({ r, i, sim, onLocate }: { r: DriverRating; i: number; sim: Simulat
       {cell(r.scores.safety, r.harsh100 !== null ? r.harsh100.toFixed(1) : '—')}
       {cell(r.scores.fuel, r.fuelL100 !== null ? String(Math.round(r.fuelL100)) : '—')}
       {cell(r.scores.output, String(Math.round(r.tph)))}
-      <td className="px-3 py-1.5 text-[12px] text-ink-2">{r.advice}</td>
+      <td className="whitespace-nowrap px-2 py-1.5">
+        <span className="num font-semibold" style={{ color: r.fatigue >= FATIGUE_ALERT ? '#ef4444' : r.fatigue >= 55 ? '#f59e0b' : undefined }}>
+          {r.fatigue} %
+        </span>
+        <div className="num text-[11px] text-ink-3">
+          камера {r.fatigueEvents} · CAS {r.cas}
+        </div>
+      </td>
+      <td className="px-3 py-1.5 text-[12px] text-ink-2">
+        {(r.fatigue >= FATIGUE_ALERT || r.fatigueEvents > 0) && <div className="font-semibold text-amber-300">⚠ признаки усталости — пауза 15 мин</div>}
+        {r.advice}
+      </td>
     </tr>
   );
 }

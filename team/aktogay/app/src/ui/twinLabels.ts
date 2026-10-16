@@ -95,6 +95,9 @@ export const FEATURE_LABEL: Record<string, string> = {
   drv_ramp_dist: 'Пройдено по съездам',
   drv_fuel: 'Топливо в движении',
   drv_harsh: 'Резкие торможения',
+  drv_fatigue: 'Усталость водителя (камера)',
+  drv_fatigue_events: 'Эпизоды «микросна»',
+  cas_alerts: 'Предупреждения CAS',
   // экскаватор
   queue: 'Очередь',
   queue_ids: 'В очереди (номера)',

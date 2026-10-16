@@ -282,6 +282,9 @@ export function serializeTruck(sim: Simulation, i: number): Features {
     drv_ramp_dist: f(Math.round(t.driverStats.rampDistM), 'm'),
     drv_fuel: f(r1(t.driverStats.fuelUsedL), 'l'),
     drv_harsh: f(t.driverStats.harsh, 'pcs'),
+    drv_fatigue: f(Math.round(t.driverStats.fatigue), '%'),
+    drv_fatigue_events: f(t.driverStats.fatigueEvents, 'pcs'),
+    cas_alerts: f(t.driverStats.cas, 'pcs'),
   };
 }
 
@@ -769,6 +772,9 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     ds.rampDistM = num(fs, 'drv_ramp_dist');
     ds.fuelUsedL = num(fs, 'drv_fuel');
     ds.harsh = num(fs, 'drv_harsh');
+    ds.fatigue = num(fs, 'drv_fatigue', ds.fatigue);
+    ds.fatigueEvents = num(fs, 'drv_fatigue_events');
+    ds.cas = num(fs, 'cas_alerts');
   });
 
   // История для графиков — точка каждые historyEverySec модельного времени.

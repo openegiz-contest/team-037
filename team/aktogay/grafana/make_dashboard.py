@@ -155,6 +155,8 @@ series("Отсыпка на склад, т/ч (0 — дробилка ждёт �
 row("Водители самосвалов", 88)
 bars("Резкие торможения за смену (акселерометр рамы)", per_thing("truck-", "drv_harsh"), 0, 89, "none", 12, 10)
 bars("Пробег за смену (GNSS)", per_thing("truck-", "drv_dist"), 12, 89, "lengthm", 12, 10)
+bars("Усталость водителей по камере в кабине, %", per_thing("truck-", "drv_fatigue"), 0, 99, "percent", 12, 10)
+bars("Предупреждения системы предотвращения столкновений (CAS)", per_thing("truck-", "cas_alerts"), 12, 99, "none", 12, 10)
 
 dash = {
     "uid": "aktogay-digital-mine",

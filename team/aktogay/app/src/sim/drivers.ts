@@ -34,6 +34,18 @@ export interface DriverStats {
   harsh: number;
   /** Время с последнего события (чтобы не считать одно торможение много раз), с. */
   harshCooldown: number;
+  /** Усталость по камере в кабине, 0–100 %. */
+  fatigue: number;
+  /** Индивидуальная скорость накопления усталости, %/ч за рулём. */
+  fatigueRate: number;
+  /** Эпизоды «микросна» / закрытых глаз, зафиксированные камерой. */
+  fatigueEvents: number;
+  fatigueCooldown: number;
+  /** Когда последний раз писали в журнал о водителе, с модели. */
+  fatigueLoggedAt: number;
+  /** Предупреждения системы предотвращения столкновений (сближение с машиной впереди). */
+  cas: number;
+  casCooldown: number;
 }
 
 // Условные имена (вымышленные водители модели).
@@ -55,7 +67,24 @@ export function makeDriver(i: number, rnd: () => number): DriverTraits {
   };
 }
 
-export const emptyDriverStats = (): DriverStats => ({ rampSec: 0, rampDistM: 0, distM: 0, fuelUsedL: 0, harsh: 0, harshCooldown: 0 });
+export const emptyDriverStats = (): DriverStats => ({
+  rampSec: 0,
+  rampDistM: 0,
+  distM: 0,
+  fuelUsedL: 0,
+  harsh: 0,
+  harshCooldown: 0,
+  fatigue: 0,
+  fatigueRate: 6,
+  fatigueEvents: 0,
+  fatigueCooldown: 0,
+  fatigueLoggedAt: -1e9,
+  cas: 0,
+  casCooldown: 0,
+});
+
+/** Порог усталости, после которого двойник рекомендует паузу, %. */
+export const FATIGUE_ALERT = 75;
 
 // ───────────────────────────── рейтинг ─────────────────────────────
 
@@ -69,6 +98,11 @@ export interface DriverRating {
   fuelL100: number | null;
   /** Резких торможений на 100 км. */
   harsh100: number | null;
+  /** Усталость сейчас, %, и эпизоды по камере за смену. */
+  fatigue: number;
+  fatigueEvents: number;
+  /** Предупреждения CAS за смену. */
+  cas: number;
   /** Перевезено, т/ч работы. */
   tph: number;
   /** Оценки 0–100 и итог. */
@@ -135,6 +169,9 @@ export function rateDrivers(trucks: Truck[], shiftSec: number): DriverRating[] {
       rampKmh: r.rampKmh,
       fuelL100: r.fuelL100,
       harsh100: r.harsh100,
+      fatigue: Math.round(r.t.driverStats.fatigue),
+      fatigueEvents: r.t.driverStats.fatigueEvents,
+      cas: r.t.driverStats.cas,
       tph: r.tph,
       scores,
       total,

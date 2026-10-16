@@ -10,7 +10,7 @@ import { gradeAt, inBand, recovery } from './ore';
 import { Router } from './graph';
 import { buildMine, type MineLayout } from './mine';
 import { hash01, Rng, subSeed } from './rng';
-import { emptyDriverStats, makeDriver } from './drivers';
+import { emptyDriverStats, FATIGUE_ALERT, makeDriver } from './drivers';
 import { PlantEquipment } from './equipment';
 import { DrillOps } from './drilling';
 import {
@@ -95,6 +95,8 @@ export class Simulation {
   drill!: DrillOps;
   /** ГПСЧ событий вождения (резкие торможения) — по потоку на самосвал. */
   private readonly driverRng: Rng[] = [];
+  /** Отдельный поток для усталости водителей: модуль диагностический и не сдвигает остальную модель. */
+  private readonly fatigueRng: Rng[] = [];
   /**
    * Хронология смены по минутам — для диаграммы Ганта и цепочек последствий.
    * Один символ на минуту: состояние самосвала / экскаватора, уровень бункера, число перекрытий.
@@ -301,6 +303,11 @@ export class Simulation {
         driverStats: emptyDriverStats(),
       });
       this.driverRng.push(new Rng(subSeed(this.seed, 7100 + i)));
+      const fr = new Rng(subSeed(this.seed, 7300 + i));
+      this.fatigueRng.push(fr);
+      const ds = this.trucks[this.trucks.length - 1].driverStats;
+      ds.fatigue = 5 + fr.next() * 15; // кто-то пришёл на смену бодрее
+      ds.fatigueRate = 4.5 + fr.next() * 3.5; // 4,5…8 %/ч за рулём
     }
   }
 
@@ -696,6 +703,7 @@ export class Simulation {
 
     const acc = this.accountingState(t);
     t.stateSec[acc] += dt;
+    this.fatigueTick(t, dt);
     const rate = this.fuelRate(t.state);
     if (rate > 0) {
       // Стиль водителя: в движении расход зависит от плавности езды.
@@ -886,10 +894,43 @@ export class Simulation {
     return best === Infinity ? Infinity : Math.max(0, best - gap);
   }
 
-  /** Телеметрия водителя: пробег, съезды, резкие торможения (акселерометр рамы). */
+  /**
+   * Усталость водителя по камере в кабине (диагностика, как на Актогае — «система контроля усталости
+   * водителей»): растёт за рулём, снижается на заправке, ремонте и стоянке. При высокой усталости камера
+   * фиксирует эпизоды закрытых глаз; двойник пишет в журнал рекомендацию паузы. На движение не влияет.
+   */
+  private fatigueTick(t: Truck, dt: number): void {
+    const s = t.driverStats;
+    const rng = this.fatigueRng[t.id];
+    if (!rng) return;
+    const driving = t.state === 'empty' || t.state === 'loaded' || t.state === 'loading' || t.state === 'dumping';
+    const rest = t.state === 'refuel' || t.state === 'service' || t.state === 'broken' || t.state === 'idle';
+    if (driving) s.fatigue = Math.min(100, s.fatigue + (s.fatigueRate * dt) / 3600);
+    else if (rest) s.fatigue = Math.max(0, s.fatigue - (25 * dt) / 3600);
+    else s.fatigue = Math.max(0, s.fatigue - (3 * dt) / 3600); // очередь: сидит в кабине, почти не отдыхает
+    s.fatigueCooldown = Math.max(0, s.fatigueCooldown - dt);
+    const moving = t.state === 'empty' || t.state === 'loaded';
+    if (moving && s.fatigue > 55 && s.fatigueCooldown <= 0 && rng.next() < 0.00005 * (s.fatigue - 55) * dt) {
+      s.fatigueEvents++;
+      s.fatigueCooldown = 120;
+    }
+    const alert = s.fatigue >= FATIGUE_ALERT || (s.fatigueEvents > 0 && s.fatigueCooldown > 118);
+    if (alert && this.now - s.fatigueLoggedAt > 3 * 3600) {
+      s.fatigueLoggedAt = this.now;
+      this.addLog(`Водитель ${t.driver.name} (${t.name}): признаки усталости по камере (${Math.round(s.fatigue)} %${s.fatigueEvents ? `, эпизодов ${s.fatigueEvents}` : ''}) — рекомендована пауза 15 мин`, 'warn');
+    }
+  }
+
+  /** Телеметрия водителя: пробег, съезды, резкие торможения (акселерометр рамы), предупреждения CAS. */
   private driveStats(t: Truck, step: number, dt: number, onRamp: boolean, forcedSlow: boolean): void {
     const s = t.driverStats;
     s.distM += step;
+    // CAS: машина впереди ближе безопасной дистанции — предупреждение в кабину (не чаще раза в 30 с).
+    s.casCooldown = Math.max(0, s.casCooldown - dt);
+    if (forcedSlow && s.casCooldown <= 0) {
+      s.cas++;
+      s.casCooldown = 30;
+    }
     if (onRamp) {
       s.rampSec += dt;
       s.rampDistM += step;
@@ -1319,6 +1360,6 @@ export class Simulation {
 
   addLog(text: string, level: LogEntry['level']): void {
     this.log.push({ t: this.now, text, level });
-    if (this.log.length > 60) this.log.shift();
+    if (this.log.length > 100) this.log.shift();
   }
 }

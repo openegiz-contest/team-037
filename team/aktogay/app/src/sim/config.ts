@@ -63,7 +63,7 @@ export interface SimConfig {
     garage: Point;
   };
   truck: {
-    /** Грузоподъёмность, т (класс БелАЗ-75306, 220 т). */
+    /** Грузоподъёмность, т (класс CAT 793, как основной парк Актогая). */
     payloadT: number;
     speedLoadedKmh: number;
     speedEmptyKmh: number;
@@ -220,7 +220,7 @@ export const DEFAULT_CONFIG: SimConfig = {
   pit: {
     semiMajorM: 1500, // оценка, сверить с открытыми источниками (годовые отчёты KAZ Minerals)
     semiMinorM: 800, // оценка
-    benchCount: 30, // уступы по 16 м при глубине 480 м (визуально)
+    benchCount: 16, // уступы по 15 м при глубине ~240 м (визуально)
     bottomScale: 0.2,
     rampTurns: 0.8,
     rampNodes: 21,
@@ -235,7 +235,7 @@ export const DEFAULT_CONFIG: SimConfig = {
     garage: { x: 650, y: 1060 }, // гараж / АЗС (юг)
   },
   truck: {
-    payloadT: 220, // оценка: класс БелАЗ-75306
+    payloadT: 220, // класс CAT 793 (на Актогае 17 × CAT 793 и 18 × CAT 785 — открытые источники)
     speedLoadedKmh: 20,
     speedEmptyKmh: 35,
     speedFactorRange: [0.85, 1.08],
