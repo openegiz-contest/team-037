@@ -12,6 +12,7 @@ import { isLive, smoothTruck } from '../render/smooth';
 import { TRUCK_COLOR } from '../ui/theme';
 import { thingIds } from '../platform/twins';
 import { RealMap, type MapMode } from '../components/RealMap';
+import { GEO_REF } from '../geo/geoRef';
 
 type ViewMode = 'scheme' | MapMode;
 const MODES: { key: ViewMode; label: string }[] = [
@@ -28,8 +29,22 @@ interface Props {
   onOpenInside: (kind: BuildingKind) => void;
 }
 
-/** Границы схемы, м. */
-const BOUNDS = { minX: -3300, maxX: 4500, minY: -2900, maxY: 2300 };
+/** Границы схемы в координатах «восток / юг», м (схема повёрнута севером вверх, как снимок). */
+const BOUNDS = { minX: -4300, maxX: 4200, minY: -3000, maxY: 6000 };
+/** Поворот модели к сторонам света — тот же, что у привязки к местности. */
+const ROT = GEO_REF.rotDeg;
+const RR = (ROT * Math.PI) / 180;
+/** Точка модели → «восток / юг» на схеме. */
+const toMap = (x: number, y: number): [number, number] => [x * Math.cos(RR) - y * Math.sin(RR), x * Math.sin(RR) + y * Math.cos(RR)];
+
+/** Наибольший размер объекта, м (для решения, показывать ли подпись). */
+function objSize(o: SiteObject): number {
+  const s = o.shape;
+  if (s.kind === 'circle') return s.r * 2;
+  if (s.kind === 'rect') return Math.max(s.w, s.h);
+  const xs = s.pts.map((p) => p[0]);
+  return Math.max(...xs) - Math.min(...xs);
+}
 
 function center(s: Shape): [number, number] {
   if (s.kind === 'poly') return [s.pts.reduce((n, p) => n + p[0], 0) / s.pts.length, s.pts.reduce((n, p) => n + p[1], 0) / s.pts.length];
@@ -185,6 +200,7 @@ export function SiteMapPage({ sim, now, onOpenInside }: Props) {
             {/* Граница промплощадки */}
             <rect x={BOUNDS.minX + 150} y={BOUNDS.minY + 150} width={BOUNDS.maxX - BOUNDS.minX - 300} height={BOUNDS.maxY - BOUNDS.minY - 300} fill="none" stroke="#4b4334" strokeWidth={6 * px} strokeDasharray={`${20 * px} ${10 * px}`} />
 
+            <g transform={`rotate(${ROT})`}>
             {/* Линии: дороги снизу, затем коммуникации */}
             {lines
               .filter((l) => visible(l.layer))
@@ -233,11 +249,12 @@ export function SiteMapPage({ sim, now, onOpenInside }: Props) {
             {/* Живая техника */}
             {visible('pit') && <Vehicles sim={sim} px={px} />}
 
-            {/* Подписи */}
+            </g>
+            {/* Подписи — без поворота */}
             {objects
-              .filter((o) => visible(o.layer))
+              .filter((o) => visible(o.layer) && (o.live || objSize(o) / px >= 26))
               .map((o) => {
-                const [cx, cy] = o.id === 'pit' ? [0, -sim.cfg.pit.semiMinorM * 0.55] : center(o.shape);
+                const [cx, cy] = toMap(...(o.id === 'pit' ? ([0, -sim.cfg.pit.semiMinorM * 0.55] as [number, number]) : center(o.shape)));
                 const r = o.shape.kind === 'circle' ? o.shape.r : o.shape.kind === 'rect' ? o.shape.h / 2 : 0;
                 const below = !!o.labelBelow;
                 return (
@@ -261,6 +278,10 @@ export function SiteMapPage({ sim, now, onOpenInside }: Props) {
               })}
           </svg>
 
+          <div className="pointer-events-none absolute right-3 top-3 flex flex-col items-center rounded-md bg-black/60 px-2 py-1 text-[11px] font-bold text-white/85">
+            <span>С</span>
+            <span className="-mt-1 text-[16px] leading-none">↑</span>
+          </div>
           {/* Масштабная линейка и легенда */}
           <div className="pointer-events-none absolute bottom-2 left-2 rounded-md bg-black/60 px-2 py-1 text-[11.5px] text-white/80">
             <ScaleBar px={px} />
@@ -432,7 +453,7 @@ function Vehicles({ sim, px }: { sim: Simulation; px: number }) {
       {sim.excavators.map((e) => (
         <g key={`e${e.id}`}>
           <circle cx={e.x} cy={e.y} r={r * 1.5} fill="#0f172a" stroke={e.material === 'sulfide' ? '#facc15' : e.material === 'oxide' ? '#2dd4bf' : '#a3a3a3'} strokeWidth={r * 0.45} />
-          <text x={e.x + r * 2} y={e.y + r * 0.5} fontSize={r * 1.6} fill="#fff" fontWeight={700} stroke="#000" strokeWidth={r * 0.3} paintOrder="stroke">
+          <text x={e.x + r * 2} y={e.y + r * 0.5} transform={`rotate(${-ROT} ${e.x} ${e.y})`} fontSize={r * 1.6} fill="#fff" fontWeight={700} stroke="#000" strokeWidth={r * 0.3} paintOrder="stroke">
             {e.name}
           </text>
         </g>

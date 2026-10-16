@@ -498,7 +498,9 @@ export class MineScene {
         // Камера — со стороны склада (дальней от карьера): склад впереди, дробилка и фабрика по бокам.
         const along = new THREE.Vector3(this.crusherPos.x - pl.x, 0, this.crusherPos.z - pl.y).normalize();
         const out = new THREE.Vector3(this.stockpileAt.x - target.x, 0, this.stockpileAt.z - target.z).normalize();
-        pos = target.clone().addScaledVector(out, 850).addScaledVector(along, 250).add(new THREE.Vector3(0, 600, 0));
+        // Дистанция — по длине цепочки (на реальной раскладке фабрика ~2 км от дробилки).
+        const L = Math.hypot(this.crusherPos.x - pl.x, this.crusherPos.z - pl.y);
+        pos = target.clone().addScaledVector(out, 300 + 0.6 * L).addScaledVector(along, 0.2 * L).add(new THREE.Vector3(0, 250 + 0.45 * L, 0));
       }
         break;
       case 'bottom':

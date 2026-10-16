@@ -83,23 +83,27 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
     ny = -ny;
   }
   const sp = { x: mx + nx * 210, y: my + ny * 210 };
-  const pl2 = { x: pl.x + 480, y: pl.y - 260 };
-  const tsf = { x: pl.x + 1200, y: pl.y - 1300 };
-  const sx = { x: S.leach.x - 850, y: S.leach.y - 560 };
-  const ponds = { x: S.leach.x + 120, y: S.leach.y - 560 };
-  const conc = { x: pl.x + 1150, y: pl.y + 420 };
-  const sub = { x: pl.x - 900, y: pl.y - 900 };
-  const water = { x: pl.x + 380, y: pl.y - 1250 };
-  const magazine = { x: S.waste.x - 700, y: S.leach.y - 900 };
+  // Реальные места объектов (координаты модели; пересчёт со спутникового снимка и OpenStreetMap,
+  // см. src/geo/geoRef.ts). Объекты, назначение которых на снимке не подписано, стоят условно.
+  const pl2 = { x: -30, y: 3975 }; // вторая фабрика — западный фабричный комплекс
+  const tsf = { x: 1850, y: 4560 }; // хвостохранилище к югу от фабрик
+  const sx = { x: 1825, y: 1510 }; // корпуса у карт выщелачивания — завод SX-EW
+  const ponds = { x: 2250, y: 950 };
+  const conc = { x: 420, y: 3200 }; // склад концентрата у ж/д путей между фабриками
+  const sub = { x: 550, y: 2545 }; // подстанция фабрики №1 (OSM: power=substation)
+  const sub2 = { x: -335, y: 3710 }; // подстанция фабрики №2 (OSM)
+  const water = { x: 1345, y: 3025 }; // резервуар (OSM: water=reservoir)
+  const magazine = { x: -900, y: -2600 }; // условно: вынесен за отвалы, к северу
   const g = S.garage;
-  const rmc = { x: g.x + 560, y: g.y + 120 };
-  const abk = { x: g.x + 950, y: g.y - 230 };
-  const lab = { x: g.x + 1450, y: g.y - 700 };
-  const gsm = { x: g.x - 430, y: g.y + 330 };
-  const camp = { x: g.x + 2050, y: g.y + 520 };
-  const kpp = { x: g.x + 1500, y: g.y + 230 };
-  const lowgrade = { x: S.waste.x + 380, y: S.leach.y + 60 };
-
+  const rmc = { x: -680, y: 2510 }; // промплощадка (OSM: landuse=industrial)
+  const abk = { x: 960, y: 1450 }; // промплощадка у дороги от карьера к фабрикам (OSM)
+  const lab = { x: 580, y: 1325 }; // промплощадка (OSM)
+  const gsm = { x: -905, y: 2165 }; // промплощадка (OSM)
+  const camp = { x: -1115, y: 3415 }; // жилой посёлок (OSM: landuse=residential)
+  const kpp = { x: -1250, y: 2900 };
+  const wasteE = { x: 1400, y: -1740 }; // восточный отвал (OSM: landuse=landfill)
+  const railW = { x: -2335, y: 5330 };
+  const railE = { x: 1305, y: 725 };
   const crusher = sim.crusher;
   const objects: SiteObject[] = [
     // ── карьер ──
@@ -246,16 +250,15 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       twin: 'waste-dump',
     },
     {
-      id: 'lowgrade',
-      name: 'Склад забалансовой руды',
+      id: 'wasteE',
+      name: 'Отвал вскрыши (восточный)',
       layer: 'waste',
-      shape: { kind: 'circle', x: lowgrade.x, y: lowgrade.y, r: 170 },
-      fill: '#6b5b3e',
+      shape: { kind: 'circle', x: wasteE.x, y: wasteE.y, r: 700 },
+      fill: '#57534e',
       live: false,
-      about: 'Руда с содержанием ниже бортового, но выше пустой породы: складируется отдельно на будущее (при росте цены меди её переработают).',
-      facts: ['типичное решение для медно-порфировых месторождений'],
-      label: 'Забалансовая руда',
-      labelBelow: true,
+      about: 'Второй крупный отвал вскрыши — к востоку от карьера, ярусами. В модели вскрыша везётся на северо-западный отвал.',
+      facts: ['расположение — по спутниковому снимку и OpenStreetMap'],
+      label: 'Отвал восточный',
     },
     {
       id: 'tsf',
@@ -264,11 +267,11 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       shape: {
         kind: 'poly',
         pts: [
-          [tsf.x - 760, tsf.y - 420],
-          [tsf.x + 520, tsf.y - 560],
-          [tsf.x + 820, tsf.y + 120],
-          [tsf.x + 420, tsf.y + 620],
-          [tsf.x - 640, tsf.y + 520],
+          [tsf.x - 1300, tsf.y - 500],
+          [tsf.x + 600, tsf.y - 900],
+          [tsf.x + 1300, tsf.y + 100],
+          [tsf.x + 700, tsf.y + 1000],
+          [tsf.x - 1100, tsf.y + 800],
         ],
       },
       fill: '#3f4a52',
@@ -348,7 +351,7 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       fill: '#7f1d1d',
       live: false,
       about: 'Хранение ВВ и средств взрывания для буровзрывных работ; вынесен далеко от объектов, вокруг — охранная зона.',
-      facts: ['охранная зона на схеме — условная'],
+      facts: ['охранная зона и место на схеме — условные'],
       label: 'Склад ВМ',
     },
     {
@@ -386,6 +389,17 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       label: 'Подстанция',
     },
     {
+      id: 'sub2',
+      name: 'Подстанция фабрики №2',
+      layer: 'utility',
+      shape: { kind: 'rect', x: sub2.x, y: sub2.y, w: 140, h: 100, rot: 0 },
+      fill: '#854d0e',
+      live: false,
+      about: 'Питание второй обогатительной фабрики.',
+      facts: ['отмечена в OpenStreetMap'],
+      label: 'Подстанция 2',
+    },
+    {
       id: 'water',
       name: 'Резервуары технической воды',
       layer: 'utility',
@@ -401,24 +415,22 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
   const lines: SiteLine[] = [
     { id: 'conv1', name: 'Конвейер дробилка → склад', layer: 'process', kind: 'conveyor', pts: [[cr.x, cr.y], [sp.x, sp.y]] },
     { id: 'conv2', name: 'Конвейер склад → ОФ-1', layer: 'process', kind: 'conveyor', pts: [[sp.x, sp.y], [pl.x, pl.y]] },
-    { id: 'conv3', name: 'Конвейер склад → ОФ-2', layer: 'process', kind: 'conveyor', pts: [[sp.x, sp.y], [pl2.x - 120, pl2.y + 60], [pl2.x, pl2.y]] },
-    { id: 'tail1', name: 'Хвосты ОФ-1 → хвостохранилище', layer: 'waste', kind: 'pipe', pts: [[pl.x, pl.y], [pl.x + 500, pl.y - 700], [tsf.x - 500, tsf.y - 150]] },
-    { id: 'tail2', name: 'Хвосты ОФ-2 → хвостохранилище', layer: 'waste', kind: 'pipe', pts: [[pl2.x, pl2.y], [tsf.x - 300, tsf.y - 300]] },
-    { id: 'ret', name: 'Оборотная вода → фабрики', layer: 'utility', kind: 'water', pts: [[tsf.x - 450, tsf.y + 80], [water.x, water.y]] },
+    { id: 'conv3', name: 'Конвейер склад → ОФ-2', layer: 'process', kind: 'conveyor', pts: [[sp.x, sp.y], [pl.x - 300, pl.y + 300], [pl2.x, pl2.y]] },
+    { id: 'tail1', name: 'Хвосты ОФ-1 → хвостохранилище', layer: 'waste', kind: 'pipe', pts: [[pl.x, pl.y], [tsf.x - 600, tsf.y - 700]] },
+    { id: 'tail2', name: 'Хвосты ОФ-2 → хвостохранилище', layer: 'waste', kind: 'pipe', pts: [[pl2.x, pl2.y], [tsf.x - 1100, tsf.y - 200]] },
+    { id: 'ret', name: 'Оборотная вода → фабрики', layer: 'utility', kind: 'water', pts: [[tsf.x - 400, tsf.y - 600], [water.x, water.y]] },
     { id: 'w1', name: 'Водовод → ОФ-1', layer: 'utility', kind: 'water', pts: [[water.x, water.y], [pl.x, pl.y]] },
     { id: 'w2', name: 'Водовод → ОФ-2', layer: 'utility', kind: 'water', pts: [[water.x, water.y], [pl2.x, pl2.y]] },
-    { id: 'pls', name: 'PLS: площадка → пруды → SX-EW', layer: 'process', kind: 'solution', pts: [[S.leach.x, S.leach.y - 150], [ponds.x, ponds.y], [sx.x, sx.y]] },
-    { id: 'raff', name: 'Рафинат → орошение площадки', layer: 'process', kind: 'solution', pts: [[sx.x + 150, sx.y + 40], [S.leach.x - 200, S.leach.y - 150]] },
-    { id: 'p1', name: 'ЛЭП → ОФ-1 и ОФ-2', layer: 'utility', kind: 'power', pts: [[sub.x, sub.y], [pl.x, pl.y], [pl2.x, pl2.y]] },
-    { id: 'p2', name: 'ЛЭП → дробилка', layer: 'utility', kind: 'power', pts: [[sub.x, sub.y], [cr.x, cr.y]] },
-    { id: 'p3', name: 'ЛЭП → завод SX-EW', layer: 'utility', kind: 'power', pts: [[sub.x, sub.y], [sx.x, sx.y]] },
-    { id: 'rail', name: 'Ж/д ветка к станции', layer: 'transport', kind: 'rail', pts: [[conc.x - 130, conc.y + 90], [conc.x + 900, conc.y + 90], [conc.x + 1700, conc.y - 300]] },
-    { id: 'r1', name: 'Дорога гараж → АБК → вахтовый посёлок', layer: 'transport', kind: 'road', pts: [[g.x + 150, g.y], [abk.x, abk.y], [kpp.x, kpp.y], [camp.x, camp.y]] },
-    { id: 'r2', name: 'Дорога к ОФ и складу концентрата', layer: 'transport', kind: 'road', pts: [[abk.x, abk.y], [pl.x - 100, pl.y + 300], [conc.x, conc.y]] },
-    { id: 'r3', name: 'Дорога к складу ВМ', layer: 'transport', kind: 'road', pts: [[S.leach.x - 300, S.leach.y], [magazine.x, magazine.y]] },
-    { id: 'r4', name: 'Дорога к заводу SX-EW', layer: 'transport', kind: 'road', pts: [[S.leach.x, S.leach.y], [sx.x, sx.y]] },
+    { id: 'pls', name: 'PLS: площадка → пруды → SX-EW', layer: 'process', kind: 'solution', pts: [[S.leach.x, S.leach.y + 150], [ponds.x, ponds.y], [sx.x, sx.y]] },
+    { id: 'raff', name: 'Рафинат → орошение площадки', layer: 'process', kind: 'solution', pts: [[sx.x + 150, sx.y - 60], [S.leach.x - 150, S.leach.y + 150]] },
+    { id: 'p1', name: 'ЛЭП → ОФ-1, дробилка, SX-EW', layer: 'utility', kind: 'power', pts: [[pl.x, pl.y], [sub.x, sub.y], [cr.x, cr.y], [sx.x, sx.y]] },
+    { id: 'p2', name: 'ЛЭП → ОФ-2', layer: 'utility', kind: 'power', pts: [[sub.x, sub.y], [sub2.x, sub2.y], [pl2.x, pl2.y]] },
+    { id: 'rail', name: 'Железная дорога: станция → фабрики → промзона', layer: 'transport', kind: 'rail', pts: [[railW.x - 1500, railW.y + 1800], [railW.x, railW.y], [conc.x, conc.y], [railE.x, railE.y], [railE.x + 1600, railE.y - 600]] },
+    { id: 'r1', name: 'Дорога карьер → фабрики → посёлок', layer: 'transport', kind: 'road', pts: [[cr.x, cr.y], [abk.x, abk.y], [sub.x, sub.y], [g.x, g.y], [kpp.x, kpp.y], [camp.x, camp.y]] },
+    { id: 'r2', name: 'Дорога к ОФ-2 и складу концентрата', layer: 'transport', kind: 'road', pts: [[g.x, g.y], [conc.x, conc.y], [pl2.x, pl2.y]] },
+    { id: 'r3', name: 'Дорога к складу ВМ (условно)', layer: 'transport', kind: 'road', pts: [[S.waste.x + 300, S.waste.y - 500], [magazine.x, magazine.y]] },
+    { id: 'r4', name: 'Дорога к заводу SX-EW', layer: 'transport', kind: 'road', pts: [[S.leach.x, S.leach.y], [sx.x, sx.y], [abk.x, abk.y]] },
     { id: 'r5', name: 'Дорога к складу ГСМ', layer: 'transport', kind: 'road', pts: [[g.x, g.y], [gsm.x, gsm.y]] },
-    { id: 'r6', name: 'Выезд на трассу', layer: 'transport', kind: 'road', pts: [[kpp.x, kpp.y], [kpp.x + 300, kpp.y + 1100]] },
   ];
   return { objects, lines };
 }

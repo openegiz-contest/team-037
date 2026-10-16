@@ -51,6 +51,12 @@ interface Props {
 }
 
 const layerColor = (l: Layer) => LAYERS.find((x) => x.key === l)?.color ?? '#fff';
+const big = (o: SiteObject) => {
+  const s = o.shape;
+  if (s.kind === 'circle') return s.r * 2 >= 350;
+  if (s.kind === 'rect') return Math.max(s.w, s.h) >= 350;
+  return true;
+};
 
 export function RealMap({ sim, mode, objects, lines, layers, showSchematic, selectedId, onPick }: Props) {
   const host = useRef<HTMLDivElement>(null);
@@ -64,7 +70,7 @@ export function RealMap({ sim, mode, objects, lines, layers, showSchematic, sele
 
   // Карта создаётся один раз.
   useEffect(() => {
-    const m = L.map(host.current!, { zoomControl: true, attributionControl: true, preferCanvas: true }).setView(toLatLng(400, -300), 13);
+    const m = L.map(host.current!, { zoomControl: true, attributionControl: true, preferCanvas: true }).setView(toLatLng(500, 1700), 13);
     map.current = m;
     const ro = new ResizeObserver(() => m.invalidateSize());
     ro.observe(host.current!);
@@ -147,7 +153,8 @@ export function RealMap({ sim, mode, objects, lines, layers, showSchematic, sele
       }
       shape
         .on('click', () => onPickRef.current(o.id))
-        .bindTooltip(`${o.label ?? o.name}${o.live ? ' ● модель' : ' · условно'}`, { permanent: true, direction: 'top', className: 'site-tip' })
+        // Постоянные подписи — у объектов модели и крупных; у мелких — по наведению.
+        .bindTooltip(`${o.label ?? o.name}${o.live ? ' ● модель' : ' · условно'}`, { permanent: o.live || big(o), direction: 'top', className: 'site-tip' })
         .addTo(g);
     }
     // Живая техника — отдельные маркеры, двигаются в цикле анимации ниже.
