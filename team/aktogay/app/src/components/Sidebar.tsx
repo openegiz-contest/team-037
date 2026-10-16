@@ -1,10 +1,11 @@
 /** Боковое меню разделов: Карьер · Двойники · Сценарии + ссылки на платформу. */
 import type { ReactNode } from 'react';
 import type { ThemeMode } from '../ui/themeMode';
+import type { Session } from '../platform/accounts';
 
-export type Route = 'mine' | 'effect' | 'twins' | 'scenarios' | 'fleet' | 'timeline' | 'drivers' | 'geology';
+export type Route = 'mine' | 'effect' | 'twins' | 'scenarios' | 'fleet' | 'timeline' | 'drivers' | 'geology' | 'dispatch' | 'terminal' | 'login';
 
-export const ROUTE_HASH: Record<Route, string> = { mine: '#/', effect: '#/effect', twins: '#/twins', scenarios: '#/scenarios', fleet: '#/fleet', timeline: '#/timeline', drivers: '#/drivers', geology: '#/geology' };
+export const ROUTE_HASH: Record<Route, string> = { mine: '#/', effect: '#/effect', twins: '#/twins', scenarios: '#/scenarios', fleet: '#/fleet', timeline: '#/timeline', drivers: '#/drivers', geology: '#/geology', dispatch: '#/dispatch', terminal: '#/terminal', login: '#/login' };
 
 export function routeFromHash(h: string): Route {
   if (h.startsWith('#/twins')) return 'twins';
@@ -14,6 +15,9 @@ export function routeFromHash(h: string): Route {
   if (h.startsWith('#/timeline')) return 'timeline';
   if (h.startsWith('#/drivers')) return 'drivers';
   if (h.startsWith('#/geology')) return 'geology';
+  if (h.startsWith('#/dispatch')) return 'dispatch';
+  if (h.startsWith('#/terminal')) return 'terminal';
+  if (h.startsWith('#/login')) return 'login';
   return 'mine';
 }
 
@@ -49,6 +53,28 @@ const ICONS: Record<Route | 'grafana' | 'api' | 'collapse' | 'sun' | 'moon', Rea
       <circle cx="19" cy="5" r="2" />
       <circle cx="19" cy="19" r="2" />
       <path d="M7 12h4l6-6M11 12l6 6" />
+    </Icon>
+  ),
+  // гарнитура диспетчера
+  dispatch: (
+    <Icon>
+      <path d="M4 14v-2a8 8 0 0 1 16 0v2" />
+      <rect x="3" y="14" width="4" height="6" rx="1.5" />
+      <rect x="17" y="14" width="4" height="6" rx="1.5" />
+      <path d="M19 20c0 1-2 2-5 2" />
+    </Icon>
+  ),
+  // планшет в кабине
+  terminal: (
+    <Icon>
+      <rect x="4" y="3" width="16" height="18" rx="2.5" />
+      <path d="M8 8h8M8 12h5M11 18h2" />
+    </Icon>
+  ),
+  login: (
+    <Icon>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 20c1-4 4-6 7-6s6 2 7 6" />
     </Icon>
   ),
   // пласты породы и рудная линза
@@ -118,12 +144,14 @@ const ICONS: Record<Route | 'grafana' | 'api' | 'collapse' | 'sun' | 'moon', Rea
   ),
 };
 
-const NAV: { route: Route; label: string; hint: string; group: 'ops' | 'analysis' }[] = [
+const NAV: { route: Route; label: string; hint: string; group: 'ops' | 'shift' | 'analysis' }[] = [
   { route: 'mine', label: 'Карьер', hint: 'Реальная работа карьера: 3D, показатели, прогноз отказов', group: 'ops' },
   { route: 'fleet', label: 'Оборудование', hint: 'Парк техники: добавить и вывести самосвалы и экскаваторы', group: 'ops' },
   { route: 'drivers', label: 'Водители', hint: 'Рейтинг стиля вождения и кого ставить на съезды', group: 'ops' },
   { route: 'geology', label: 'Геология', hint: 'Где руда: блочная модель, XRF скважин, скан бортов, электроразведка', group: 'ops' },
   { route: 'twins', label: 'Двойники', hint: 'Объекты рудника в Eclipse Ditto', group: 'ops' },
+  { route: 'dispatch', label: 'Диспетчер', hint: 'Пульт смены: приказы самосвалам и сообщения водителям (демо-вход)', group: 'shift' },
+  { route: 'terminal', label: 'Терминал водителя', hint: 'Планшет в кабине: задание, ответы, сообщения диспетчера (демо-вход)', group: 'shift' },
   { route: 'scenarios', label: 'Сценарии', hint: 'Запуск и отмена «что если»', group: 'analysis' },
   { route: 'timeline', label: 'Хронология', hint: 'Цепочки последствий и диаграмма Ганта смены', group: 'analysis' },
   { route: 'effect', label: 'Эффект', hint: 'Реальная работа против теневого расчёта без системы, ₸', group: 'analysis' },
@@ -139,9 +167,11 @@ interface Props {
   activeCount: number;
   theme: ThemeMode;
   onToggleTheme: () => void;
+  /** Кто вошёл в разделы «Смена» (демо-вход). */
+  session?: Session | null;
 }
 
-export function Sidebar({ route, collapsed, onToggle, platform, connected, twinCount, activeCount, theme, onToggleTheme }: Props) {
+export function Sidebar({ route, collapsed, onToggle, platform, connected, twinCount, activeCount, theme, onToggleTheme, session }: Props) {
   const grafana = `${window.location.protocol}//${window.location.hostname}:3000/d/aktogay-digital-mine`;
   const item = (active: boolean) =>
     `group relative flex items-center gap-3 rounded-lg px-2.5 py-2 text-[13.5px] transition-colors ${
@@ -162,9 +192,9 @@ export function Sidebar({ route, collapsed, onToggle, platform, connected, twinC
         )}
       </div>
 
-      {(['ops', 'analysis'] as const).map((grp) => (
+      {(['ops', 'shift', 'analysis'] as const).map((grp) => (
         <div key={grp}>
-          <SectionLabel collapsed={collapsed}>{grp === 'ops' ? 'Рудник' : 'Анализ'}</SectionLabel>
+          <SectionLabel collapsed={collapsed}>{grp === 'ops' ? 'Рудник' : grp === 'shift' ? 'Смена' : 'Анализ'}</SectionLabel>
           <nav className="flex flex-col gap-0.5 px-2">
             {NAV.filter((n) => n.group === grp).map((n) => (
               <a key={n.route} href={ROUTE_HASH[n.route]} className={item(route === n.route)} title={collapsed ? `${n.label} — ${n.hint}` : n.hint}>
@@ -173,6 +203,9 @@ export function Sidebar({ route, collapsed, onToggle, platform, connected, twinC
                 {!collapsed && <span className="font-medium">{n.label}</span>}
                 {n.route === 'twins' && twinCount > 0 && badge(twinCount, 'bg-panel-2 text-ink-2')}
                 {n.route === 'scenarios' && activeCount > 0 && badge(activeCount, 'bg-red-500/20 text-red-300')}
+                {((n.route === 'dispatch' && session?.role === 'dispatcher') || (n.route === 'terminal' && session?.role === 'driver')) && !collapsed && (
+                  <span className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-400" title="вы вошли" />
+                )}
               </a>
             ))}
           </nav>

@@ -6,6 +6,7 @@
 import { Simulation } from '../sim/engine';
 import type { Kpis } from '../sim/kpi';
 import type { StrategyName } from '../sim/types';
+import { emptyDispatch, type DispatchState } from './dispatch';
 import { CONTROL_ID, hydrate, SITE_NS, VARIANTS, variantNs } from './twins';
 import { defaultFleet, fleetConfig, fleetKey, sanitizeFleet, type Fleet } from './fleet';
 
@@ -130,6 +131,13 @@ export class PlatformBridge {
       this.snapshotTimer = 0;
       void this.snapshot();
     }, 1500);
+  }
+
+  /** Диспетчерская смены (признак dispatch двойника управления). */
+  readDispatch(): DispatchState {
+    const ctl = this.things.get(CONTROL_ID) as { dispatch?: { properties?: DispatchState } } | undefined;
+    const d = ctl?.dispatch?.properties;
+    return d && d.orders && Array.isArray(d.messages) && Array.isArray(d.events) ? d : emptyDispatch();
   }
 
   private readStatus(): ControlStatus | null {

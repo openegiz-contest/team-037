@@ -13,6 +13,7 @@ import mqtt from 'mqtt';
 import { computeKpis, Simulation, type StrategyName } from '../src/sim';
 import { activeScenarioLabels, applyScenario, type Command } from '../src/platform/scenarios';
 import { defaultFleet, fleetConfig, sanitizeFleet, type Fleet } from '../src/platform/fleet';
+import { applyDispatch, DISPATCH_COMMANDS, emptyDispatch, type DispatchCommand } from '../src/platform/dispatch';
 import { CONTROL_ID, SITE_NS, serializeShift, thingIds, serializeAll, siteDefinitions, thingDefinitions, VARIANTS, type Features, type ThingBody } from '../src/platform/twins';
 
 const env = (k: string, d: string) => process.env[k] ?? d;
@@ -34,6 +35,8 @@ const log = (...a: unknown[]) => console.log(new Date().toISOString(), ...a);
 let sims: Record<StrategyName, Simulation> = makeSims();
 let running = true;
 let commandSeq = -1;
+/** Диспетчерская смены: приказы, сообщения водителям, ответы (только реальный карьер). */
+let dispatch = emptyDispatch();
 let lastScenario = 'нет';
 /** Последние выполненные команды для раздела «Сценарии»: [время модели, с; описание]. */
 const history: [number, string][] = [];
@@ -134,11 +137,29 @@ function publishStatus(): void {
     },
   };
   client.publish(`telemetry/control.${SITE_NS}`, JSON.stringify(msg), { qos: 0 });
+  publishDispatch();
+}
+
+/** Состояние диспетчерской — в признак dispatch двойника управления (его читают разделы «Диспетчер» и «Терминал»). */
+function publishDispatch(): void {
+  const msg = {
+    topic: `${SITE_NS}/control/things/twin/commands/modify`,
+    path: '/features/dispatch',
+    value: { properties: { ...dispatch, sim_time: Math.round(sims.smart.now) } },
+  };
+  client.publish(`telemetry/control.${SITE_NS}`, JSON.stringify(msg), { qos: 0 });
 }
 
 // ───────────────────────────── сценарии «что если» ─────────────────────────────
 
 async function applyCommand(c: Command): Promise<void> {
+  if (DISPATCH_COMMANDS.has(c.value)) {
+    // Приказ диспетчера или ответ водителя — только реальному карьеру (теневой расчёт — «как без системы»).
+    const done = applyDispatch(dispatch, sims.smart, c as unknown as DispatchCommand);
+    log(`диспетчерская: ${c.value} → ${done ?? 'отклонено'}`);
+    publishAll();
+    return;
+  }
   const text = applyScenario(VARIANTS.map((v) => sims[v]), c);
   if (text) lastScenario = text;
   switch (c.value) {
@@ -159,6 +180,7 @@ async function applyCommand(c: Command): Promise<void> {
       if (c.fleet !== undefined) fleet = sanitizeFleet(c.fleet, fleet);
       if (c.trucks !== undefined) fleet = sanitizeFleet({ ...fleet, trucks: Number(c.trucks) }, fleet);
       sims = makeSims();
+      dispatch = emptyDispatch();
       lastScenario = `новая смена (seed ${seed}, ${fleet.trucks} самосвалов, ${fleet.excavators.length} экскаваторов)`;
       await setupTwins(prevTrucks, prevExcavators);
       break;

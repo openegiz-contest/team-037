@@ -45,6 +45,9 @@ export interface ShiftTimeline {
   closures: string;
 }
 
+/** Приказ диспетчера самосвалу. */
+export type ManualOrder = { kind: 'excavator'; id: number } | { kind: 'hold' };
+
 export const TRUCK_CODE: Record<TruckState, string> = { idle: 'i', empty: 'e', queue: 'q', loading: 'l', loaded: 'L', dumping: 'd', refuel: 'f', service: 's', broken: 'b' };
 export const EX_CODE: Record<Excavator['state'], string> = { working: 'w', waiting: 'i', broken: 'b', blast: 'x', nostock: 'n' };
 
@@ -74,6 +77,12 @@ export class Simulation {
   readonly stockpile = { t: 0, cuT: 0, capT: 0, inflowT: 0, crushing: false, lastIn: 0 };
   readonly history: HistoryPoint[] = [];
   readonly log: LogEntry[] = [];
+  /**
+   * Ручные приказы диспетчера (только на стенде, по командам из раздела «Диспетчер»):
+   * самосвал → экскаватор (держится, пока не вернут «авто») или «стоять на стоянке».
+   * Пустая карта — модель считает как обычно (бенчмарк не меняется).
+   */
+  readonly manual = new Map<number, ManualOrder>();
   closures: RoadClosure[] = [];
   /** График взрывных работ на смену (известен заранее) + ручные взрывы. */
   readonly blasts: Blast[] = [];
@@ -771,6 +780,18 @@ export class Simulation {
   dispatchEmpty(t: Truck): void {
     t.loadT = 0;
     t.material = null;
+    const order = this.manual.get(t.id);
+    if (order?.kind === 'hold') {
+      // Приказ «стоять»: доезжает до своего места на стоянке и глушит двигатель до отмены приказа.
+      if (t.dest?.kind === 'garage' && t.node === this.destinationNode(t.dest)) {
+        t.state = 'idle';
+        t.departAt = Infinity;
+        return;
+      }
+      this.sendToGarage(t, 'refuel');
+      t.state = 'empty';
+      return;
+    }
     this.releaseSlot(t); // выезжает со стоянки — место свободно
     if (t.serviceRequested) {
       this.sendToGarage(t, 'service');
@@ -782,9 +803,43 @@ export class Simulation {
       t.state = 'empty';
       return;
     }
-    const exId = this.strategy.choose(this, t);
+    const manualEx = order?.kind === 'excavator' && this.excavators[order.id] && this.excavators[order.id].state !== 'broken' ? order.id : null;
+    const exId = manualEx ?? this.strategy.choose(this, t);
     this.setDestination(t, { kind: 'excavator', id: exId });
     t.state = 'empty';
+  }
+
+  /**
+   * Приказ диспетчера самосвалу. order = null — вернуть под управление системы.
+   * Порожний в пути перенаправляется сразу; гружёный выполнит приказ после разгрузки.
+   */
+  applyManual(truckId: number, order: ManualOrder | 'refuel' | null): string {
+    const t = this.trucks[truckId];
+    if (!t) return '';
+    if (order === 'refuel') {
+      if (t.state === 'empty' || t.state === 'idle') {
+        if (t.state === 'idle') t.departAt = this.now;
+        this.releaseSlot(t);
+        this.sendToGarage(t, 'refuel');
+        t.state = 'empty';
+      } else t.fuelL = Math.min(t.fuelL, this.cfg.truck.refuelThreshold * this.cfg.truck.fuelTankL - 1); // заедет после разгрузки
+      this.addLog(`Диспетчер: самосвал ${t.name} — на заправку`, 'info');
+      return `${t.name} → заправка`;
+    }
+    const wasHold = this.manual.get(truckId)?.kind === 'hold';
+    if (order) this.manual.set(truckId, order);
+    else this.manual.delete(truckId);
+    if (wasHold && order?.kind !== 'hold' && t.state === 'idle') t.departAt = this.now; // выезжает со стоянки
+    if (order?.kind === 'excavator' && t.state === 'empty' && t.dest?.kind === 'excavator' && t.dest.id !== order.id) {
+      t.homeEx = order.id;
+      this.setDestination(t, { kind: 'excavator', id: order.id });
+    }
+    if (order?.kind === 'hold' && t.state === 'empty' && t.dest?.kind === 'excavator') {
+      this.sendToGarage(t, 'refuel');
+    }
+    const what = !order ? 'под управление системы' : order.kind === 'hold' ? 'стоять на стоянке' : `к ${this.excavators[order.id].name}`;
+    this.addLog(`Диспетчер: самосвал ${t.name} — ${what}`, 'info');
+    return `${t.name} → ${what}`;
   }
 
   destinationNode(dest: Destination): number {

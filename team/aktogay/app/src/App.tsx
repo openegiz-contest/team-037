@@ -14,6 +14,11 @@ import { FleetPage } from './pages/FleetPage';
 import { TimelinePage } from './pages/TimelinePage';
 import { DriversPage } from './pages/DriversPage';
 import { GeologyPage } from './pages/GeologyPage';
+import { DispatchPage } from './pages/DispatchPage';
+import { TerminalPage } from './pages/TerminalPage';
+import { LoginPage } from './pages/LoginPage';
+import { loadSession, saveSession, type Session } from './platform/accounts';
+import { applyDispatch, emptyDispatch, type DispatchCommand } from './platform/dispatch';
 import { defaultFleet, fleetConfig, type Fleet } from './platform/fleet';
 import { PlatformBridge } from './platform/bridge';
 import { activeDeviations, applyScenario, type Command } from './platform/scenarios';
@@ -54,6 +59,10 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
   /** Раздел из адреса: #/ — карьер, #/twins/<thingId> — двойники, #/scenarios — сценарии. */
   const [hash, setHash] = useState(() => window.location.hash);
+  /** Демо-вход в разделы «Диспетчер» и «Терминал водителя». */
+  const [session, setSession] = useState<Session | null>(() => loadSession());
+  /** Диспетчерская без стенда — в браузере, на локальной модели. */
+  const localDispatch = useRef(emptyDispatch());
   const route: Route = routeFromHash(hash);
   const twinId = hash.startsWith('#/twins/') ? decodeURIComponent(hash.slice('#/twins/'.length)) : null;
   const [navCollapsed, setNavCollapsed] = useState(() => {
@@ -656,6 +665,25 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
   const platformTwinCount = bridge ? bridge.attrs.size : 0;
   const activeCount = activeDeviations(main).length;
   const pageNow = main.now;
+  const dispatchState = bridge ? bridge.readDispatch() : localDispatch.current;
+  /** Приказ или ответ: на стенде — команда двойнику управления, без стенда — сразу в локальную модель. */
+  const sendDispatch = (c: DispatchCommand) => {
+    if (bridge) void bridge.send(c.value, 0, { ...c });
+    else {
+      applyDispatch(localDispatch.current, main, c);
+      setEpoch((e) => e + 1);
+    }
+  };
+  const doLogin = (s: Session) => {
+    saveSession(s);
+    setSession(s);
+    window.location.hash = s.role === 'dispatcher' ? ROUTE_HASH.dispatch : ROUTE_HASH.terminal;
+  };
+  const doLogout = () => {
+    saveSession(null);
+    setSession(null);
+    window.location.hash = ROUTE_HASH.login;
+  };
   // Раздел «Сценарии» на стенде всегда сравнивает оба варианта.
   const scSims = allSims;
   return (
@@ -670,6 +698,7 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
         activeCount={activeCount}
         theme={theme}
         onToggleTheme={toggleTheme}
+        session={session}
       />
       <main className="h-full min-w-0 flex-1">
         {(route === 'mine' || route === 'effect') && dashboard}
@@ -689,6 +718,19 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
         )}
         {route === 'drivers' && <DriversPage sim={main} now={pageNow} running={isRunning} onToggleRun={toggleRun} onLocate={(sel) => locate('smart', sel)} />}
         {route === 'geology' && <GeologyPage sim={main} now={pageNow} />}
+        {route === 'login' && <LoginPage truckCount={main.trucks.length} onLogin={doLogin} />}
+        {route === 'dispatch' &&
+          (session?.role === 'dispatcher' ? (
+            <DispatchPage sim={main} state={dispatchState} send={sendDispatch} session={session} now={pageNow} onLocate={(sel) => locate('smart', sel)} onLogout={doLogout} />
+          ) : (
+            <LoginPage truckCount={main.trucks.length} want="dispatcher" onLogin={doLogin} />
+          ))}
+        {route === 'terminal' &&
+          (session?.role === 'driver' ? (
+            <TerminalPage sim={main} state={dispatchState} send={sendDispatch} session={session} onLogout={doLogout} />
+          ) : (
+            <LoginPage truckCount={main.trucks.length} want="driver" onLogin={doLogin} />
+          ))}
         {route === 'timeline' && <TimelinePage sims={allSims} now={pageNow} running={isRunning} onToggleRun={toggleRun} onLocate={locate} />}
         {route === 'fleet' && (
           <FleetPage

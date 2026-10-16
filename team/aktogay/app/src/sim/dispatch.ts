@@ -228,6 +228,7 @@ export class SmartStrategy implements DispatchStrategy {
   onDisruption(sim: Simulation): void {
     for (const t of sim.trucks) {
       if (t.state !== 'empty' || t.dest?.kind !== 'excavator') continue;
+      if (sim.manual.has(t.id)) continue; // приказ диспетчера не перебиваем
       const ev = this.evaluate(sim, t);
       const cur = t.dest.id;
       if (ev.best !== cur && ev.scores[cur] - ev.scores[ev.best] > sim.cfg.smart.switchGainSec) {
