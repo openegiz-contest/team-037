@@ -21,7 +21,7 @@ const DITTO_USER = env('DITTO_USER', 'ditto');
 const DITTO_PASSWORD = env('DITTO_PASSWORD', '');
 const MQTT_URL = `mqtt://${env('MQTT_HOST', 'localhost')}:${env('MQTT_PORT', '1883')}`;
 /** Секунд модельного времени за секунду реального (x1 в интерфейсе = 10). */
-let speed = Number(env('SIM_SPEEDUP', '20'));
+let speed = Number(env('SIM_SPEEDUP', '10'));
 let seed = Number(env('SIM_SEED', '42'));
 /** Парк техники: самосвалы и состав экскаваторов (меняется командой reset { fleet }). */
 let fleet: Fleet = defaultFleet(Math.max(5, Math.min(30, Number(env('SIM_TRUCKS', '20')))));
@@ -150,7 +150,7 @@ async function applyCommand(c: Command): Promise<void> {
       running = true;
       break;
     case 'speed':
-      speed = Math.max(1, Math.min(2000, Number(c.arg) || 20));
+      speed = Math.max(1, Math.min(2000, Number(c.arg) || 10));
       break;
     case 'reset': {
       const prevTrucks = fleet.trucks;

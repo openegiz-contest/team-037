@@ -16,7 +16,7 @@ services:
       DITTO_PASSWORD: ${DITTO_PASSWORD}
       MQTT_HOST: mosquitto
       MQTT_PORT: "1883"
-      SIM_SPEEDUP: ${AKTOGAY_SPEEDUP:-20}
+      SIM_SPEEDUP: ${AKTOGAY_SPEEDUP:-10}
       SIM_SEED: ${AKTOGAY_SEED:-42}
       SIM_TRUCKS: ${AKTOGAY_TRUCKS:-20}
     depends_on:

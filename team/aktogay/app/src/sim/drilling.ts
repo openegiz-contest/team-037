@@ -10,6 +10,61 @@
 import { Rng, subSeed } from './rng';
 import type { Simulation } from './engine';
 
+/** Рабочая площадка бурового блока (полуразмеры, м): сетка скважин ±20 м + место для двух станков. */
+export const BLOCK_PAD = { halfAlong: 78, halfAcross: 30 };
+/** Сколько свободного места нужно между площадкой и осью дороги, м (полуширина дороги + обочина). */
+const ROAD_CLEAR = 58;
+
+/**
+ * Место бурового блока у экскаватора: на борту карьера, но не на транспортной дороге.
+ * Перебираем точки к центру карьера и вдоль уступа и берём первую, где площадка не задевает дорог
+ * и других экскаваторов.
+ */
+function placeBlock(sim: Simulation, exId: number): { x: number; y: number; ux: number; uy: number } {
+  const ex = sim.excavators[exId];
+  const l = Math.hypot(ex.x, ex.y) || 1;
+  const ix = -ex.x / l; // к центру карьера
+  const iy = -ex.y / l;
+  const ux = -ex.y / l; // вдоль уступа
+  const uy = ex.x / l;
+  const g = sim.layout.graph;
+  const segs = g.edges.filter((e) => e.kind !== 'lot' && e.kind !== 'park').map((e) => [g.nodes[e.a], g.nodes[e.b]] as const);
+  const dSeg = (px: number, py: number, ax: number, ay: number, bx: number, by: number) => {
+    const vx = bx - ax;
+    const vy = by - ay;
+    const t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy || 1)));
+    return Math.hypot(px - ax - vx * t, py - ay - vy * t);
+  };
+  /** Наименьшее расстояние от площадки до оси дороги (−1 — мешает другой экскаватор или вне карьера). */
+  const clearance = (cx: number, cy: number) => {
+    const { semiMajorM: A, semiMinorM: B } = sim.cfg.pit;
+    if ((cx / A) ** 2 + (cy / B) ** 2 > 0.8) return -1; // площадка должна быть внутри чаши
+    for (const o of sim.excavators) if (o.id !== exId && Math.hypot(o.x - cx, o.y - cy) < 120) return -1;
+    let min = Infinity;
+    // Площадка — прямоугольник; проверяем сетку точек по нему.
+    for (const a of [-1, -0.5, 0, 0.5, 1])
+      for (const c of [-1, 0, 1]) {
+        const px = cx + ux * a * BLOCK_PAD.halfAlong + ix * c * BLOCK_PAD.halfAcross;
+        const py = cy + uy * a * BLOCK_PAD.halfAlong + iy * c * BLOCK_PAD.halfAcross;
+        for (const [p, q] of segs) min = Math.min(min, dSeg(px, py, p.x, p.y, q.x, q.y));
+      }
+    return min;
+  };
+  const maxIn = l * 0.6; // не дальше дна карьера
+  let best = { x: ex.x + ix * 90, y: ex.y + iy * 90, c: -1 };
+  // Сначала ближе к экскаватору (к центру карьера, затем выше по борту), потом дальше вдоль уступа.
+  for (const s of [0, 60, -60, 120, -120, 180, -180, 240, -240, 300, -300])
+    for (const d of [90, 70, 110, 55, 130, 150, 40, 170, 190, -40, -70, -100]) {
+      if (d > maxIn) continue;
+      const cx = ex.x + ix * d + ux * s;
+      const cy = ex.y + iy * d + uy * s;
+      const c = clearance(cx, cy);
+      if (c >= ROAD_CLEAR) return { x: cx, y: cy, ux, uy };
+      if (c > best.c) best = { x: cx, y: cy, c };
+    }
+  return { x: best.x, y: best.y, ux, uy };
+}
+
 /** Блок у забоя: сетка скважин вокруг центра будущего взрыва. */
 export interface DrillBlock {
   exId: number;
@@ -109,12 +164,8 @@ export class DrillOps {
     const r = new Rng(subSeed(sim.seed, 9501));
     const planned = sim.blasts.filter((b) => !b.manual && b.phase !== 'done').map((b) => b.target);
     this.blocks = sim.excavators.map((ex) => {
-      const l = Math.hypot(ex.x, ex.y) || 1;
-      const x = ex.x - (ex.x / l) * 90;
-      const y = ex.y - (ex.y / l) * 90;
-      // Сетка вытянута вдоль уступа (касательная к окружности карьера).
-      const ux = -ex.y / l;
-      const uy = ex.x / l;
+      // Сетка вытянута вдоль уступа (касательная к окружности карьера); место — вне дорог.
+      const { x, y, ux, uy } = placeBlock(sim, ex.id);
       const isPlanned = planned.includes(ex.id);
       return {
         exId: ex.id,

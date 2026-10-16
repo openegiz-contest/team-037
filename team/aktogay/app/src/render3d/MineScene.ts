@@ -10,6 +10,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { gradeAt, MATERIAL_SHORT, type Blast, type Simulation, type TruckState } from '../sim';
+import { BLOCK_PAD } from '../sim/drilling';
 import type { Selection } from '../render/drawMine';
 import { fmtInt } from '../ui/format';
 import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
@@ -138,7 +139,7 @@ export class MineScene {
   ) {
     const cfg = sim.cfg;
     // Под каждым буровым блоком — ровная рабочая площадка (сетка скважин и станки стоят на ней).
-    const pads = sim.drill.blocks.map((b) => ({ x: b.x, y: b.y, ux: b.ux, uy: b.uy, halfAlong: 20 + DRILL_SPREAD + 18, halfAcross: 16 + 14 }));
+    const pads = sim.drill.blocks.map((b) => ({ x: b.x, y: b.y, ux: b.ux, uy: b.uy, ...BLOCK_PAD }));
     this.heightAt = makeRoadHeightAt(sim, makeHeightAt(cfg), pads);
     this.light = !!opts.light;
     this.onSlow = opts.onSlow ?? null;

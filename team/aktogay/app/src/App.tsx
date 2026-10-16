@@ -42,7 +42,7 @@ export default function App() {
   const [seed, setSeed] = useState(42);
   /** Парк техники в автономном режиме (на стенде — из статуса двойника управления). */
   const [fleet, setFleet] = useState<Fleet>(() => defaultFleet(20));
-  const [speed, setSpeed] = useState<Speed>(20);
+  const [speed, setSpeed] = useState<Speed>(1);
   // Рудник работает непрерывно: смена стартует сама, по окончании начинается следующая.
   const [running, setRunning] = useState(true);
   const [selection, setSelection] = useState<{ v: StrategyName; sel: Selection } | null>(null);
@@ -305,6 +305,8 @@ export default function App() {
   /** Паузы нет: рудник работает непрерывно. Оставлено для совместимости разделов. */
   const toggleRun = () => undefined;
   nextShift.current = createSims;
+  /** На стенде скорость задаёт сервис — кнопка показывает то, что реально идёт. */
+  const shownSpeed: Speed = bridge && pStatus?.speed ? (pStatus.speed >= 2000 ? 'max' : ((pStatus.speed / BASE_RATE) as Speed)) : speed;
   const chooseSpeed = (s: Speed) => {
     setSpeed(s);
     if (bridge) void bridge.send('speed', s === 'max' ? 2000 : BASE_RATE * s);
@@ -537,7 +539,7 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
               key={s}
               onClick={() => chooseSpeed(s)}
               title={s === 'max' ? 'Максимально быстро — промотать смену' : `1 с = ${BASE_RATE * s} с смены`}
-              className={`num rounded px-2 py-1 font-semibold ${speed === s ? 'bg-amber-500 text-black' : 'bg-panel-2 text-ink-2 hover:text-ink'}`}
+              className={`num rounded px-2 py-1 font-semibold ${shownSpeed === s ? 'bg-amber-500 text-black' : 'bg-panel-2 text-ink-2 hover:text-ink'}`}
             >
               {s === 'max' ? '» МАКС' : `x${s}`}
             </button>
