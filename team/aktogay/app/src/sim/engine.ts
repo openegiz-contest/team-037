@@ -414,9 +414,10 @@ export class Simulation {
   private makeBlast(exId: number, t: number, dur: number, manual: boolean): Blast {
     const g = this.layout.graph;
     const ex = this.excavators[exId];
-    const l = Math.hypot(ex.x, ex.y) || 1;
-    const x = ex.x - (ex.x / l) * 90; // взрываемый блок — у забоя, ближе к центру карьера
-    const y = ex.y - (ex.y / l) * 90;
+    const pit = this.cfg.pits[this.layout.excavatorPit[exId] ?? 0];
+    const l = Math.hypot(ex.x - pit.cx, ex.y - pit.cy) || 1;
+    const x = ex.x - ((ex.x - pit.cx) / l) * 90; // взрываемый блок — у забоя, ближе к центру своей выработки
+    const y = ex.y - ((ex.y - pit.cy) / l) * 90;
     const radius = this.cfg.blasting.radiusM;
     const inside = (n: number) => Math.hypot(g.nodes[n].x - x, g.nodes[n].y - y) <= radius;
     const exIds = this.excavators.filter((e) => Math.hypot(e.x - x, e.y - y) <= radius).map((e) => e.id);

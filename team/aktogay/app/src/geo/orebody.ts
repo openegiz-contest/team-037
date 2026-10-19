@@ -8,7 +8,7 @@
  *
  * Геология постоянна и от seed смены не зависит. Модель добычи её не использует — бенчмарк не меняется.
  */
-import { makeHeightAt, PIT_DEPTH } from './relief';
+import { insidePits, makeHeightAt, PIT_DEPTH, pitsBounds } from './relief';
 import type { Simulation } from '../sim/engine';
 
 export type Zone = 'oxide' | 'sulfide' | 'waste';
@@ -154,14 +154,14 @@ export function blockSummary(sim: Simulation, holes: HoleAssay[]) {
 
 /** Запасы под текущей поверхностью карьера в контуре бровки, до отметки zBottom. */
 export function pitResources(sim: Simulation, m: OreModel, zBottom = -480) {
-  const { semiMajorM: A, semiMinorM: B } = sim.cfg.pit;
+  const b = pitsBounds(sim.cfg);
   let sT = 0, sCu = 0, oT = 0, oCu = 0, wT = 0;
   const step = BLOCK_M * 2; // для сводки достаточно блоков 50 м
   const t = BLOCK_T * 4;
   for (let z = -BENCH_M / 2; z > zBottom; z -= BENCH_M)
-    for (let x = -A; x <= A; x += step)
-      for (let y = -B; y <= B; y += step) {
-        if ((x / A) ** 2 + (y / B) ** 2 > 1 || m.surface(x, y) < z) continue;
+    for (let x = b.minX; x <= b.maxX; x += step)
+      for (let y = b.minY; y <= b.maxY; y += step) {
+        if (!insidePits(sim.cfg, x, y) || m.surface(x, y) < z) continue;
         const zone = m.zone(x, y, z);
         const cu = m.cu(x, y, z);
         if (zone === 'sulfide') { sT += t; sCu += cu * t; }

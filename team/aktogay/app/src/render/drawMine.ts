@@ -1,6 +1,6 @@
 /** Отрисовка карьера на Canvas 2D (вид сверху). Статический слой кэшируется, динамический — каждый кадр. */
 import { isLive, smoothTruck } from './smooth';
-import { gradeAt, pitPoint, type Simulation } from '../sim';
+import { gradeAt, pitPointOf, type Simulation } from '../sim';
 import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
 
 export interface View {
@@ -74,40 +74,47 @@ export function drawStatic(ctx: CanvasRenderingContext2D, sim: Simulation, v: Vi
     ctx.stroke();
   }
 
-  const ellipse = (s: number) => {
+  const ellipse = (s: number, pit = cfg.pits[0]) => {
     ctx.beginPath();
     for (let i = 0; i <= 160; i++) {
-      const p = pitPoint(cfg, s, (i / 160) * Math.PI * 2);
+      const p = pitPointOf(pit, s, (i / 160) * Math.PI * 2);
       if (i === 0) ctx.moveTo(sx(v, p.x), sy(v, p.y));
       else ctx.lineTo(sx(v, p.x), sy(v, p.y));
     }
     ctx.closePath();
   };
 
-  // Горизонтали рельефа вокруг карьера.
-  for (const s of [1.35, 1.22, 1.1]) {
-    ellipse(s);
-    ctx.strokeStyle = 'rgba(180,160,130,0.07)';
-    ctx.stroke();
-  }
+  // Горизонтали рельефа вокруг выработок.
+  for (const pit of cfg.pits)
+    for (const s of [1.35, 1.22, 1.1]) {
+      ellipse(s, pit);
+      ctx.strokeStyle = 'rgba(180,160,130,0.07)';
+      ctx.stroke();
+    }
 
-  // Уступы: от бровки (светлее) к дну (темнее).
-  const n = cfg.pit.benchCount;
-  const sMin = cfg.pit.bottomScale * 0.75;
-  for (let i = 0; i < n; i++) {
-    const t = i / (n - 1);
-    const s = 1.03 - t * (1.03 - sMin);
-    ellipse(s);
-    ctx.fillStyle = lerpColor([74, 64, 52], [30, 27, 24], t);
-    ctx.fill();
-    ctx.strokeStyle = `rgba(214,190,150,${0.22 - t * 0.12})`;
-    ctx.lineWidth = 1;
-    ctx.stroke();
+  // Уступы каждой выработки: от бровки (светлее) к дну (темнее; цвет — по абсолютной глубине).
+  const maxD = Math.max(...cfg.pits.map((p) => p.depthM));
+  for (const pit of cfg.pits) {
+    const n = pit.benchCount;
+    const sMin = pit.bottomScale * 0.75;
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1);
+      const s = 1.03 - t * (1.03 - sMin);
+      ellipse(s, pit);
+      const td = (t * pit.depthM) / maxD;
+      ctx.fillStyle = lerpColor([74, 64, 52], [30, 27, 24], td);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(214,190,150,${0.22 - td * 0.12})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    // Подтопленное дно (у глубоких выработок).
+    if (pit.depthM >= 150) {
+      ellipse(sMin * 0.7, pit);
+      ctx.fillStyle = 'rgba(40,70,80,0.55)';
+      ctx.fill();
+    }
   }
-  // Подтопленное дно.
-  ellipse(sMin * 0.7);
-  ctx.fillStyle = 'rgba(40,70,80,0.55)';
-  ctx.fill();
 
   // Площадки на поверхности.
   const site = (node: number, w: number, h: number, fill: string, stroke: string, text: string, push: number) => {

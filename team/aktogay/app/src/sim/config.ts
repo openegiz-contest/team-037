@@ -21,6 +21,37 @@ export interface ExcavatorSpec {
   ring: number;
   /** Угол расположения забоя на берме, градусы (0 — восток, 90 — юг на экране). */
   angleDeg: number;
+  /** Выработка (индекс в SimConfig.pits): 0 — главный карьер. */
+  pit?: number;
+}
+
+/** Выработка: чаша с уступами, своими спиральными съездами и кольцевыми бермами. */
+export interface PitSpec {
+  name: string;
+  /** Центр и поворот длинной оси в координатах модели, м и градусы. */
+  cx: number;
+  cy: number;
+  rotDeg: number;
+  /** Полуоси по бровке, м. */
+  semiMajorM: number;
+  semiMinorM: number;
+  /** Глубина, м, и число уступов (по 15 м). */
+  depthM: number;
+  benchCount: number;
+  /** Масштаб дна относительно бровки. */
+  bottomScale: number;
+  /** Витков спирального съезда от бровки до дна, узлов на съезде. */
+  rampTurns: number;
+  rampNodes: number;
+  /** Уровни кольцевых берм в долях глубины (0 — бровка, 1 — дно); должны попадать в узлы съезда. */
+  ringLevels: number[];
+  /** Узлов на кольце (кратно числу съездов). */
+  ringNodes: number;
+  /** Съезды: начальные углы (равномерно по кругу) и названия. */
+  rampStartsDeg: number[];
+  rampNames: string[];
+  /** Фаза неровности контура (чтобы выработки не были одинаковыми). */
+  warpPhase: number;
 }
 
 export interface Point {
@@ -54,6 +85,11 @@ export interface SimConfig {
     /** Узлов на каждом кольце (чётное число). */
     ringNodes: number;
   };
+  /**
+   * Выработки карьера — как на спутниковом снимке Актогая (31.03.2025): главный карьер, северо-западный
+   * и юго-западный. pits[0] — главный (его форма продублирована в pit для старого кода).
+   */
+  pits: PitSpec[];
   /** Поверхностные объекты, м (центр карьера — 0,0). */
   sites: {
     crusher: Point;
@@ -218,15 +254,48 @@ export const DEFAULT_CONFIG: SimConfig = {
     historyEverySec: 300,
   },
   pit: {
-    semiMajorM: 1500, // оценка, сверить с открытыми источниками (годовые отчёты KAZ Minerals)
-    semiMinorM: 800, // оценка
-    benchCount: 16, // уступы по 15 м при глубине ~240 м (визуально)
-    bottomScale: 0.2,
+    // форма главного карьера (дублирует pits[0]); глубина — по публикациям, до ~230 м
+    semiMajorM: 853,
+    semiMinorM: 570,
+    benchCount: 15,
+    bottomScale: 0.18,
     rampTurns: 0.8,
     rampNodes: 21,
     ringLevels: [0, 0.35, 0.7, 1.0],
     ringNodes: 36,
   },
+  // Три выработки по спутниковому снимку (Esri World Imagery, 31.03.2025) и контуру OpenStreetMap:
+  // центры, повороты и размеры по бровке измерены на снимке; глубины — главный по публикациям (~230 м),
+  // остальные — оценка по числу уступов на снимке.
+  pits: [
+    {
+      name: 'Главный карьер',
+      cx: 378, cy: -495, rotDeg: 7.9,
+      semiMajorM: 853, semiMinorM: 570,
+      depthM: 230, benchCount: 15, bottomScale: 0.18,
+      rampTurns: 0.8, rampNodes: 21, ringLevels: [0, 0.35, 0.7, 1.0], ringNodes: 36,
+      rampStartsDeg: [0, 180], rampNames: ['Восточный съезд', 'Западный съезд'],
+      warpPhase: 0,
+    },
+    {
+      name: 'Северо-западный карьер',
+      cx: -892, cy: -77, rotDeg: -62.3,
+      semiMajorM: 395, semiMinorM: 212,
+      depthM: 180, benchCount: 12, bottomScale: 0.22,
+      rampTurns: 0.7, rampNodes: 11, ringLevels: [0, 0.5, 1.0], ringNodes: 20,
+      rampStartsDeg: [90, 270], rampNames: ['Северный съезд СЗ карьера', 'Южный съезд СЗ карьера'],
+      warpPhase: 1.7,
+    },
+    {
+      name: 'Юго-западный карьер',
+      cx: 76, cy: 504, rotDeg: -38,
+      semiMajorM: 492, semiMinorM: 310,
+      depthM: 120, benchCount: 8, bottomScale: 0.3,
+      rampTurns: 0.6, rampNodes: 11, ringLevels: [0, 0.5, 1.0], ringNodes: 24,
+      rampStartsDeg: [300, 120], rampNames: ['Западный съезд ЮЗ карьера', 'Восточный съезд ЮЗ карьера'],
+      warpPhase: 3.1,
+    },
+  ],
   sites: {
     // Расположение — как на реальном Актогае (спутниковый снимок и объекты OpenStreetMap, см. src/geo/geoRef.ts);
     // координаты модели: начало — центр карьера, ось x — длинная ось карьера.
@@ -282,13 +351,13 @@ export const DEFAULT_CONFIG: SimConfig = {
   excavators: [
     // Сульфидная руда — в глубоких горизонтах, основной поток на дробилку → ОФ.
     // Глубокий забой богаче, верхний беднее — их нужно смешивать (шихтовать). Оценка.
-    { name: 'Э-1', material: 'sulfide', rateTpm: 44, gradePct: 0.42, ring: 3, angleDeg: 20 },
-    { name: 'Э-2', material: 'sulfide', rateTpm: 44, gradePct: 0.29, ring: 2, angleDeg: 215 },
+    { name: 'Э-1', material: 'sulfide', rateTpm: 44, gradePct: 0.42, ring: 3, angleDeg: 20, pit: 0 },
+    { name: 'Э-2', material: 'sulfide', rateTpm: 44, gradePct: 0.29, ring: 2, angleDeg: 215, pit: 0 },
     // Оксидная руда — верхние горизонты (зона окисления) → кучное выщелачивание
-    { name: 'Э-3', material: 'oxide', rateTpm: 38, gradePct: 0.3, ring: 1, angleDeg: 140 },
+    { name: 'Э-3', material: 'oxide', rateTpm: 38, gradePct: 0.3, ring: 1, angleDeg: 140, pit: 1 },
     // Вскрыша → отвал
-    { name: 'Э-4', material: 'waste', rateTpm: 50, gradePct: 0, ring: 1, angleDeg: 300 },
-    { name: 'Э-5', material: 'waste', rateTpm: 50, gradePct: 0, ring: 2, angleDeg: 70 },
+    { name: 'Э-4', material: 'waste', rateTpm: 50, gradePct: 0, ring: 1, angleDeg: 300, pit: 0 },
+    { name: 'Э-5', material: 'waste', rateTpm: 50, gradePct: 0, ring: 1, angleDeg: 70, pit: 2 },
   ],
   excavator: {
     spotMin: 0.6,

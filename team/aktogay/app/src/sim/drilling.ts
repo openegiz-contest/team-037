@@ -9,6 +9,7 @@
  */
 import { Rng, subSeed } from './rng';
 import type { Simulation } from './engine';
+import { pitScaleAt } from './mine';
 
 /** Рабочая площадка бурового блока (полуразмеры, м): сетка скважин ±20 м + место для двух станков. */
 export const BLOCK_PAD = { halfAlong: 78, halfAcross: 30 };
@@ -20,13 +21,16 @@ const ROAD_CLEAR = 58;
  * Перебираем точки к центру карьера и вдоль уступа и берём первую, где площадка не задевает дорог
  * и других экскаваторов.
  */
-function placeBlock(sim: Simulation, exId: number): { x: number; y: number; ux: number; uy: number } {
+function placeBlock(sim: Simulation, exId: number): { x: number; y: number; ux: number; uy: number; pcx: number; pcy: number } {
   const ex = sim.excavators[exId];
-  const l = Math.hypot(ex.x, ex.y) || 1;
-  const ix = -ex.x / l; // к центру карьера
-  const iy = -ex.y / l;
-  const ux = -ex.y / l; // вдоль уступа
-  const uy = ex.x / l;
+  const pit = sim.cfg.pits[sim.layout.excavatorPit[exId] ?? 0];
+  const ex0 = ex.x - pit.cx;
+  const ey0 = ex.y - pit.cy;
+  const l = Math.hypot(ex0, ey0) || 1;
+  const ix = -ex0 / l; // к центру своей выработки
+  const iy = -ey0 / l;
+  const ux = -ey0 / l; // вдоль уступа
+  const uy = ex0 / l;
   const g = sim.layout.graph;
   const segs = g.edges.filter((e) => e.kind !== 'lot' && e.kind !== 'park').map((e) => [g.nodes[e.a], g.nodes[e.b]] as const);
   const dSeg = (px: number, py: number, ax: number, ay: number, bx: number, by: number) => {
@@ -37,8 +41,7 @@ function placeBlock(sim: Simulation, exId: number): { x: number; y: number; ux: 
   };
   /** Наименьшее расстояние от площадки до оси дороги (−1 — мешает другой экскаватор или вне карьера). */
   const clearance = (cx: number, cy: number) => {
-    const { semiMajorM: A, semiMinorM: B } = sim.cfg.pit;
-    if ((cx / A) ** 2 + (cy / B) ** 2 > 0.8) return -1; // площадка должна быть внутри чаши
+    if (pitScaleAt(pit, cx, cy) > 0.9) return -1; // площадка должна быть внутри чаши своей выработки
     for (const o of sim.excavators) if (o.id !== exId && Math.hypot(o.x - cx, o.y - cy) < 120) return -1;
     let min = Infinity;
     // Площадка — прямоугольник; проверяем сетку точек по нему.
@@ -59,10 +62,10 @@ function placeBlock(sim: Simulation, exId: number): { x: number; y: number; ux: 
       const cx = ex.x + ix * d + ux * s;
       const cy = ex.y + iy * d + uy * s;
       const c = clearance(cx, cy);
-      if (c >= ROAD_CLEAR) return { x: cx, y: cy, ux, uy };
+      if (c >= ROAD_CLEAR) return { x: cx, y: cy, ux, uy, pcx: pit.cx, pcy: pit.cy };
       if (c > best.c) best = { x: cx, y: cy, c };
     }
-  return { x: best.x, y: best.y, ux, uy };
+  return { x: best.x, y: best.y, ux, uy, pcx: pit.cx, pcy: pit.cy };
 }
 
 /** Блок у забоя: сетка скважин вокруг центра будущего взрыва. */
@@ -73,6 +76,9 @@ export interface DrillBlock {
   /** Направление «вдоль уступа» (единичный вектор) — для раскладки сетки. */
   ux: number;
   uy: number;
+  /** Центр выработки, в которой блок («поперёк» сетки — к нему). */
+  pcx: number;
+  pcy: number;
   holesTotal: number;
   holesDone: number;
   /** Крепость породы: множитель скорости бурения (0.8…1.2). */
@@ -165,7 +171,7 @@ export class DrillOps {
     const planned = sim.blasts.filter((b) => !b.manual && b.phase !== 'done').map((b) => b.target);
     this.blocks = sim.excavators.map((ex) => {
       // Сетка вытянута вдоль уступа (касательная к окружности карьера); место — вне дорог.
-      const { x, y, ux, uy } = placeBlock(sim, ex.id);
+      const { x, y, ux, uy, pcx, pcy } = placeBlock(sim, ex.id);
       const isPlanned = planned.includes(ex.id);
       return {
         exId: ex.id,
@@ -173,6 +179,8 @@ export class DrillOps {
         y,
         ux,
         uy,
+        pcx,
+        pcy,
         holesTotal: HOLES,
         holesDone: isPlanned ? Math.round(HOLES * r.range(0.55, 0.7)) : Math.round(HOLES * r.range(0, 0.4)),
         hardness: r.range(0.8, 1.2),
@@ -234,9 +242,11 @@ export class DrillOps {
     const col = k % 6;
     const along = (col - 2.5) * 8;
     const across = (row - 2) * 8;
-    // «Поперёк» — к центру карьера.
-    const l = Math.hypot(b.x, b.y) || 1;
-    return { x: b.x + b.ux * along - (b.x / l) * across, y: b.y + b.uy * along - (b.y / l) * across };
+    // «Поперёк» — к центру своей выработки.
+    const dx = b.x - b.pcx;
+    const dy = b.y - b.pcy;
+    const l = Math.hypot(dx, dy) || 1;
+    return { x: b.x + b.ux * along - (dx / l) * across, y: b.y + b.uy * along - (dy / l) * across };
   }
 
   /** Сколько смен хватит запаса экскаватору при обычном темпе (оценка). */

@@ -1,9 +1,9 @@
 /**
- * Генерация стилизованной геометрии карьера: эллиптическая чаша с уступами,
- * два спиральных съезда (восточный и западный), кольцевые бермы на нескольких горизонтах,
- * забои экскаваторов и поверхностные объекты.
+ * Геометрия карьера: несколько выработок (как на снимке Актогая) — у каждой чаша с уступами,
+ * спиральные съезды и кольцевые бермы; бровки соединены дорогами; забои экскаваторов и
+ * поверхностные объекты.
  */
-import type { Point, SimConfig } from './config';
+import type { PitSpec, Point, SimConfig } from './config';
 import { RoadGraph } from './graph';
 
 export interface SiteNodes {
@@ -38,6 +38,10 @@ export interface MineLayout {
   ringScales: number[];
   rampA: number[];
   rampB: number[];
+  /** Дороги каждой выработки (pits[0] — главный карьер). */
+  pits: PitLayout[];
+  /** Выработка каждого забоя. */
+  excavatorPit: number[];
   closureGroups: ClosureGroup[];
   excavators: SiteNodes[];
   crusher: SiteNodes;
@@ -49,84 +53,124 @@ export interface MineLayout {
   bounds: { minX: number; maxX: number; minY: number; maxY: number };
 }
 
-/** Неровность контура карьера — чтобы чаша не выглядела идеальным эллипсом. */
-export function pitWarp(theta: number): number {
-  return 1 + 0.045 * Math.sin(3 * theta + 0.7) + 0.03 * Math.sin(5 * theta + 2.1) + 0.02 * Math.sin(2 * theta + 0.3);
+/** Неровность контура выработки — чтобы чаша не выглядела идеальным эллипсом. */
+export function pitWarp(theta: number, phase = 0): number {
+  return 1 + 0.045 * Math.sin(3 * theta + 0.7 + phase) + 0.03 * Math.sin(5 * theta + 2.1 + phase * 1.7) + 0.02 * Math.sin(2 * theta + 0.3 + phase * 0.6);
 }
 
-/** Точка на «уступе» с масштабом s (1 — бровка) под углом theta. */
+/** Точка на «уступе» выработки с масштабом s (1 — бровка) под углом theta (в её собственной системе). */
+export function pitPointOf(p: PitSpec, s: number, theta: number): Point {
+  const w = pitWarp(theta, p.warpPhase);
+  const lx = p.semiMajorM * s * w * Math.cos(theta);
+  const ly = p.semiMinorM * s * w * Math.sin(theta);
+  const r = (p.rotDeg * Math.PI) / 180;
+  return { x: p.cx + lx * Math.cos(r) - ly * Math.sin(r), y: p.cy + lx * Math.sin(r) + ly * Math.cos(r) };
+}
+
+/** Масштаб «уступа» выработки в точке (обратное к pitPointOf): < 1 — внутри чаши. */
+export function pitScaleAt(p: PitSpec, x: number, y: number): number {
+  const r = (p.rotDeg * Math.PI) / 180;
+  const dx = x - p.cx;
+  const dy = y - p.cy;
+  const lx = dx * Math.cos(r) + dy * Math.sin(r);
+  const ly = -dx * Math.sin(r) + dy * Math.cos(r);
+  const th = Math.atan2(ly / p.semiMinorM, lx / p.semiMajorM);
+  return Math.hypot(lx / p.semiMajorM, ly / p.semiMinorM) / pitWarp(th, p.warpPhase);
+}
+
+/** Точка главного карьера (совместимость со старым кодом). */
 export function pitPoint(cfg: SimConfig, s: number, theta: number): Point {
-  const w = pitWarp(theta);
-  return {
-    x: cfg.pit.semiMajorM * s * w * Math.cos(theta),
-    y: cfg.pit.semiMinorM * s * w * Math.sin(theta),
-  };
+  return pitPointOf(cfg.pits[0], s, theta);
+}
+
+export function pitScaleAtDepth(p: PitSpec, u: number): number {
+  return 1 - u * (1 - p.bottomScale);
 }
 
 export function scaleAtDepth(cfg: SimConfig, u: number): number {
-  return 1 - u * (1 - cfg.pit.bottomScale);
+  return pitScaleAtDepth(cfg.pits[0], u);
 }
 
-const RAMP_NAMES = ['Восточный съезд', 'Западный съезд'];
+/** Дороги одной выработки. */
+export interface PitLayout {
+  rings: number[][];
+  ringScales: number[];
+  ramps: number[][];
+}
 
-export function buildMine(cfg: SimConfig): MineLayout {
-  const g = new RoadGraph();
-  const { rampNodes: N, rampTurns, ringLevels, ringNodes: M } = cfg.pit;
-  const turn = rampTurns * 2 * Math.PI;
-
-  // Два спиральных съезда, сдвинутых на 180°.
-  const ramps: number[][] = [0, Math.PI].map((theta0) => {
+/** Съезды и кольцевые бермы выработки pi; участки съездов — в closureGroups. */
+function buildPit(g: RoadGraph, p: PitSpec, pi: number, closureGroups: ClosureGroup[]): PitLayout {
+  const N = p.rampNodes;
+  const M = p.ringNodes;
+  const turn = p.rampTurns * 2 * Math.PI;
+  const nR = p.rampStartsDeg.length;
+  const start0 = (p.rampStartsDeg[0] * Math.PI) / 180;
+  const ramps: number[][] = p.rampStartsDeg.map((deg) => {
+    const theta0 = (deg * Math.PI) / 180;
     const ids: number[] = [];
     for (let i = 0; i < N; i++) {
       const u = i / (N - 1);
-      const p = pitPoint(cfg, scaleAtDepth(cfg, u), theta0 + u * turn);
-      ids.push(g.addNode(p.x, p.y, 'ramp'));
+      const q = pitPointOf(p, pitScaleAtDepth(p, u), theta0 + u * turn);
+      ids.push(g.addNode(q.x, q.y, 'ramp'));
       if (i > 0) g.addEdge(ids[i - 1], ids[i], 'ramp');
     }
     return ids;
   });
-  const [rampA, rampB] = ramps;
-
-  // Кольцевые бермы на горизонтах ringLevels (кольцо 0 — дорога по бровке).
-  const rampIdx = ringLevels.map((u) => Math.round(u * (N - 1)));
+  const rampIdx = p.ringLevels.map((u) => Math.round(u * (N - 1)));
   const rings: number[][] = [];
   const ringScales: number[] = [];
-  ringLevels.forEach((u, r) => {
-    const s = scaleAtDepth(cfg, u);
-    ringScales.push(s);
-    const thetaA = u * turn;
+  const step = M / nR; // съезды — через равные доли кольца
+  p.ringLevels.forEach((u, r) => {
+    const sc = pitScaleAtDepth(p, u);
+    ringScales.push(sc);
+    const thetaA = start0 + u * turn;
     const ids: number[] = [];
     for (let j = 0; j < M; j++) {
-      if (j === 0) ids.push(rampA[rampIdx[r]]);
-      else if (j === M / 2) ids.push(rampB[rampIdx[r]]);
+      if (j % step === 0) ids.push(ramps[j / step][rampIdx[r]]);
       else {
-        const p = pitPoint(cfg, s, thetaA + (j * 2 * Math.PI) / M);
-        ids.push(g.addNode(p.x, p.y, 'ring'));
+        const q = pitPointOf(p, sc, thetaA + (j * 2 * Math.PI) / M);
+        ids.push(g.addNode(q.x, q.y, 'ring'));
       }
     }
     for (let j = 0; j < M; j++) g.addEdge(ids[j], ids[(j + 1) % M], r === 0 ? 'rim' : 'ring');
     rings.push(ids);
   });
-
-  // Участки съездов между соседними горизонтами — кандидаты на временное закрытие.
-  const closureGroups: ClosureGroup[] = [];
   ramps.forEach((ramp, k) => {
     for (let r = 0; r + 1 < rampIdx.length; r++) {
       const edges: number[] = [];
       for (let i = rampIdx[r]; i < rampIdx[r + 1]; i++) edges.push(g.edgeBetween(ramp[i], ramp[i + 1])!);
-      closureGroups.push({ label: `${RAMP_NAMES[k]}, горизонты ${r}–${r + 1}`, edges });
+      closureGroups.push({ label: `${p.rampNames[k]}${pi > 0 ? '' : ''}, горизонты ${r}–${r + 1}`, edges });
     }
   });
+  return { rings, ringScales, ramps };
+}
 
-  // Забои экскаваторов: короткий заезд от бермы к забою.
+export function buildMine(cfg: SimConfig): MineLayout {
+  const g = new RoadGraph();
+  const closureGroups: ClosureGroup[] = [];
+  const pits = cfg.pits.map((p, pi) => buildPit(g, p, pi, closureGroups));
+  const main = pits[0];
+  const rings = main.rings;
+  const ringScales = main.ringScales;
+  const rampA = main.ramps[0];
+  const rampB = main.ramps[1] ?? main.ramps[0];
+
+  // Забои экскаваторов: короткий заезд от бермы своей выработки к забою.
+  const excavatorPit: number[] = [];
   const excavators = cfg.excavators.map((spec) => {
-    const r = Math.min(Math.max(spec.ring, 1), rings.length - 1);
-    const thetaA = ringLevels[r] * turn;
+    const pi = Math.min(Math.max(spec.pit ?? 0, 0), pits.length - 1);
+    excavatorPit.push(pi);
+    const p = cfg.pits[pi];
+    const pl = pits[pi];
+    const M = p.ringNodes;
+    const step = M / p.rampStartsDeg.length;
+    const r = Math.min(Math.max(spec.ring, 1), pl.rings.length - 1);
+    const thetaA = (p.rampStartsDeg[0] * Math.PI) / 180 + p.ringLevels[r] * p.rampTurns * 2 * Math.PI;
     const target = (spec.angleDeg * Math.PI) / 180;
     let bestJ = 1;
     let bestD = Infinity;
     for (let j = 0; j < M; j++) {
-      if (j === 0 || j === M / 2) continue; // не ставим забой прямо на развязке со съездом
+      if (j % step === 0) continue; // не ставим забой прямо на развязке со съездом
       const th = thetaA + (j * 2 * Math.PI) / M;
       const d = Math.abs(Math.atan2(Math.sin(th - target), Math.cos(th - target)));
       if (d < bestD) {
@@ -134,15 +178,31 @@ export function buildMine(cfg: SimConfig): MineLayout {
         bestJ = j;
       }
     }
-    const access = rings[r][bestJ];
+    const access = pl.rings[r][bestJ];
     const th = thetaA + (bestJ * 2 * Math.PI) / M;
-    const p = pitPoint(cfg, ringScales[r] - 0.045, th);
-    const node = g.addNode(p.x, p.y, 'face');
+    const q = pitPointOf(p, pl.ringScales[r] - 0.045, th);
+    const node = g.addNode(q.x, q.y, 'face');
     g.addEdge(access, node, 'spur');
     return { node, access };
   });
 
-  const rim = rings[0];
+  // Дороги по бровкам выработок соединены между собой (ближайшие точки).
+  for (let a = 0; a < pits.length; a++)
+    for (let b = a + 1; b < pits.length; b++) {
+      let best: [number, number] = [pits[a].rings[0][0], pits[b].rings[0][0]];
+      let bd = Infinity;
+      for (const ia of pits[a].rings[0])
+        for (const ib of pits[b].rings[0]) {
+          const d = Math.hypot(g.nodes[ia].x - g.nodes[ib].x, g.nodes[ia].y - g.nodes[ib].y);
+          if (d < bd) {
+            bd = d;
+            best = [ia, ib];
+          }
+        }
+      if (bd < 700) g.addEdge(best[0], best[1], 'surface');
+    }
+
+  const rim = pits.flatMap((pl) => pl.rings[0]);
   const attach = (pt: Point): SiteNodes => {
     let access = rim[0];
     let best = Infinity;
@@ -186,6 +246,8 @@ export function buildMine(cfg: SimConfig): MineLayout {
     ringScales,
     rampA,
     rampB,
+    pits,
+    excavatorPit,
     closureGroups,
     excavators,
     crusher,

@@ -9,7 +9,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { gradeAt, MATERIAL_SHORT, type Blast, type Simulation, type TruckState } from '../sim';
+import { gradeAt, MATERIAL_SHORT, pitPointOf, pitScaleAt, type Blast, type Simulation, type TruckState } from '../sim';
 import { BLOCK_PAD } from '../sim/drilling';
 import { isLive, smoothTruck } from '../render/smooth';
 import type { Selection } from '../render/drawMine';
@@ -33,7 +33,7 @@ import {
   type ExcavatorModel,
   type TruckModel,
 } from './models';
-import { blockBounds, buildRoads, buildTerrain, buildWater, makeHeightAt, makeRoadHeightAt, PIT_DEPTH, roadWidth, scatterRocks, type Block } from './terrain';
+import { blockBounds, buildRoads, buildTerrain, buildWater, makeHeightAt, makeRoadHeightAt, roadWidth, scatterRocks, type Block } from './terrain';
 
 export type CameraPreset = 'overview' | 'crusher' | 'bottom' | 'side';
 /** Здания, у которых есть «внутренний двойник» (мнемосхема). */
@@ -260,13 +260,11 @@ export class MineScene {
       { x: garage.position.x, y: garage.position.z, r: 170 },
       { x: sim.parkingSlot(2 * sim.parking.cols + 2).x, y: sim.parkingSlot(2 * sim.parking.cols + 2).y, r: 460 },
     ];
-    for (let i = 0; i < 10; i++) {
-      const th = (i / 10) * Math.PI * 2 + 0.3;
-      const a = cfg.pit.semiMajorM * 1.1;
-      const b = cfg.pit.semiMinorM * 1.13;
-      const x = Math.cos(th) * a;
-      const y = Math.sin(th) * b;
+    // Мачты освещения — по бровкам всех выработок, не над соседней выработкой.
+    const masts = cfg.pits.flatMap((pit, pi) => Array.from({ length: pi === 0 ? 8 : 4 }, (_, i) => pitPointOf(pit, 1.12, (i / (pi === 0 ? 8 : 4)) * Math.PI * 2 + 0.3)));
+    for (const { x, y } of masts) {
       if (avoid.some((o) => Math.hypot(o.x - x, o.y - y) < o.r)) continue;
+      if (cfg.pits.some((pit) => pitScaleAt(pit, x, y) < 1.02)) continue;
       const mast = makeLightMast();
       mast.position.set(x, this.heightAt(x, y), y);
       this.scene.add(mast);
@@ -505,15 +503,24 @@ export class MineScene {
         break;
       case 'bottom':
         // С борта карьера на дно: камера над склоном, а не внутри него.
-        target = new THREE.Vector3(0, -PIT_DEPTH + 40, 0);
-        pos = new THREE.Vector3(-760, this.heightAt(-760, 560) + 160, 560);
+      {
+        const P = this.sim.cfg.pits[0];
+        target = new THREE.Vector3(P.cx, -P.depthM + 40, P.cy);
+        const px = P.cx - 0.75 * P.semiMajorM;
+        const pz = P.cy + 0.75 * P.semiMinorM;
+        pos = new THREE.Vector3(px, this.heightAt(px, pz) + 160, pz);
+      }
         break;
       case 'side':
       {
         // Восточная смотровая площадка: с бровки внутрь карьера, на западный борт и дно.
-        const a = this.sim.cfg.pit.semiMajorM;
-        target = new THREE.Vector3(-a * 0.3, -PIT_DEPTH * 0.7, 0);
-        pos = new THREE.Vector3(a * 1.12, this.heightAt(a * 1.12, a * 0.25) + 380, a * 0.25);
+        // Смотрим через главный карьер на северо-западный и юго-западный.
+        const P = this.sim.cfg.pits[0];
+        const a = P.semiMajorM;
+        target = new THREE.Vector3(P.cx - a * 0.8, -P.depthM * 0.6, P.cy + a * 0.2);
+        const px = P.cx + a * 1.25;
+        const pz = P.cy - a * 0.35;
+        pos = new THREE.Vector3(px, this.heightAt(px, pz) + 520, pz);
       }
         break;
       default:

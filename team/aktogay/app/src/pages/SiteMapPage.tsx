@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import { buildSiteMap, LAYERS, LINE_STYLE, type Layer, type Shape, type SiteObject } from '../geo/sitemap';
-import { pitPoint, type Simulation } from '../sim';
+import { pitPointOf, type Simulation } from '../sim';
 import type { BuildingKind } from '../render3d/MineScene';
 import { isLive, smoothTruck } from '../render/smooth';
 import { TRUCK_COLOR } from '../ui/theme';
@@ -254,7 +254,7 @@ export function SiteMapPage({ sim, now, onOpenInside }: Props) {
             {objects
               .filter((o) => visible(o.layer) && (o.live || objSize(o) / px >= 26))
               .map((o) => {
-                const [cx, cy] = toMap(...(o.id === 'pit' ? ([0, -sim.cfg.pit.semiMinorM * 0.55] as [number, number]) : center(o.shape)));
+                const [cx, cy] = toMap(...(o.id === 'pit' ? ([sim.cfg.pits[0].cx, sim.cfg.pits[0].cy - sim.cfg.pits[0].semiMinorM * 0.6] as [number, number]) : center(o.shape)));
                 const r = o.shape.kind === 'circle' ? o.shape.r : o.shape.kind === 'rect' ? o.shape.h / 2 : 0;
                 const below = !!o.labelBelow;
                 return (
@@ -382,26 +382,35 @@ function ObjectShape({ o, px, selected, onPick }: { o: SiteObject; px: number; s
 }
 
 function PitContours({ sim, px, onPick, selected }: { sim: Simulation; px: number; onPick: () => void; selected: boolean }) {
-  const rings = useMemo(() => {
-    const out: string[] = [];
-    const n = sim.cfg.pit.benchCount;
-    for (let k = 0; k <= n; k++) {
-      const s = 1 - (k / n) * (1 - sim.cfg.pit.bottomScale);
-      const pts: string[] = [];
-      for (let i = 0; i <= 120; i++) {
-        const p = pitPoint(sim.cfg, s, (i / 120) * Math.PI * 2);
-        pts.push(`${p.x.toFixed(0)},${p.y.toFixed(0)}`);
-      }
-      out.push(pts.join(' '));
-    }
-    return out;
-  }, [sim]);
+  // Уступы каждой выработки — как горизонтали; дно глубоких — вода.
+  const pits = useMemo(
+    () =>
+      sim.cfg.pits.map((pit) => {
+        const out: string[] = [];
+        const n = pit.benchCount;
+        for (let k = 0; k <= n; k++) {
+          const s = 1 - (k / n) * (1 - pit.bottomScale);
+          const pts: string[] = [];
+          for (let i = 0; i <= 120; i++) {
+            const p = pitPointOf(pit, s, (i / 120) * Math.PI * 2);
+            pts.push(`${p.x.toFixed(0)},${p.y.toFixed(0)}`);
+          }
+          out.push(pts.join(' '));
+        }
+        return { rings: out, water: pit.depthM >= 150 };
+      }),
+    [sim],
+  );
   return (
     <g onClick={onPick} style={{ cursor: 'pointer' }}>
-      <polygon points={rings[0]} fill="#3a2f22" stroke={selected ? '#fbbf24' : '#d6a35c'} strokeWidth={(selected ? 4 : 3) * px} />
-      {rings.slice(1).map((r, k) => (
-        <polygon key={k} points={r} fill={k === rings.length - 2 ? '#1f5f6b' : `rgb(${58 - k * 2},${47 - k * 2},${34 - k})`} stroke="#8a6f4d" strokeOpacity={0.55} strokeWidth={1.2 * px} />
+      {pits.map(({ rings }, pi) => (
+        <polygon key={`r${pi}`} points={rings[0]} fill="#3a2f22" stroke={selected ? '#fbbf24' : '#d6a35c'} strokeWidth={(selected ? 4 : 3) * px} />
       ))}
+      {pits.map(({ rings, water }, pi) =>
+        rings.slice(1).map((r, k) => (
+          <polygon key={`${pi}-${k}`} points={r} fill={water && k === rings.length - 2 ? '#1f5f6b' : `rgb(${58 - k * 2},${47 - k * 2},${34 - k})`} stroke="#8a6f4d" strokeOpacity={0.55} strokeWidth={1.2 * px} />
+        )),
+      )}
     </g>
   );
 }

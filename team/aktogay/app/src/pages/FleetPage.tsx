@@ -12,7 +12,9 @@ import {
   MAX_EXCAVATORS,
   MIN_FACE_GAP_DEG,
   nextExcavatorName,
-  RING_LABEL,
+  PIT_LABEL,
+  ringLabel,
+  ringsOf,
   TRUCKS_RANGE,
   validateFleet,
   type Fleet,
@@ -51,7 +53,7 @@ export function FleetPage({ fleet, sim, platform, now, running, onToggleRun, onA
     }
   }, [fleet]);
 
-  const [form, setForm] = useState<{ material: Material; ring: number; angleDeg: number; model: string } | null>(null);
+  const [form, setForm] = useState<{ material: Material; pit: number; ring: number; angleDeg: number; model: string } | null>(null);
   const changed = fleetKey(draft) !== fleetKey(fleet);
   const errors = validateFleet(draft);
   const formSpec: ExcavatorSpec | null = form
@@ -60,6 +62,7 @@ export function FleetPage({ fleet, sim, platform, now, running, onToggleRun, onA
         material: form.material,
         ring: form.ring,
         angleDeg: form.angleDeg,
+        pit: form.pit,
         rateTpm: EXCAVATOR_MODELS.find((m) => m.id === form.model)!.rateTpm,
         gradePct: defaultGrade(form.material, form.ring),
       }
@@ -160,7 +163,7 @@ export function FleetPage({ fleet, sim, platform, now, running, onToggleRun, onA
                         {MATERIAL_SHORT[e.material]} · {model?.name ?? `${e.rateTpm} т/мин`}
                       </div>
                       <div className="text-[12px] text-ink-3">
-                        {RING_LABEL[e.ring]} · {e.angleDeg}° · {e.rateTpm} т/мин
+                        {PIT_LABEL[e.pit ?? 0]} · {ringLabel(e.pit ?? 0, e.ring)} · {e.angleDeg}° · {e.rateTpm} т/мин
                       </div>
                     </div>
                   </div>
@@ -205,7 +208,7 @@ export function FleetPage({ fleet, sim, platform, now, running, onToggleRun, onA
             })}
             {!form && draft.excavators.length < MAX_EXCAVATORS && (
               <button
-                onClick={() => setForm({ material: 'waste', ring: 2, angleDeg: freeAngle(draft, 2), model: 'b22' })}
+                onClick={() => setForm({ material: 'waste', pit: 0, ring: 2, angleDeg: freeAngle(draft, 0, 2), model: 'b22' })}
                 className="grid min-h-[132px] place-items-center rounded-xl border border-dashed border-line text-[14px] font-semibold text-ink-2 hover:border-amber-500 hover:text-amber-300"
               >
                 + Добавить экскаватор
@@ -220,6 +223,7 @@ export function FleetPage({ fleet, sim, platform, now, running, onToggleRun, onA
               draft={draft}
               currentNames={currentNames}
               pending={formSpec}
+              pit={form?.pit ?? 0}
               onPick={form ? (ring, angleDeg) => setForm({ ...form, ring, angleDeg }) : undefined}
             />
             {form && formSpec && (
@@ -237,10 +241,17 @@ export function FleetPage({ fleet, sim, platform, now, running, onToggleRun, onA
                     </Choice>
                   ))}
                 </Field>
+                <Field label="Выработка">
+                  {PIT_LABEL.map((name, pi) => (
+                    <Choice key={name} active={form.pit === pi} onClick={() => { const ring = Math.min(form.ring, ringsOf(pi)); setForm({ ...form, pit: pi, ring, angleDeg: freeAngle(draft, pi, ring, form.angleDeg) }); }}>
+                      {name}
+                    </Choice>
+                  ))}
+                </Field>
                 <Field label="Горизонт">
-                  {[1, 2, 3].map((r) => (
-                    <Choice key={r} active={form.ring === r} onClick={() => setForm({ ...form, ring: r, angleDeg: freeAngle(draft, r, form.angleDeg) })}>
-                      {RING_LABEL[r]}
+                  {Array.from({ length: ringsOf(form.pit) }, (_, k) => k + 1).map((r) => (
+                    <Choice key={r} active={form.ring === r} onClick={() => setForm({ ...form, ring: r, angleDeg: freeAngle(draft, form.pit, r, form.angleDeg) })}>
+                      {ringLabel(form.pit, r)}
                     </Choice>
                   ))}
                 </Field>
@@ -350,8 +361,8 @@ export function FleetPage({ fleet, sim, platform, now, running, onToggleRun, onA
 }
 
 /** Свободный угол на горизонте (не ближе MIN_FACE_GAP_DEG к другим забоям). */
-function freeAngle(f: Fleet, ring: number, prefer = 0): number {
-  const taken = f.excavators.filter((e) => e.ring === ring).map((e) => e.angleDeg);
+function freeAngle(f: Fleet, pit: number, ring: number, prefer = 0): number {
+  const taken = f.excavators.filter((e) => (e.pit ?? 0) === pit && e.ring === ring).map((e) => e.angleDeg);
   const ok = (a: number) => taken.every((t) => Math.abs(((((a - t) % 360) + 540) % 360) - 180) >= MIN_FACE_GAP_DEG);
   for (let k = 0; k < 36; k++) {
     for (const a of [prefer + k * 10, prefer - k * 10]) {
@@ -369,28 +380,39 @@ function PitMap({
   currentNames,
   pending,
   onPick,
+  pit,
 }: {
   sim: Simulation;
   draft: Fleet;
   currentNames: Set<string>;
   pending: ExcavatorSpec | null;
   onPick?: (ring: number, angleDeg: number) => void;
+  pit: number;
 }) {
-  const a = sim.cfg.pit.semiMajorM;
-  const b = sim.cfg.pit.semiMinorM;
+  const P = sim.cfg.pits[pit] ?? sim.cfg.pits[0];
+  const a = P.semiMajorM;
+  const b = P.semiMinorM;
+  const rr = (P.rotDeg * Math.PI) / 180;
+  /** Координаты модели → локальные координаты выработки (как в её собственной системе). */
+  const local = (x: number, y: number) => {
+    const dx = x - P.cx;
+    const dy = y - P.cy;
+    return { x: dx * Math.cos(rr) + dy * Math.sin(rr), y: -dx * Math.sin(rr) + dy * Math.cos(rr) };
+  };
   const W = 340;
   const H = 210;
   const k = Math.min((W - 30) / (2 * a), (H - 30) / (2 * b));
-  const scales = sim.layout.ringScales;
+  const scales = (sim.layout.pits[pit] ?? sim.layout.pits[0]).ringScales;
   const pos = (ring: number, deg: number) => {
     const s = scales[ring] - 0.045;
     const t = (deg * Math.PI) / 180;
     return { x: W / 2 + Math.cos(t) * a * s * k, y: H / 2 + Math.sin(t) * b * s * k };
   };
   const live = new Map(sim.excavators.map((e) => [e.name, e]));
-  const marks = draft.excavators.map((e) => {
+  const marks = draft.excavators.filter((e) => (e.pit ?? 0) === pit).map((e) => {
     const l = live.get(e.name);
-    const p = l && currentNames.has(e.name) ? { x: W / 2 + l.x * k, y: H / 2 + l.y * k } : pos(e.ring, e.angleDeg);
+    const lp = l ? local(l.x, l.y) : null;
+    const p = lp && currentNames.has(e.name) ? { x: W / 2 + lp.x * k, y: H / 2 + lp.y * k } : pos(e.ring, e.angleDeg);
     return { e, p, isNew: !currentNames.has(e.name) };
   });
   const click = (ev: React.MouseEvent<SVGSVGElement>) => {
@@ -414,7 +436,7 @@ function PitMap({
   return (
     <div className="scene-ui rounded-xl border border-line bg-[#0d1013] p-2">
       <div className="mb-1 flex items-center justify-between px-1 text-[11.5px] text-ink-3">
-        <span>Карьер сверху · горизонты и забои</span>
+        <span>{P.name} сверху · горизонты и забои</span>
         {onPick && <span className="text-amber-300">клик — выбрать место</span>}
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className={`w-full ${onPick ? 'cursor-crosshair' : ''}`} onClick={click}>

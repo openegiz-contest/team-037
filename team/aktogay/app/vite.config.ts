@@ -28,6 +28,8 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // Полные смены на нескольких seed — модель с тремя выработками считает чуть дольше 5 с по умолчанию.
+    testTimeout: 20000,
     include: ['src/**/*.test.ts'],
   },
 });

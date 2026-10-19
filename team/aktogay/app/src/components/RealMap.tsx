@@ -8,7 +8,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { toLatLng } from '../geo/geoRef';
 import { LAYERS, LINE_STYLE, type Layer, type SiteLine, type SiteObject } from '../geo/sitemap';
-import { pitPoint, type Simulation } from '../sim';
+import { pitPointOf, type Simulation } from '../sim';
 import { isLive, smoothTruck } from '../render/smooth';
 import { TRUCK_COLOR } from '../ui/theme';
 
@@ -109,18 +109,20 @@ export function RealMap({ sim, mode, objects, lines, layers, showSchematic, sele
 
     if (layers.pit) {
       // Контур модельного карьера: бровка и несколько уступов — поверх снимка, полупрозрачно.
-      const n = sim.cfg.pit.benchCount;
-      for (const k of [0, Math.round(n / 3), Math.round((2 * n) / 3), n]) {
-        const s = 1 - (k / n) * (1 - sim.cfg.pit.bottomScale);
-        const pts: [number, number][] = [];
-        for (let i = 0; i <= 96; i++) {
-          const p = pitPoint(sim.cfg, s, (i / 96) * Math.PI * 2);
-          pts.push(toLatLng(p.x, p.y));
+      for (const pit of sim.cfg.pits) {
+        const n = pit.benchCount;
+        for (const k of [0, Math.round(n / 3), Math.round((2 * n) / 3), n]) {
+          const s = 1 - (k / n) * (1 - pit.bottomScale);
+          const pts: [number, number][] = [];
+          for (let i = 0; i <= 96; i++) {
+            const p = pitPointOf(pit, s, (i / 96) * Math.PI * 2);
+            pts.push(toLatLng(p.x, p.y));
+          }
+          L.polygon(pts, { color: '#fbbf24', weight: k === 0 ? 3 : 1, opacity: k === 0 ? 0.95 : 0.6, fill: k === 0, fillOpacity: 0.06, interactive: k === 0 })
+            .on('click', () => onPickRef.current('pit'))
+            .bindTooltip(k === 0 ? `${pit.name} модели (бровка)` : `${pit.name}: уступ ${k}`, { sticky: true })
+            .addTo(g);
         }
-        L.polygon(pts, { color: '#fbbf24', weight: k === 0 ? 3 : 1, opacity: k === 0 ? 0.95 : 0.6, fill: k === 0, fillOpacity: 0.06, interactive: k === 0 })
-          .on('click', () => onPickRef.current('pit'))
-          .bindTooltip(k === 0 ? 'Карьер модели (контур по бровке)' : `уступ ${k}`, { sticky: true })
-          .addTo(g);
       }
     }
     if (layers.transport) {

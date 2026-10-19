@@ -27,6 +27,18 @@ export const EXCAVATOR_MODELS: { id: string; name: string; rateTpm: number }[] =
 
 export const RING_LABEL: Record<number, string> = { 1: 'верхний горизонт', 2: 'средний горизонт', 3: 'дно карьера' };
 
+/** Выработки, куда можно поставить экскаватор. */
+export const PIT_LABEL = DEFAULT_CONFIG.pits.map((p) => p.name);
+/** Сколько горизонтов (кольцевых берм ниже бровки) у выработки. */
+export const ringsOf = (pit: number) => (DEFAULT_CONFIG.pits[pit] ?? DEFAULT_CONFIG.pits[0]).ringLevels.length - 1;
+/** Подпись горизонта с учётом выработки (в малых — средний и дно). */
+export function ringLabel(pit: number, ring: number): string {
+  const n = ringsOf(pit);
+  if (ring >= n) return 'дно';
+  if (n === 2) return 'средний горизонт';
+  return RING_LABEL[ring] ?? `горизонт ${ring}`;
+}
+
 /** Содержание Cu в новом забое: глубже — богаче (оценка по профилю месторождения). */
 export function defaultGrade(material: Material, ring: number): number {
   if (material === 'waste') return 0;
@@ -41,7 +53,7 @@ export function fleetConfig(f: Fleet): SimConfig {
 }
 
 /** Подпись для сравнения «тот же ли парк». */
-export const fleetKey = (f: Fleet) => JSON.stringify([f.trucks, f.excavators.map((e) => [e.name, e.material, e.ring, e.angleDeg, e.rateTpm])]);
+export const fleetKey = (f: Fleet) => JSON.stringify([f.trucks, f.excavators.map((e) => [e.name, e.material, e.pit ?? 0, e.ring, e.angleDeg, e.rateTpm])]);
 
 /** Следующее свободное имя экскаватора: Э-6, Э-7… */
 export function nextExcavatorName(f: Fleet): string {
@@ -60,9 +72,12 @@ export function validateFleet(f: Fleet): string[] {
     if (!f.excavators.some((e) => e.material === m)) err.push(`Нужен хотя бы один экскаватор на материале «${m === 'sulfide' ? 'сульфид' : m === 'oxide' ? 'оксид' : 'вскрыша'}»`);
   }
   f.excavators.forEach((a, i) => {
-    if (a.ring < 1 || a.ring > 3) err.push(`${a.name}: горизонт 1–3`);
+    const pit = a.pit ?? 0;
+    if (pit < 0 || pit >= DEFAULT_CONFIG.pits.length) err.push(`${a.name}: нет такой выработки`);
+    if (a.ring < 1 || a.ring > ringsOf(pit)) err.push(`${a.name}: горизонт 1–${ringsOf(pit)}`);
     f.excavators.slice(i + 1).forEach((b) => {
-      if (a.ring === b.ring && angDiff(a.angleDeg, b.angleDeg) < MIN_FACE_GAP_DEG) err.push(`${a.name} и ${b.name} слишком близко на одном горизонте (нужно ≥ ${MIN_FACE_GAP_DEG}°)`);
+      if ((b.pit ?? 0) === pit && a.ring === b.ring && angDiff(a.angleDeg, b.angleDeg) < MIN_FACE_GAP_DEG)
+        err.push(`${a.name} и ${b.name} слишком близко на одном горизонте (нужно ≥ ${MIN_FACE_GAP_DEG}°)`);
     });
   });
   return err;
@@ -76,14 +91,20 @@ export function sanitizeFleet(raw: unknown, fallback: Fleet): Fleet {
   const excavators = Array.isArray(r.excavators)
     ? r.excavators.slice(0, MAX_EXCAVATORS).map((e, i) => {
         const material = (['sulfide', 'oxide', 'waste'] as const).includes(e?.material as Material) ? (e.material as Material) : 'waste';
-        const ring = Math.min(3, Math.max(1, Math.round(Number(e?.ring) || 1)));
+        const name = String(e?.name ?? `Э-${i + 1}`).slice(0, 8);
+        // Парк, сохранённый до появления трёх выработок (без pit): места известных экскаваторов — по умолчанию.
+        const legacy = e?.pit === undefined ? DEFAULT_CONFIG.excavators.find((d) => d.name === name) : undefined;
+        const pit = Math.min(DEFAULT_CONFIG.pits.length - 1, Math.max(0, Math.round(Number(legacy?.pit ?? e?.pit) || 0)));
+        const ring = Math.min(ringsOf(pit), Math.max(1, Math.round(Number(legacy?.ring ?? e?.ring) || 1)));
+        const angle = Number(legacy?.angleDeg ?? e?.angleDeg) || 0;
         return {
-          name: String(e?.name ?? `Э-${i + 1}`).slice(0, 8),
+          name,
           material,
           rateTpm: Math.min(80, Math.max(20, Number(e?.rateTpm) || 44)),
           gradePct: Number.isFinite(Number(e?.gradePct)) ? Number(e.gradePct) : defaultGrade(material, ring),
           ring,
-          angleDeg: ((Math.round(Number(e?.angleDeg) || 0) % 360) + 360) % 360,
+          angleDeg: ((Math.round(angle) % 360) + 360) % 360,
+          pit,
         };
       })
     : fallback.excavators;

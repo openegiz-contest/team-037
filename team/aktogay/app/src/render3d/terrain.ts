@@ -1,13 +1,13 @@
 /**
  * Рельеф карьера для 3D-сцены: чаша с уступами (бермы + откосы), вокруг — степь до горизонта.
  *
- * Чаша строится в полярной сетке по тем же контурам, что и граф дорог (pitPoint), поэтому
- * дороги ложатся точно на бермы; при необходимости внешние кольца можно прижать к прямоугольнику (Block).
+ * Карьер — несколько выработок; высоты берутся из рельефа (geo/relief), дороги врезаются полками.
+ * Внешние кольца при необходимости прижимаются к прямоугольнику (Block).
  */
 import * as THREE from 'three';
-import { pitPoint, type SimConfig, type Simulation } from '../sim';
+import { pitPointOf, type SimConfig, type Simulation } from '../sim';
 import { ROCK_GEO } from './models';
-import { BERM, depthFrac, heightFromS, PIT_DEPTH, scaleAt, smoothstep } from '../geo/relief';
+import { BERM, makeHeightAt, PIT_DEPTH, pitAt, pitsBounds, smoothstep } from '../geo/relief';
 
 export { makeHeightAt, PIT_DEPTH } from '../geo/relief';
 
@@ -115,14 +115,23 @@ export function makeRoadHeightAt(
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-/** Верх блока: чаша с уступами + поверхность до краёв блока. */
+/**
+ * Рельеф: плотная полярная сетка вокруг всех выработок (уступы каждой чаши ложатся на неё через
+ * высоту в точке) и редкие кольца степи до горизонта.
+ */
 export function buildTerrain(cfg: SimConfig, blk: Block | null, heightAt?: (x: number, y: number) => number): THREE.Mesh {
-  const A = 480; // сегментов по углу (мельче — чтобы полки дорог были ровными)
+  const A = 520; // сегментов по углу
+  const pb = pitsBounds(cfg, 140);
+  const gx = (pb.minX + pb.maxX) / 2;
+  const gy = (pb.minY + pb.maxY) / 2;
+  // Эллипс, охватывающий все выработки: внутри — частые кольца (шаг ~5–7 м), снаружи — редкие.
+  const ga = ((pb.maxX - pb.minX) / 2) * 1.42;
+  const gb = ((pb.maxY - pb.minY) / 2) * 1.42;
   const sList: number[] = [];
-  for (let i = 0; i <= 30; i++) sList.push(3.6 - (i / 30) * 2.6);
-  const inner = cfg.pit.benchCount * 12;
-  for (let i = 1; i <= inner; i++) sList.push(1 - (i / inner) * (1 - cfg.pit.bottomScale * 0.4));
-  sList.push(0);
+  for (let i = 0; i <= 36; i++) sList.push(4.2 - (i / 36) * 3.2);
+  const inner = 340;
+  for (let i = 1; i <= inner; i++) sList.push(1 - i / inner);
+  const height = heightAt ?? makeHeightAt(cfg);
 
   const R = sList.length;
   const pos = new Float32Array(R * (A + 1) * 3);
@@ -140,29 +149,34 @@ export function buildTerrain(cfg: SimConfig, blk: Block | null, heightAt?: (x: n
     const s0 = sList[i];
     for (let j = 0; j <= A; j++) {
       const th = (j / A) * Math.PI * 2;
-      const p = pitPoint(cfg, s0, th);
+      let x = gx + ga * s0 * Math.cos(th);
+      let y = gy + gb * s0 * Math.sin(th);
       // Внешние кольца прижимаются к краю блока — получается ровный прямоугольник.
-      const x = blk ? clamp(p.x, blk.minX, blk.maxX) : p.x;
-      const y = blk ? clamp(p.y, blk.minY, blk.maxY) : p.y;
-      const s = s0 >= 1 ? scaleAt(cfg, x, y) : s0;
-      const h = heightAt ? heightAt(x, y) : heightFromS(cfg, s, x, y);
+      if (blk) {
+        x = clamp(x, blk.minX, blk.maxX);
+        y = clamp(y, blk.minY, blk.maxY);
+      }
+      const hit = pitAt(cfg, x, y);
+      const h = height(x, y);
       pos[k] = x;
       pos[k + 1] = h;
       pos[k + 2] = y;
-      if (s >= 1) {
+      if (hit.pit < 0) {
         const n = 0.5 + 0.5 * Math.sin(x * 0.004 + Math.cos(y * 0.003) * 2) * Math.cos(y * 0.0011 - x * 0.0007);
         c.copy(sandDark).lerp(sand, n);
-        // Утоптанная полоса вдоль бровки.
-        c.lerp(rockTop, 0.5 * (1 - smoothstep(1, 1.12, s)));
+        // Утоптанная полоса вдоль бровок.
+        c.lerp(rockTop, 0.5 * (1 - smoothstep(1, 1.12, hit.sMin)));
       } else {
-        const u = depthFrac(cfg, s);
-        const f = u * cfg.pit.benchCount;
+        const pit = cfg.pits[hit.pit];
+        const u = hit.u;
+        const f = u * pit.benchCount;
         const onFace = f - Math.floor(f) > BERM;
-        c.copy(rockTop).lerp(rockDeep, u);
+        c.copy(rockTop).lerp(rockDeep, Math.min(1, (u * pit.depthM) / PIT_DEPTH));
         // Зона окисления в верхних горизонтах — зеленоватый оттенок (малахит).
-        if (u < 0.3) c.lerp(oxideTint, 0.3 * (1 - u / 0.3));
+        const zd = u * pit.depthM;
+        if (zd < 70) c.lerp(oxideTint, 0.3 * (1 - zd / 70));
         if (onFace) c.lerp(faceDark, 0.4);
-        const noise = 0.93 + 0.07 * Math.sin(th * 37 + s * 90);
+        const noise = 0.93 + 0.07 * Math.sin(th * 37 + hit.s * 90);
         c.multiplyScalar(noise);
       }
       col[k] = c.r;
@@ -191,23 +205,26 @@ export function buildTerrain(cfg: SimConfig, blk: Block | null, heightAt?: (x: n
   return mesh;
 }
 
-/** Подтопленное дно карьера. */
-export function buildWater(cfg: SimConfig): THREE.Mesh {
-  const shape = new THREE.Shape();
-  const s = cfg.pit.bottomScale * 0.55;
-  for (let i = 0; i <= 64; i++) {
-    const p = pitPoint(cfg, s, (i / 64) * Math.PI * 2);
-    if (i === 0) shape.moveTo(p.x, -p.y);
-    else shape.lineTo(p.x, -p.y);
+/** Подтопленное дно каждой выработки (на снимке у глубоких — вода на дне). */
+export function buildWater(cfg: SimConfig): THREE.Group {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: '#2f6f7b', roughness: 0.1, metalness: 0.35, transparent: true, opacity: 0.88 });
+  for (const pit of cfg.pits) {
+    if (pit.depthM < 150) continue; // мелкая выработка — без воды
+    const shape = new THREE.Shape();
+    const sc = pit.bottomScale * 0.55;
+    for (let i = 0; i <= 64; i++) {
+      const q = pitPointOf(pit, sc, (i / 64) * Math.PI * 2);
+      if (i === 0) shape.moveTo(q.x, -q.y);
+      else shape.lineTo(q.x, -q.y);
+    }
+    const geo = new THREE.ShapeGeometry(shape);
+    geo.rotateX(-Math.PI / 2); // (x, −y) → (x, 0, y), нормаль вверх
+    const m = new THREE.Mesh(geo, mat);
+    m.position.y = -pit.depthM + 1.5;
+    g.add(m);
   }
-  const geo = new THREE.ShapeGeometry(shape);
-  geo.rotateX(-Math.PI / 2); // (x, −y) → (x, 0, y), нормаль вверх
-  const m = new THREE.Mesh(
-    geo,
-    new THREE.MeshStandardMaterial({ color: '#2f6f7b', roughness: 0.1, metalness: 0.35, transparent: true, opacity: 0.88 }),
-  );
-  m.position.y = -PIT_DEPTH + 1.5;
-  return m;
+  return g;
 }
 
 /** Ширина дороги, м сцены: съезды шире (двустороннее движение карьерных самосвалов). */
@@ -296,7 +313,8 @@ export function scatterRocks(sim: Simulation, blk: Block, heightAt: (x: number, 
     if (avoid.some((a) => Math.hypot(a.x - x, a.y - y) < a.r)) continue;
     if (segs.some(([a, b]) => distSeg(x, y, a.x, a.y, b.x, b.y) < 50)) continue;
     const h = heightAt(x, y);
-    if (h < -PIT_DEPTH + 8) continue; // не на воде
+    const hit = pitAt(sim.cfg, x, y);
+    if (hit.pit >= 0 && hit.u > 0.9) continue; // не на дне (вода)
     const r = 1.2 + rnd() * rnd() * 4.5;
     e.set(rnd() * 3, rnd() * 3, rnd() * 3);
     q.setFromEuler(e);

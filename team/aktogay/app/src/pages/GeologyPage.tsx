@@ -8,7 +8,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import { BENCH_M, BLOCK_M, BLOCK_T, blockSummary, buildOreModel, CUTOFF, DEST_RU, holeAssays, type HoleAssay, type OreModel, type Zone } from '../geo/orebody';
-import { pitPoint, type Simulation } from '../sim';
+import { pitPointOf, type Simulation } from '../sim';
+import { insidePits, pitsBounds } from '../geo/relief';
 import { fmtInt } from '../ui/format';
 
 type Device = 'model' | 'xrf' | 'hyper' | 'ip';
@@ -213,13 +214,18 @@ function Legend({ device }: { device: Device }) {
 // ───────────────────────────── расчёты ─────────────────────────────
 
 function insidePit(sim: Simulation, x: number, y: number, k = 1): boolean {
-  const { semiMajorM: A, semiMinorM: B } = sim.cfg.pit;
-  return (x / A) ** 2 + (y / B) ** 2 <= k * k;
+  return insidePits(sim.cfg, x, y, k);
+}
+
+/** Половины размеров области, охватывающей все выработки (план — симметрично вокруг начала координат). */
+function halfExtent(sim: Simulation, kx: number, ky: number): { A: number; B: number } {
+  const b = pitsBounds(sim.cfg);
+  return { A: Math.max(-b.minX, b.maxX) * kx, B: Math.max(-b.minY, b.maxY) * ky };
 }
 
 function horizonStats(sim: Simulation, m: OreModel, z: number) {
   let sT = 0, sCu = 0, oT = 0, oCu = 0, wT = 0;
-  const A = sim.cfg.pit.semiMajorM, B = sim.cfg.pit.semiMinorM;
+  const { A, B } = halfExtent(sim, 1, 1);
   for (let x = -A; x <= A; x += BLOCK_M)
     for (let y = -B; y <= B; y += BLOCK_M) {
       if (!insidePit(sim, x, y)) continue;
@@ -308,8 +314,7 @@ function PlanCanvas({
 }) {
   const box = useRef<HTMLDivElement>(null);
   const cv = useRef<HTMLCanvasElement>(null);
-  const A = sim.cfg.pit.semiMajorM * 1.18;
-  const B = sim.cfg.pit.semiMinorM * 1.25;
+  const { A, B } = halfExtent(sim, 1.12, 1.15);
   const { w, h } = useCanvasSize(box, B / A);
   const sx = (x: number) => ((x + A) / (2 * A)) * w;
   const sy = (y: number) => ((y + B) / (2 * B)) * h;
@@ -354,15 +359,16 @@ function PlanCanvas({
     // Контур карьера (бровка и дно) и дороги.
     g.lineWidth = 1.5;
     g.strokeStyle = device === 'ip' ? 'rgba(255,255,255,.65)' : 'rgba(240,230,210,.8)';
-    for (const s of [1, sim.cfg.pit.bottomScale]) {
-      g.beginPath();
-      for (let i = 0; i <= 96; i++) {
-        const p = pitPoint(sim.cfg, s, (i / 96) * Math.PI * 2);
-        if (i === 0) g.moveTo(sx(p.x), sy(p.y));
-        else g.lineTo(sx(p.x), sy(p.y));
+    for (const pit of sim.cfg.pits)
+      for (const s of [1, pit.bottomScale]) {
+        g.beginPath();
+        for (let i = 0; i <= 96; i++) {
+          const p = pitPointOf(pit, s, (i / 96) * Math.PI * 2);
+          if (i === 0) g.moveTo(sx(p.x), sy(p.y));
+          else g.lineTo(sx(p.x), sy(p.y));
+        }
+        g.stroke();
       }
-      g.stroke();
-    }
     const gr = sim.layout.graph;
     g.strokeStyle = 'rgba(255,255,255,.18)';
     g.lineWidth = 1;
@@ -458,7 +464,7 @@ function shade(col: string): string {
 function SectionCanvas({ sim, model, y, z }: { sim: Simulation; model: OreModel; y: number; z: number | null }) {
   const box = useRef<HTMLDivElement>(null);
   const cv = useRef<HTMLCanvasElement>(null);
-  const A = sim.cfg.pit.semiMajorM * 1.18;
+  const A = halfExtent(sim, 1.12, 1).A;
   const zTop = 40;
   const zBot = -520;
   const { w, h } = useCanvasSize(box, 0.28);
