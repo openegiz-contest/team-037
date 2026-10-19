@@ -39,6 +39,22 @@ export type CameraPreset = 'overview' | 'crusher' | 'bottom' | 'side';
 /** Здания, у которых есть «внутренний двойник» (мнемосхема). */
 /** Наибольший радиус конуса склада дроблёной руды (при полном складе), м сцены. */
 const STOCKPILE_MAX_R = 140;
+/** Высота ленты конвейера и радиус куска руды на ней, м. */
+const BELT_H = 4;
+const ORE_R = 2.2;
+
+/** Точка на доле f пути по ломаной (по длине, а не по числу звеньев). */
+function pointOnPath(path: readonly THREE.Vector3[], f: number): THREE.Vector3 {
+  if (path.length < 2) return (path[0] ?? new THREE.Vector3()).clone();
+  const segs = path.slice(1).map((p, i) => p.distanceTo(path[i]));
+  const total = segs.reduce((a, b) => a + b, 0);
+  let left = Math.min(Math.max(f, 0), 1) * total;
+  for (let i = 0; i < segs.length; i++) {
+    if (left <= segs[i] || i === segs.length - 1) return path[i].clone().lerp(path[i + 1], segs[i] > 0 ? left / segs[i] : 0);
+    left -= segs[i];
+  }
+  return path[path.length - 1].clone();
+}
 /** Насколько раздвигаем на экране два станка на одном блоке, м сцены. */
 const DRILL_SPREAD = 40;
 /** Смещение самосвала от оси дороги к своей полосе, м сцены. */
@@ -110,6 +126,9 @@ export class MineScene {
   private readonly conveyorTo = new THREE.Vector3();
   private readonly stackHead = new THREE.Vector3();
   private readonly reclaimFrom = new THREE.Vector3();
+  /** Трассы лент по изломам: дробилка → склад и склад → фабрика (по ним едут куски руды). */
+  private stackerPath: THREE.Vector3[] = [];
+  private reclaimPath: THREE.Vector3[] = [];
   private readonly stackerMat: THREE.MeshStandardMaterial;
   private readonly panels: { obj: CSS2DObject; render: () => string }[] = [];
   private readonly closures = new Map<string, THREE.Group>();
@@ -285,7 +304,7 @@ export class MineScene {
     const postMat = new THREE.MeshStandardMaterial({ color: '#8b939c', metalness: 0.5, roughness: 0.4 });
     const beltBetween = (from: THREE.Vector3, to: THREE.Vector3, mat: THREE.Material, keepOut?: { x: number; z: number; r: number }) => {
       const len = from.distanceTo(to);
-      const belt = new THREE.Mesh(new THREE.BoxGeometry(len, 4, 14), mat);
+      const belt = new THREE.Mesh(new THREE.BoxGeometry(len, BELT_H, 14), mat);
       belt.position.copy(from).lerp(to, 0.5);
       belt.lookAt(to);
       belt.rotateY(Math.PI / 2);
@@ -314,11 +333,19 @@ export class MineScene {
       this.stackHead.set(sx, ground + STOCKPILE_MAX_R * 0.62 + 18, sz);
       this.reclaimFrom.set(sx, ground + 3, sz);
       this.conveyorTo.set(pp.x, plant.position.y + 80, pp.y);
-      // Конвейер дробилка → склад по изломам трассы; высота над землёй плавно растёт к вершине конуса.
-      const via = cfg.sites.conveyorVia.map((p, i, a) => new THREE.Vector3(p.x, this.heightAt(p.x, p.y) + 20 + ((i + 1) / (a.length + 1)) * 40, p.y));
-      const chain = [this.conveyorFrom, ...via, this.stackHead];
-      for (let i = 0; i + 1 < chain.length; i++) beltBetween(chain[i], chain[i + 1], i + 2 === chain.length ? this.stackerMat : this.conveyorMat);
-      beltBetween(this.reclaimFrom, this.conveyorTo, this.conveyorMat, { x: sx, z: sz, r: STOCKPILE_MAX_R + 10 });
+      // Конвейеры идут по изломам реальной трассы; высота над землёй плавно меняется между концами.
+      const galleryAt = (from: THREE.Vector3, to: THREE.Vector3, pts: readonly { x: number; y: number }[]) =>
+        pts.map((p, i) => {
+          const f = (i + 1) / (pts.length + 1);
+          const over = from.y - this.heightAt(from.x, from.z) + ((to.y - this.heightAt(to.x, to.z)) - (from.y - this.heightAt(from.x, from.z))) * f;
+          return new THREE.Vector3(p.x, this.heightAt(p.x, p.y) + over, p.y);
+        });
+      this.stackerPath = [this.conveyorFrom, ...galleryAt(this.conveyorFrom, this.stackHead, cfg.sites.conveyorVia), this.stackHead];
+      this.reclaimPath = [this.reclaimFrom, ...galleryAt(this.reclaimFrom, this.conveyorTo, cfg.sites.plantVia), this.conveyorTo];
+      const keepOut = { x: sx, z: sz, r: STOCKPILE_MAX_R + 10 };
+      for (let i = 0; i + 1 < this.stackerPath.length; i++)
+        beltBetween(this.stackerPath[i], this.stackerPath[i + 1], i + 2 === this.stackerPath.length ? this.stackerMat : this.conveyorMat, keepOut);
+      for (let i = 0; i + 1 < this.reclaimPath.length; i++) beltBetween(this.reclaimPath[i], this.reclaimPath[i + 1], this.conveyorMat, keepOut);
       avoid.push({ x: sx, y: sz, r: STOCKPILE_MAX_R + 60 });
 
       const mat = new THREE.MeshStandardMaterial({ color: '#8b6b47', roughness: 1, flatShading: true });
@@ -929,10 +956,12 @@ export class MineScene {
     for (let k = 0; k < this.ore.count; k++) {
       const stacker = k < half;
       const f = (now / 7000 + (k % half) / half) % 1;
-      const p = stacker ? this.conveyorFrom.clone().lerp(this.stackHead, f) : this.reclaimFrom.clone().lerp(this.conveyorTo, f);
-      p.y += 5;
+      // Куски едут по ломаной трассы ленты и лежат на ней, а не летят над изломом.
+      const p = pointOnPath(stacker ? this.stackerPath : this.reclaimPath, f);
+      p.y += BELT_H / 2 + ORE_R;
       const on = stacker ? crushing : !starving;
-      this.tmp.makeScale(on ? 1 : 0, on ? 1 : 0, on ? 1 : 0).setPosition(p);
+      const s = on ? ORE_R : 0;
+      this.tmp.makeScale(s, s, s).setPosition(p);
       this.ore.setMatrixAt(k, this.tmp);
     }
     this.ore.instanceMatrix.needsUpdate = true;

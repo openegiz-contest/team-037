@@ -77,6 +77,7 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
   // Склад дроблёной руды — реальный конус в конце конвейера (OSM, снимок), как в 3D-сцене.
   const sp = S.stockpile;
   const via = S.conveyorVia.map((p) => [p.x, p.y] as [number, number]);
+  const via2 = S.plantVia.map((p) => [p.x, p.y] as [number, number]);
   // Вторая цепочка комбината (в модели не участвует): ККД-2 у соседней головы конвейера → склад-2 → ОФ-2.
   const cr2 = { x: 1392, y: 880 };
   const sp2 = { x: 126, y: 3029 };
@@ -480,7 +481,7 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
 
   const lines: SiteLine[] = [
     { id: 'conv1', name: 'Конвейер дробилка → склад', layer: 'process', kind: 'conveyor', pts: [[cr.x, cr.y], ...via, [sp.x, sp.y]] },
-    { id: 'conv2', name: 'Конвейер склад → ОФ-1', layer: 'process', kind: 'conveyor', pts: [[sp.x, sp.y], [789, 2363], [pl.x, pl.y]] },
+    { id: 'conv2', name: 'Конвейер склад → ОФ-1', layer: 'process', kind: 'conveyor', pts: [[sp.x, sp.y], ...via2, [pl.x, pl.y]] },
     { id: 'conv3', name: 'Конвейер ККД-2 → склад ОФ-2', layer: 'process', kind: 'conveyor', pts: [[cr2.x, cr2.y], [sp2.x, sp2.y]] },
     { id: 'conv4', name: 'Конвейер склад → ОФ-2', layer: 'process', kind: 'conveyor', pts: [[sp2.x, sp2.y], [-111, 3419], [pl2.x, pl2.y]] },
     { id: 'tail1', name: 'Хвосты ОФ-1 → хвостохранилище', layer: 'waste', kind: 'pipe', pts: [[pl.x, pl.y], [tsf.x - 600, tsf.y - 700]] },
