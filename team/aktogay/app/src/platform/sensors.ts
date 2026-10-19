@@ -305,7 +305,62 @@ function dumpSensors(what: 'руда' | 'вскрыша', place: string): Sensor
   ];
 }
 
-export const LEACH_SENSORS: SensorSpec[] = dumpSensors('руда', 'площадка кучного выщелачивания');
+export const LEACH_SENSORS: SensorSpec[] = [
+  ...dumpSensors('руда', 'площадка кучного выщелачивания'),
+  {
+    id: 'irrigation',
+    name: 'Узлы орошения карт',
+    hardware: 'электромагнитные расходомеры и задвижки с приводом на коллекторе каждой карты',
+    location: 'магистраль раствора на площадке, каждая карта',
+    measures: 'какие карты поливаются по графику, расход раствора на орошение, м³/ч',
+    features: ['cells', 'irrigation_group', 'cells_irrigated', 'cells_irrigating'],
+    periodS: 60,
+    purpose: 'соблюдение графика орошения, плотность полива по картам',
+  },
+  {
+    id: 'pls',
+    name: 'Анализатор и расходомер продуктивного раствора',
+    hardware: 'поточный анализатор меди и pH + расходомер на сбросе в пруд PLS',
+    location: 'коллектор PLS, пруд продуктивного раствора',
+    measures: 'расход PLS, м³/ч; медь в растворе, г/л',
+    features: ['pls_flow', 'pls_cu', 'cu_leached_total'],
+    periodS: 60,
+    purpose: 'сколько меди переходит в раствор и с каких карт',
+  },
+];
+
+export const SXEW_SENSORS: SensorSpec[] = [
+  {
+    id: 'rectifier',
+    name: 'Выпрямитель серии электролиза',
+    hardware: 'датчики тока и напряжения выпрямительного агрегата',
+    location: 'цех электролиза (EW)',
+    measures: 'ток серии ванн, кА',
+    features: ['ew_current'],
+    periodS: 10,
+    purpose: 'темп осаждения меди по закону Фарадея',
+  },
+  {
+    id: 'cathode_scale',
+    name: 'Весы катодной меди',
+    hardware: 'весы на линии съёма и упаковки катодов',
+    location: 'машина сдирки катодов',
+    measures: 'выпуск катодной меди, т',
+    features: ['cathode_total', 'cathode_tpd'],
+    periodS: 60,
+    purpose: 'выпуск катодов за смену и в сутки',
+  },
+  {
+    id: 'acid',
+    name: 'Учёт серной кислоты',
+    hardware: 'расходомеры на подаче кислоты в раствор орошения и в электролит',
+    location: 'кислотное хозяйство',
+    measures: 'расход кислоты, т',
+    features: ['acid_total'],
+    periodS: 60,
+    purpose: 'расход реагента на тонну руды и меди',
+  },
+];
 export const WASTE_SENSORS: SensorSpec[] = dumpSensors('вскрыша', 'отвал вскрыши');
 
 export const GARAGE_SENSORS: SensorSpec[] = [
@@ -536,6 +591,7 @@ export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   stockpile: STOCKPILE_SENSORS,
   orebody: GEOLOGY_SENSORS,
   'concentrate-store': CONCENTRATE_SENSORS,
+  'sxew-plant': SXEW_SENSORS,
 };
 
 /** Компактная запись для attributes.sensors двойника в Ditto. */
@@ -552,3 +608,4 @@ export const drillSensorAttributes = () => sensorAttributes(DRILL_SENSORS);
 export const stockpileSensorAttributes = () => sensorAttributes(STOCKPILE_SENSORS);
 export const geologySensorAttributes = () => sensorAttributes(GEOLOGY_SENSORS);
 export const concentrateSensorAttributes = () => sensorAttributes(CONCENTRATE_SENSORS);
+export const sxewSensorAttributes = () => sensorAttributes(SXEW_SENSORS);

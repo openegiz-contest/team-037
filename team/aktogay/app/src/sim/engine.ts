@@ -13,6 +13,7 @@ import { hash01, Rng, subSeed } from './rng';
 import { emptyDriverStats, FATIGUE_ALERT, makeDriver } from './drivers';
 import { PlantEquipment } from './equipment';
 import { ConcentrateYard } from './concentrate';
+import { HeapLeach } from './leach';
 import { DrillOps } from './drilling';
 import {
   MATERIALS,
@@ -105,6 +106,8 @@ export class Simulation {
   drill!: DrillOps;
   /** Склад концентрата и ж/д отгрузка. */
   readonly concentrate = new ConcentrateYard();
+  /** Кучное выщелачивание и завод SX-EW. */
+  readonly leach = new HeapLeach();
   /** ГПСЧ событий вождения (резкие торможения) — по потоку на самосвал. */
   private readonly driverRng: Rng[] = [];
   /** Отдельный поток для усталости водителей: модуль диагностический и не сдвигает остальную модель. */
@@ -700,6 +703,7 @@ export class Simulation {
     this.crush(dt);
     this.feedPlant(dt);
     this.concentrate.update(this, dt);
+    this.leach.update(this, dt);
     this.buildLaneOccupancy();
     for (const t of this.trucks) this.updateTruck(t, dt);
     for (const ex of this.excavators) this.updateExcavator(ex, dt);

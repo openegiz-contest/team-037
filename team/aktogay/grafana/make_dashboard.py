@@ -182,6 +182,26 @@ series("Проб XRF за смену: всего и с рудой", geology(
     'if r._field == "value_assays_total_properties_value" then "всего проб" else "проб с рудой"',
 ), 12, 110, "none")
 
+def real(name: str, features: dict) -> str:
+    """Признаки двойника реального карьера (без расчёта «без системы»), серии подписаны по-русски."""
+    flt = " or ".join(f'r._field == "value_{k}_properties_value"' for k in features)
+    ren = "".join(f'if r._field == "value_{k}_properties_value" then "{v}" else ' for k, v in features.items()) + "r._field"
+    return (
+        'from(bucket: "default")\n'
+        "  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n"
+        f'  |> filter(fn: (r) => r._measurement == "mqtt_consumer" and r.thingId == "{SMART}:{name}" and ({flt}))\n'
+        f"  |> map(fn: (r) => ({{r with _field: {ren}}}))\n"
+        '  |> keep(columns: ["_time", "_value", "_field"])\n'
+        '  |> group(columns: ["_field"])\n'
+        '  |> sort(columns: ["_time"])'
+    )
+
+
+row("Кучное выщелачивание и завод SX-EW", 118)
+series("Карт под поливом (график орошения по группам)", real("heap-leach", {"cells_irrigated": "поливается сейчас", "cells_irrigating": "в цикле орошения"}), 0, 119, "none", 8)
+series("Продуктивный раствор: медь, г/л", real("heap-leach", {"pls_cu": "Cu в PLS, г/л"}), 8, 119, "none", 8)
+series("Катодная медь за смену, т", real("sxew", {"cathode_total": "катоды, т"}), 16, 119, "none", 8)
+
 row("Водители самосвалов", 88)
 bars("Резкие торможения за смену (акселерометр рамы)", per_thing("truck-", "drv_harsh"), 0, 89, "none", 12, 10)
 bars("Пробег за смену (GNSS)", per_thing("truck-", "drv_dist"), 12, 89, "lengthm", 12, 10)

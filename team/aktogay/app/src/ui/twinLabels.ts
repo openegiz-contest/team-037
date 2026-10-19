@@ -19,9 +19,23 @@ export const KIND_LABEL: Record<string, string> = {
   stockpile: 'Склад дроблёной руды',
   orebody: 'Геология',
   'concentrate-store': 'Склад концентрата',
+  'sxew-plant': 'Завод SX-EW',
 };
 
 export const FEATURE_LABEL: Record<string, string> = {
+  // кучное выщелачивание и SX-EW
+  cells: 'Карты (стадия:руда:медь:сутки:извлечено)',
+  irrigation_group: 'Поливается группа карт',
+  cells_irrigated: 'Карт под поливом сейчас',
+  cells_irrigating: 'Карт в цикле орошения',
+  placed_total: 'Уложено руды за смену',
+  pls_flow: 'Расход продуктивного раствора',
+  pls_cu: 'Медь в растворе (PLS)',
+  cu_leached_total: 'Медь перешла в раствор за смену',
+  ew_current: 'Ток серии электролиза',
+  cathode_total: 'Катодной меди за смену',
+  cathode_tpd: 'Катодов в сутки (темп)',
+  acid_total: 'Серной кислоты за смену',
   // склад концентрата и отгрузка
   produced_total: 'Выпущено концентрата за смену',
   wagons_loaded: 'Вагонов в текущем составе',

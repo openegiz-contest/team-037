@@ -45,7 +45,8 @@ const KEY_METRICS: Record<string, string[]> = {
   'concentrate-store': ['stock', 'wagons_loaded', 'trains_shift', 'shipped_total'],
   crusher: ['state', 'bin', 'bin_grade', 'starved'],
   concentrator: ['state', 'feed_rate', 'feed_grade', 'cu_concentrate'],
-  'heap-leach': ['tonnes_total', 'queue'],
+  'heap-leach': ['tonnes_total', 'queue', 'cells_irrigated', 'pls_flow', 'pls_cu', 'cu_leached_total'],
+  'sxew-plant': ['cathode_total', 'cathode_tpd', 'ew_current', 'acid_total'],
   'waste-dump': ['tonnes_total', 'queue'],
   garage: ['occupied', 'in_service', 'refueling'],
   'road-network': ['closed_count'],
@@ -62,7 +63,7 @@ const GROUPS: { title: string; kinds: string[] }[] = [
   { title: 'Экскаваторы', kinds: ['excavator'] },
   { title: 'Буровые станки', kinds: ['drill-rig'] },
   { title: 'Самосвалы', kinds: ['haul-truck'] },
-  { title: 'Переработка', kinds: ['crusher', 'stockpile', 'concentrator', 'concentrate-store', 'heap-leach', 'waste-dump'] },
+  { title: 'Переработка', kinds: ['crusher', 'stockpile', 'concentrator', 'concentrate-store', 'heap-leach', 'sxew-plant', 'waste-dump'] },
   { title: 'Агрегаты цехов', kinds: ['unit'] },
   { title: 'Инфраструктура', kinds: ['garage', 'road-network', 'blasting', 'shift-log'] },
 ];
@@ -186,6 +187,9 @@ function summary(r: TwinRecord): [string, keyof typeof TONE_COLOR] {
     case 'open-pit':
       return [`${Math.round(Number(v('tph') ?? 0)).toLocaleString('ru-RU')} т/ч`, Number(v('finished')) ? 'idle' : 'ok'];
     case 'heap-leach':
+      return [`${Math.round(Number(v('tonnes_total') ?? 0)).toLocaleString('ru-RU')} т · полив ${v('cells_irrigated') ?? 0} карт · PLS ${v('pls_cu') ?? 0} г/л`, Number(v('queue')) > 1 ? 'warn' : 'ok'];
+    case 'sxew-plant':
+      return [`катоды ${Number(v('cathode_total') ?? 0).toFixed(1)} т · ${v('ew_current') ?? 0} кА`, 'ok'];
     case 'waste-dump':
       return [`${Math.round(Number(v('tonnes_total') ?? 0)).toLocaleString('ru-RU')} т`, Number(v('queue')) > 1 ? 'warn' : 'ok'];
     case 'garage':
@@ -532,7 +536,7 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
             <div className="panel">
               <div className="flex items-center gap-3 border-b border-line px-4 py-2.5">
                 <div className="text-[13px] font-semibold">
-                  Датчики {({ excavator: 'на экскаваторе', 'haul-truck': 'на самосвале', crusher: 'на дробилке', concentrator: 'на фабрике', 'heap-leach': 'на площадке выщелачивания', 'waste-dump': 'на отвале', garage: 'в гараже', 'drill-rig': 'на буровом станке' } as Record<string, string>)[selKind]} <span className="font-normal text-ink-3">· {sensors.length} · attributes.sensors</span>
+                  Датчики {({ excavator: 'на экскаваторе', 'haul-truck': 'на самосвале', crusher: 'на дробилке', concentrator: 'на фабрике', 'heap-leach': 'на площадке выщелачивания', 'sxew-plant': 'на заводе SX-EW', 'concentrate-store': 'на складе концентрата', 'waste-dump': 'на отвале', garage: 'в гараже', 'drill-rig': 'на буровом станке' } as Record<string, string>)[selKind]} <span className="font-normal text-ink-3">· {sensors.length} · attributes.sensors</span>
                 </div>
                 <span className="ml-auto text-[11.5px] text-ink-3">клик — показать признаки датчика в таблице ниже</span>
               </div>

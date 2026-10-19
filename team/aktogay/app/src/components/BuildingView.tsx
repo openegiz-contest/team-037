@@ -9,6 +9,7 @@ import { webglAvailable } from '../render3d/quality';
 import { SENSORS_BY_KIND } from '../platform/sensors';
 import type { BuildingKind } from '../render3d/MineScene';
 import { TRUCK_STATE_LABEL, type Simulation } from '../sim';
+import { CELL_CAP_T, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, type CellStage } from '../sim/leach';
 import { fmtInt } from '../ui/format';
 import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
 import { thingIds } from '../platform/twins';
@@ -517,6 +518,88 @@ function Bay({ title, hint, trucks, sim, onTruck, empty, tone }: { title: string
 
 // ───────────────────────────── выщелачивание и отвал ─────────────────────────────
 
+const STAGE_RU: Record<CellStage, string> = { loading: 'отсыпка', rest: 'выдержка', irrigating: 'орошение', spent: 'отработана' };
+const STAGE_COLOR: Record<CellStage, string> = { loading: '#d97706', rest: '#78716c', irrigating: '#0e7490', spent: '#44403c' };
+
+/** Карты площадки, график орошения, раствор и завод SX-EW. */
+function LeachCells({ sim }: { sim: Simulation }) {
+  const L = sim.leach;
+  const g = L.activeGroup(sim.now);
+  const winS = IRRIGATION_WINDOW_H * 3600;
+  const left = winS - (sim.now % winS);
+  const cols = 7;
+  const W = 128;
+  const H = 92;
+  return (
+    <div className="mt-4">
+      <div className="mb-1 text-[13px] font-semibold text-ink-1">Карты площадки и график орошения</div>
+      <svg viewBox="0 0 1000 330" className="w-full">
+        {L.cells.map((c, i) => {
+          const x = 20 + (i % cols) * (W + 10);
+          const y = 10 + Math.floor(i / cols) * (H + 12);
+          const rec = c.cuT > 0 ? c.cuLeachedT / c.cuT : 0;
+          const fill = c.stage === 'loading' ? Math.min(1, c.oreT / CELL_CAP_T) : 1;
+          return (
+            <g key={c.id} transform={`translate(${x} ${y})`}>
+              <rect width={W} height={H} rx={6} fill={C.box} stroke={c.irrigated ? '#22d3ee' : C.line} strokeWidth={c.irrigated ? 2.5 : 1} />
+              <rect x={0} y={H - H * fill} width={W} height={H * fill} rx={6} fill={STAGE_COLOR[c.stage]} fillOpacity={0.45} />
+              {c.irrigated &&
+                Array.from({ length: 12 }, (_, k) => <circle key={k} cx={12 + (k % 6) * 21} cy={40 + Math.floor(k / 6) * 16} r={2.2} fill="#67e8f9" />)}
+              <text x={8} y={17} fontSize={12} fontWeight={700} fill={C.text}>
+                {c.name}
+              </text>
+              <text x={W - 8} y={17} textAnchor="end" fontSize={10.5} fill={C.dim}>
+                гр. {L.groupOf(c) + 1}
+              </text>
+              <text x={8} y={33} fontSize={11} fill={c.irrigated ? '#67e8f9' : C.dim}>
+                {c.irrigated ? 'поливается' : STAGE_RU[c.stage]}
+              </text>
+              <text x={8} y={H - 22} fontSize={10.5} fill={C.dim}>
+                {c.stage === 'loading' ? `${fmtInt(c.oreT / 1000)} из ${CELL_CAP_T / 1000} тыс. т` : c.stage === 'irrigating' || c.stage === 'spent' ? `${Math.round(c.daysLeached)} сут орошения` : 'разводка сети'}
+              </text>
+              <text x={8} y={H - 8} fontSize={10.5} fill={C.text}>
+                {c.cuT > 0 ? `извлечено ${Math.round(rec * 100)} % Cu` : ''}
+              </text>
+            </g>
+          );
+        })}
+        <SensorDot x={20 + 6 * (W + 10) + W / 2} y={10 + H + 12 + H / 2} label="расходомеры карт" />
+        {/* раствор → пруд → SX-EW */}
+        <g transform="translate(20 230)">
+          <rect width={260} height={80} rx={8} fill={C.box} stroke="#0e7490" />
+          <text x={130} y={22} textAnchor="middle" fontSize={12} fill={C.dim}>Пруд PLS</text>
+          <text x={130} y={46} textAnchor="middle" fontSize={16} fontWeight={700} fill={C.text} fontFamily="var(--font-mono)">{fmtInt(L.plsM3h)} м³/ч</text>
+          <text x={130} y={66} textAnchor="middle" fontSize={12} fill="#67e8f9">{L.plsGpl.toFixed(2)} г/л Cu</text>
+          <line x1={260} y1={40} x2={350} y2={40} stroke="#0e7490" strokeWidth={3} markerEnd="url(#arr)" />
+          <rect x={350} width={300} height={80} rx={8} fill={C.box} stroke="#b45309" />
+          <text x={500} y={22} textAnchor="middle" fontSize={12} fill={C.dim}>SX-EW · ток серии {L.ewKA.toFixed(1)} кА</text>
+          <text x={500} y={46} textAnchor="middle" fontSize={16} fontWeight={700} fill="#f59e0b" fontFamily="var(--font-mono)">{L.cathodeT.toFixed(1)} т катодов</text>
+          <text x={500} y={66} textAnchor="middle" fontSize={12} fill={C.dim}>темп {fmtInt(L.cathodeTpd)} т/сут</text>
+          <path d="M500 80 L500 92 L130 92 L130 80" fill="none" stroke="#155e75" strokeDasharray="5 4" />
+          <text x={315} y={88} textAnchor="middle" fontSize={10.5} fill={C.dim}>рафинат — обратно на орошение</text>
+          <text x={680} y={22} fontSize={12} fill={C.dim}>Сейчас поливается группа {g + 1} из {IRRIGATION_GROUPS}</text>
+          <text x={680} y={42} fontSize={12} fill={C.dim}>смена группы через {Math.ceil(left / 60)} мин</text>
+          <text x={680} y={62} fontSize={12} fill={C.dim}>кислоты за смену {fmtInt(L.acidT)} т</text>
+        </g>
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX={8} refY={5} markerWidth={6} markerHeight={6} orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="#0e7490" />
+          </marker>
+        </defs>
+      </svg>
+      <Stats>
+        <Stat label="Медь перешла в раствор" value={`${L.cuLeachedT.toFixed(1)} т`} />
+        <Stat label="Катодная медь" value={`${L.cathodeT.toFixed(1)} т`} tone={C.ok} />
+        <Stat label="Карт в орошении" value={`${L.irrigatingCount} (поливается ${L.cells.filter((c) => c.irrigated).length})`} />
+        <Stat label="Медь в PLS" value={`${L.plsGpl.toFixed(2)} г/л`} />
+      </Stats>
+      <div className="mt-2 text-[11.5px] text-ink-3">
+        Карты, кривая извлечения (до ~70 % меди за полгода) и график полива — оценки по открытым данным о кучном выщелачивании. Рост штабеля по ярусам и химия раствора упрощены.
+      </div>
+    </div>
+  );
+}
+
 function Dump({ sim, kind, onTruck }: { sim: Simulation; kind: 'leach' | 'waste'; onTruck: (id: number) => void }) {
   const mat = kind === 'leach' ? 'oxide' : 'waste';
   // Отвалов вскрыши несколько — показываем итог по всем (места разгрузки, очередь, тоннаж).
@@ -573,9 +656,7 @@ function Dump({ sim, kind, onTruck }: { sim: Simulation; kind: 'leach' | 'waste'
           Ждут: {d.queue.map((id) => <TruckChip key={id} sim={sim} id={id} onTruck={onTruck} />)}
         </div>
       )}
-      {kind === 'leach' && (
-        <div className="mt-2 text-[11.5px] text-ink-3">Орошение штабеля раствором и извлечение меди из оксидной руды в модели не считаются — показан учёт отсыпки.</div>
-      )}
+      {kind === 'leach' && <LeachCells sim={sim} />}
     </div>
   );
 }

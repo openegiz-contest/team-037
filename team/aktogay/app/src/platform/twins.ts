@@ -14,11 +14,12 @@ import type { Kpis } from '../sim/kpi';
 import type { Simulation } from '../sim/engine';
 import { MATERIALS, TRUCK_STATES, type Blast, type Destination, type FailureType, type Material, type StrategyName, type TruckState } from '../sim/types';
 import { gradeAt } from '../sim/ore';
+import { CELL_CAP_T, EW_CELLS, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, LEACH_DAYS, OXIDE_GRADE_PCT, REC_MAX, SX_EFFICIENCY, type CellStage } from '../sim/leach';
 import { CONC_GRADE, TRAIN_WAGONS, WAGON_LOAD_SEC, WAGON_T } from '../sim/concentrate';
 import { BENCH_M, BLOCK_M, blockSummary, buildOreModel, CUTOFF, DENSITY, holeAssays, pitResources, type OreModel } from '../geo/orebody';
 import { PIT_DEPTH } from '../geo/relief';
 import { UNIT_DEFS, type UnitState } from '../sim/equipment';
-import { concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
+import { sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -43,6 +44,7 @@ export const thingIds = (v: StrategyName) => {
     stockpile: `${ns}:stockpile`,
     geology: `${ns}:geology`,
     concentrate: `${ns}:concentrate`,
+    sxew: `${ns}:sxew`,
     unit: (key: string) => `${ns}:${key}`,
     drill: (i: number) => `${ns}:drill-${i + 1}`,
   };
@@ -169,7 +171,39 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
     },
     features: serializeConcentrate(sim),
   };
-  out[id.leach] = { policyId: POLICY, attributes: { name: 'Площадка кучного выщелачивания', kind: 'heap-leach', _isType: false, _parents: parent, sensors: leachSensorAttributes() }, features: serializeDump(sim, 1) };
+  out[id.leach] = {
+    policyId: POLICY,
+    attributes: {
+      name: 'Площадка кучного выщелачивания',
+      kind: 'heap-leach',
+      _isType: false,
+      _parents: parent,
+      cell_cap_t: CELL_CAP_T,
+      cell_count: sim.leach.cells.length,
+      irrigation_groups: IRRIGATION_GROUPS,
+      irrigation_window_h: IRRIGATION_WINDOW_H,
+      oxide_grade_pct: OXIDE_GRADE_PCT,
+      rec_max_pct: REC_MAX * 100,
+      leach_days: LEACH_DAYS,
+      note: 'cells: карта = стадия:руда т:медь т:сутки орошения:извлечено меди т, через «;»',
+      sensors: leachSensorAttributes(),
+    },
+    features: serializeLeach(sim),
+  };
+  out[id.sxew] = {
+    policyId: POLICY,
+    attributes: {
+      name: 'Завод SX-EW (катодная медь)',
+      kind: 'sxew-plant',
+      _isType: false,
+      _parents: parent,
+      sx_efficiency_pct: SX_EFFICIENCY * 100,
+      ew_cells: EW_CELLS,
+      feeds_from: id.leach,
+      sensors: sxewSensorAttributes(),
+    },
+    features: serializeSxew(sim),
+  };
   out[id.waste] = {
     policyId: POLICY,
     attributes: { name: 'Отвалы вскрыши', kind: 'waste-dump', _isType: false, _parents: parent, sensors: wasteSensorAttributes(), dumps: sim.dumps.filter((d) => d.material === 'waste').map((d) => d.name) },
@@ -415,6 +449,34 @@ export function serializeWaste(sim: Simulation): Features {
   return out;
 }
 
+/** Площадка выщелачивания: отсыпка (как у отвала) + карты, график орошения и раствор. */
+export function serializeLeach(sim: Simulation): Features {
+  const L = sim.leach;
+  const r = (x: number, k = 1) => Math.round(x * k) / k;
+  return {
+    ...serializeDump(sim, 1),
+    cells: f(L.cells.map((c) => `${c.stage}:${Math.round(c.oreT)}:${r(c.cuT, 10)}:${r(c.daysLeached, 1000)}:${r(c.cuLeachedT, 100)}`).join(';')),
+    irrigation_group: f(L.activeGroup(sim.now) + 1),
+    cells_irrigated: f(L.cells.filter((c) => c.irrigated).length, 'cells'),
+    cells_irrigating: f(L.irrigatingCount, 'cells'),
+    placed_total: f(Math.round(L.placedT), 't'),
+    pls_flow: f(Math.round(L.plsM3h), 'm3/h'),
+    pls_cu: f(r(L.plsGpl, 100), 'g/l'),
+    cu_leached_total: f(r(L.cuLeachedT, 10), 't'),
+  };
+}
+
+/** Завод SX-EW. */
+export function serializeSxew(sim: Simulation): Features {
+  const L = sim.leach;
+  return {
+    ew_current: f(Math.round(L.ewKA * 10) / 10, 'kA'),
+    cathode_total: f(Math.round(L.cathodeT * 10) / 10, 't'),
+    cathode_tpd: f(Math.round(L.cathodeTpd), 't/day'),
+    acid_total: f(Math.round(L.acidT), 't'),
+  };
+}
+
 export function serializeDump(sim: Simulation, k: number): Features {
   const d = sim.dumps[k];
   return {
@@ -591,7 +653,8 @@ export function serializeAll(sim: Simulation, v: StrategyName, k: Kpis): Record<
   sim.trucks.forEach((_, i) => (out[id.truck(i)] = serializeTruck(sim, i)));
   out[id.crusher] = serializeCrusher(sim);
   out[id.plant] = serializePlant(sim);
-  out[id.leach] = serializeDump(sim, 1);
+  out[id.leach] = serializeLeach(sim);
+  out[id.sxew] = serializeSxew(sim);
   out[id.waste] = serializeWaste(sim);
   out[id.garage] = serializeGarage(sim);
   out[id.roads] = serializeRoads(sim);
@@ -824,6 +887,33 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
       d.tonnes = num(fs, 'tonnes_total');
       d.queue = ids(str(fs, 'queue_ids'));
       d.active = ids(str(fs, 'dumping_ids')).map((t) => ({ truck: t, left: 0 }));
+      // Карты и раствор.
+      const L = sim.leach;
+      const cs = str(fs, 'cells').split(';').filter(Boolean);
+      cs.forEach((row, i) => {
+        const c = L.cells[i];
+        const [stage, ore, cu, days, done] = row.split(':');
+        if (!c || !['loading', 'rest', 'irrigating', 'spent'].includes(stage)) return;
+        c.stage = stage as CellStage;
+        c.oreT = Number(ore) || 0;
+        c.cuT = Number(cu) || 0;
+        c.daysLeached = Number(days) || 0;
+        c.cuLeachedT = Number(done) || 0;
+      });
+      const g = L.activeGroup(sim.now);
+      L.cells.forEach((c) => (c.irrigated = c.stage === 'irrigating' && L.groupOf(c) === g));
+      L.placedT = num(fs, 'placed_total', L.placedT);
+      L.plsM3h = num(fs, 'pls_flow', L.plsM3h);
+      L.plsGpl = num(fs, 'pls_cu', L.plsGpl);
+      L.cuLeachedT = num(fs, 'cu_leached_total', L.cuLeachedT);
+      L.syncedOxideT = d.tonnes;
+    }
+    const sx = things.get(id.sxew);
+    if (sx) {
+      const L = sim.leach;
+      L.ewKA = num(sx, 'ew_current', L.ewKA);
+      L.cathodeT = num(sx, 'cathode_total', L.cathodeT);
+      L.acidT = num(sx, 'acid_total', L.acidT);
     }
   }
   {
