@@ -205,10 +205,43 @@ export function buildMine(cfg: SimConfig): MineLayout {
     }
 
   const rim = pits.flatMap((pl) => pl.rings[0]);
+  const nearestOf = (ids: number[], pt: Point): number => {
+    let id0 = ids[0];
+    let bd = Infinity;
+    for (const id of ids) {
+      const n = g.nodes[id];
+      const d = Math.hypot(n.x - pt.x, n.y - pt.y);
+      if (d < bd) {
+        bd = d;
+        id0 = id;
+      }
+    }
+    return id0;
+  };
+  // Дороги на поверхности по снимку: точки с одинаковыми координатами — общие узлы (развилки).
+  const roadNodes: number[] = [];
+  const roadNodeAt = (pt: Point): number => {
+    for (const id of roadNodes) {
+      const n = g.nodes[id];
+      if (Math.hypot(n.x - pt.x, n.y - pt.y) < 5) return id;
+    }
+    const id = g.addNode(pt.x, pt.y, 'junction');
+    roadNodes.push(id);
+    return id;
+  };
+  for (const road of cfg.haulRoads ?? []) {
+    let prev = road.fromRim ? nearestOf(rim, road.pts[0]) : -1;
+    for (const pt of road.pts) {
+      const id = roadNodeAt(pt);
+      if (prev >= 0 && prev !== id && !g.edgeBetween(prev, id)) g.addEdge(prev, id, 'surface');
+      prev = id;
+    }
+  }
+  const surfaceNodes = [...rim, ...roadNodes];
   const attach = (pt: Point): SiteNodes => {
-    let access = rim[0];
+    let access = surfaceNodes[0];
     let best = Infinity;
-    for (const id of rim) {
+    for (const id of surfaceNodes) {
       const n = g.nodes[id];
       const d = Math.hypot(n.x - pt.x, n.y - pt.y);
       if (d < best) {

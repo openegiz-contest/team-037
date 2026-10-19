@@ -149,7 +149,9 @@ export function RealMap({ sim, mode, objects, lines, layers, showSchematic, sele
       const gr = sim.layout.graph;
       for (const e of gr.edges) {
         if (e.kind === 'lot' || e.kind === 'park') continue;
-        L.polyline([toLatLng(gr.nodes[e.a].x, gr.nodes[e.a].y), toLatLng(gr.nodes[e.b].x, gr.nodes[e.b].y)], { color: '#fde68a', weight: 2, opacity: 0.55, interactive: false }).addTo(g);
+        // Технологические дороги на поверхности (по снимку) — ярче и толще дорог внутри выработок.
+        const surf = e.kind === 'surface';
+        L.polyline([toLatLng(gr.nodes[e.a].x, gr.nodes[e.a].y), toLatLng(gr.nodes[e.b].x, gr.nodes[e.b].y)], { color: surf ? '#fb923c' : '#fde68a', weight: surf ? 4 : 2, opacity: surf ? 0.9 : 0.55, interactive: false }).addTo(g);
       }
     }
     for (const l of lines) {

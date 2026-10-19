@@ -278,8 +278,8 @@ export class MineScene {
       this.scene.add(mast);
     }
 
-    // Склад дроблёной руды — сбоку от линии дробилка → фабрика (со стороны, дальней от карьера):
-    // штабелеукладчик с дробилки на вершину конуса, из тоннеля под штабелем — конвейер на фабрику.
+    // Склад дроблёной руды — на месте реального конуса (config.sites.stockpile); конвейер с дробилки
+    // идёт с изломом по реальной трассе на вершину конуса, из тоннеля под штабелем — конвейер на фабрику.
     this.conveyorMat = new THREE.MeshStandardMaterial({ color: '#2f3338', emissive: '#000000', roughness: 0.8 });
     this.stackerMat = new THREE.MeshStandardMaterial({ color: '#6b7280', roughness: 0.8 });
     const postMat = new THREE.MeshStandardMaterial({ color: '#8b939c', metalness: 0.5, roughness: 0.4 });
@@ -306,26 +306,18 @@ export class MineScene {
     {
       const cx = this.crusherPos.x;
       const cz = this.crusherPos.z;
-      const dx = pp.x - cx;
-      const dz = pp.y - cz;
-      const d = Math.hypot(dx, dz) || 1;
-      let nx = -dz / d;
-      let nz = dx / d;
-      const mx = cx + dx * 0.4;
-      const mz = cz + dz * 0.4;
-      if (Math.hypot(mx + nx, mz + nz) < Math.hypot(mx - nx, mz - nz)) {
-        nx = -nx;
-        nz = -nz;
-      }
-      const sx = mx + nx * 210;
-      const sz = mz + nz * 210;
+      const sx = cfg.sites.stockpile.x;
+      const sz = cfg.sites.stockpile.y;
       const ground = this.heightAt(sx, sz);
       this.stockpileAt = new THREE.Vector3(sx, ground, sz);
       this.conveyorFrom.set(cx, this.crusherPos.y + 95, cz);
       this.stackHead.set(sx, ground + STOCKPILE_MAX_R * 0.62 + 18, sz);
       this.reclaimFrom.set(sx, ground + 3, sz);
       this.conveyorTo.set(pp.x, plant.position.y + 80, pp.y);
-      beltBetween(this.conveyorFrom, this.stackHead, this.stackerMat);
+      // Конвейер дробилка → склад по изломам трассы; высота над землёй плавно растёт к вершине конуса.
+      const via = cfg.sites.conveyorVia.map((p, i, a) => new THREE.Vector3(p.x, this.heightAt(p.x, p.y) + 20 + ((i + 1) / (a.length + 1)) * 40, p.y));
+      const chain = [this.conveyorFrom, ...via, this.stackHead];
+      for (let i = 0; i + 1 < chain.length; i++) beltBetween(chain[i], chain[i + 1], i + 2 === chain.length ? this.stackerMat : this.conveyorMat);
       beltBetween(this.reclaimFrom, this.conveyorTo, this.conveyorMat, { x: sx, z: sz, r: STOCKPILE_MAX_R + 10 });
       avoid.push({ x: sx, y: sz, r: STOCKPILE_MAX_R + 60 });
 

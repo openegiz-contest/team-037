@@ -74,18 +74,15 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
   const S = sim.cfg.sites;
   const cr = S.crusher;
   const pl = S.plant;
-  // Склад дроблёной руды — там же, где в 3D-сцене: сбоку от линии дробилка → фабрика.
-  const dx = pl.x - cr.x, dy = pl.y - cr.y, d = Math.hypot(dx, dy) || 1;
-  let nx = -dy / d, ny = dx / d;
-  const mx = cr.x + dx * 0.4, my = cr.y + dy * 0.4;
-  if (Math.hypot(mx + nx, my + ny) < Math.hypot(mx - nx, my - ny)) {
-    nx = -nx;
-    ny = -ny;
-  }
-  const sp = { x: mx + nx * 210, y: my + ny * 210 };
+  // Склад дроблёной руды — реальный конус в конце конвейера (OSM, снимок), как в 3D-сцене.
+  const sp = S.stockpile;
+  const via = S.conveyorVia.map((p) => [p.x, p.y] as [number, number]);
+  // Вторая цепочка комбината (в модели не участвует): ККД-2 у соседней головы конвейера → склад-2 → ОФ-2.
+  const cr2 = { x: 1392, y: 880 };
+  const sp2 = { x: 126, y: 3029 };
   // Реальные места объектов (координаты модели; пересчёт со спутникового снимка и OpenStreetMap,
   // см. src/geo/geoRef.ts). Объекты, назначение которых на снимке не подписано, стоят условно.
-  const pl2 = { x: -30, y: 3975 }; // вторая фабрика — западный фабричный комплекс
+  const pl2 = { x: -33, y: 3871 }; // вторая фабрика — корпус западного фабричного комплекса (OSM)
   const tsf = { x: 1850, y: 4560 }; // хвостохранилище к югу от фабрик
   const sx = { x: 1825, y: 1510 }; // корпуса у карт выщелачивания — завод SX-EW
   const ponds = { x: 2250, y: 950 };
@@ -164,7 +161,7 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       id: 'plant1',
       name: 'Обогатительная фабрика №1 (Актогай-1)',
       layer: 'process',
-      shape: { kind: 'rect', x: pl.x, y: pl.y, w: 360, h: 210, rot: -30 },
+      shape: { kind: 'rect', x: pl.x, y: pl.y, w: 220, h: 360, rot: -5 },
       fill: '#78350f',
       live: true,
       about: 'Измельчение (мельница ПСИ и шаровые мельницы), флотация, сгущение: из руды ~0,35 % Cu получается медный концентрат ~25 % Cu.',
@@ -182,12 +179,34 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       id: 'plant2',
       name: 'Обогатительная фабрика №2 (Актогай-2)',
       layer: 'process',
-      shape: { kind: 'rect', x: pl2.x, y: pl2.y, w: 360, h: 210, rot: -30 },
+      shape: { kind: 'rect', x: pl2.x, y: pl2.y, w: 220, h: 360, rot: -5 },
       fill: '#5b2a0b',
       live: false,
       about: 'Вторая сульфидная фабрика той же мощности; запуск удвоил переработку сульфидной руды. В модели не участвует: моделируется сегмент парка, питающий одну фабрику.',
       facts: ['25 млн т руды в год, запущена в 2021 г. (открытые источники)', 'вместе с ОФ-1 — 50 млн т в год; рекорд 2025 г. — 62,1 млн т руды', 'попутно — молибденовый передел (молибденовый концентрат)'],
       label: 'ОФ-2',
+    },
+    {
+      id: 'crusher2',
+      name: 'Первичная дробилка ККД-2',
+      layer: 'process',
+      shape: { kind: 'rect', x: cr2.x, y: cr2.y, w: 130, h: 100, rot: 20 },
+      fill: '#7c2d12',
+      live: false,
+      about: 'Вторая дробилка у соседней головы конвейера — питает склад и фабрику №2. В модели не участвует: моделируемый сегмент парка возит руду на первую.',
+      facts: ['голова конвейера — по OpenStreetMap и снимку'],
+      label: 'ККД-2',
+    },
+    {
+      id: 'stockpile2',
+      name: 'Склад дроблёной руды ОФ-2',
+      layer: 'process',
+      shape: { kind: 'circle', x: sp2.x, y: sp2.y, r: 110 },
+      fill: '#713f12',
+      live: false,
+      about: 'Конусный склад второй фабрики в конце длинного конвейера от ККД-2.',
+      facts: ['место — по OpenStreetMap и снимку'],
+      label: 'Склад ОФ-2',
     },
     {
       id: 'conc',
@@ -211,7 +230,7 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       id: 'leach',
       name: 'Площадка кучного выщелачивания',
       layer: 'process',
-      shape: { kind: 'rect', x: S.leach.x, y: S.leach.y, w: 520, h: 300, rot: 0 },
+      shape: { kind: 'rect', x: 2620, y: 60, w: 760, h: 1880, rot: 0 }, // вся площадка по снимку; самосвалы разгружаются на верхних картах
       fill: '#115e59',
       live: true,
       about: 'Оксидную руду отсыпают на карты и орошают раствором серной кислоты по графику — группы карт поливаются по очереди. Медь переходит в раствор (PLS) по кривой извлечения: быстро в первые недели, до ~70 % за полгода.',
@@ -460,9 +479,10 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
   ];
 
   const lines: SiteLine[] = [
-    { id: 'conv1', name: 'Конвейер дробилка → склад', layer: 'process', kind: 'conveyor', pts: [[cr.x, cr.y], [sp.x, sp.y]] },
-    { id: 'conv2', name: 'Конвейер склад → ОФ-1', layer: 'process', kind: 'conveyor', pts: [[sp.x, sp.y], [pl.x, pl.y]] },
-    { id: 'conv3', name: 'Конвейер склад → ОФ-2', layer: 'process', kind: 'conveyor', pts: [[sp.x, sp.y], [pl.x - 300, pl.y + 300], [pl2.x, pl2.y]] },
+    { id: 'conv1', name: 'Конвейер дробилка → склад', layer: 'process', kind: 'conveyor', pts: [[cr.x, cr.y], ...via, [sp.x, sp.y]] },
+    { id: 'conv2', name: 'Конвейер склад → ОФ-1', layer: 'process', kind: 'conveyor', pts: [[sp.x, sp.y], [789, 2363], [pl.x, pl.y]] },
+    { id: 'conv3', name: 'Конвейер ККД-2 → склад ОФ-2', layer: 'process', kind: 'conveyor', pts: [[cr2.x, cr2.y], [sp2.x, sp2.y]] },
+    { id: 'conv4', name: 'Конвейер склад → ОФ-2', layer: 'process', kind: 'conveyor', pts: [[sp2.x, sp2.y], [-111, 3419], [pl2.x, pl2.y]] },
     { id: 'tail1', name: 'Хвосты ОФ-1 → хвостохранилище', layer: 'waste', kind: 'pipe', pts: [[pl.x, pl.y], [tsf.x - 600, tsf.y - 700]] },
     { id: 'tail2', name: 'Хвосты ОФ-2 → хвостохранилище', layer: 'waste', kind: 'pipe', pts: [[pl2.x, pl2.y], [tsf.x - 1100, tsf.y - 200]] },
     { id: 'ret', name: 'Оборотная вода → фабрики', layer: 'utility', kind: 'water', pts: [[tsf.x - 400, tsf.y - 600], [water.x, water.y]] },

@@ -85,7 +85,7 @@
   <div class="lead">Самосвалы закреплены за экскаваторами на всю смену. План хорош для спокойного дня, но на поломку, закрытый съезд или взрыв никто не реагирует вовремя.</div>
   <div class="body grid" style="grid-template-columns: repeat(3, 1fr);">
     <div class="card">
-      <div class="big">84 <span style="font-size:30px">мин</span></div>
+      <div class="big">123 <span style="font-size:30px">мин</span></div>
       <div class="bigsub">простоя фабрики за смену при закреплении, когда самосвалов не хватает (15 машин)</div>
       <h3 style="margin-top:28px">Пустой склад = стоит фабрика</h3>
       <p>Сульфидная руда кончается на складе перед фабрикой — обогатительная фабрика простаивает. Это самая дорогая потеря: ≈15 млн ₸ за час (оценка).</p>
@@ -350,24 +350,24 @@
     <div class="card" style="padding:28px 30px;">
       <table>
         <tr><th>Показатель за смену</th><th class="n">Без системы</th><th class="n">С системой</th><th class="n">Δ</th></tr>
-        <tr><td>Простой фабрики без руды, мин</td><td class="n">1,4</td><td class="n">0,0</td><td class="n"><span class="pill g">−100%</span></td></tr>
-        <tr><td>Аварийные отказы самосвалов</td><td class="n">4,4</td><td class="n">1,1</td><td class="n"><span class="pill g">−75%</span></td></tr>
-        <tr><td>Средняя очередь, мин</td><td class="n">2,3</td><td class="n">1,9</td><td class="n"><span class="pill g">−16%</span></td></tr>
-        <tr><td>Вскрыша вывезена, т</td><td class="n">49 058</td><td class="n">54 184</td><td class="n"><span class="pill g">+10,4%</span></td></tr>
-        <tr><td>Медь в концентрате, т</td><td class="n">109,9</td><td class="n">110,7</td><td class="n"><span class="pill g">+0,7%</span></td></tr>
-        <tr><td>Добыто всего, т</td><td class="n">103 456</td><td class="n">108 338</td><td class="n"><span class="pill g">+4,7%</span></td></tr>
+        <tr><td>Простой фабрики без руды, мин</td><td class="n">2,6</td><td class="n">0,0</td><td class="n"><span class="pill g">−100%</span></td></tr>
+        <tr><td>Аварийные отказы самосвалов</td><td class="n">4,4</td><td class="n">1,1</td><td class="n"><span class="pill g">−74%</span></td></tr>
+        <tr><td>Средняя очередь, мин</td><td class="n">2,4</td><td class="n">1,8</td><td class="n"><span class="pill g">−24%</span></td></tr>
+        <tr><td>Руда на ОФ в коридоре качества, % времени</td><td class="n">93,1</td><td class="n">97,4</td><td class="n"><span class="pill g">+4,3 п.п.</span></td></tr>
+        <tr><td>Оксид на выщелачивание, т</td><td class="n">16 437</td><td class="n">17 836</td><td class="n"><span class="pill g">+8,5%</span></td></tr>
+        <tr><td>Добыто всего, т</td><td class="n">103 432</td><td class="n">107 929</td><td class="n"><span class="pill g">+4,3%</span></td></tr>
       </table>
-      <p style="margin-top:20px; font-size:20px; color:var(--ink3);">Seed 1–20, 20 самосвалов, 12-часовые смены, реальная геометрия Актогая (три выработки, три отвала). Система добыла не меньше во всех 20 сменах.</p>
+      <p style="margin-top:20px; font-size:20px; color:var(--ink3);">Seed 1–20, 20 самосвалов, 12-часовые смены, реальная геометрия Актогая (три выработки, три отвала, дороги и дробилка по снимку). Система добыла не меньше во всех 20 сменах.</p>
     </div>
     <div class="grid" style="gap:22px;">
       <div class="card" style="border-color: rgba(245,158,11,.55); background: linear-gradient(160deg, rgba(245,158,11,.12), var(--panel) 60%);">
         <div style="font: 600 18px/1 'JetBrains Mono', monospace; letter-spacing:.12em; text-transform:uppercase; color: var(--amber);">Экономический эффект</div>
-        <div class="big" style="margin-top:18px; font-size:80px;">≈5,9 <span style="font-size:40px">млрд ₸/год</span></div>
+        <div class="big" style="margin-top:18px; font-size:80px;">≈6,7 <span style="font-size:40px">млрд ₸/год</span></div>
         <div class="bigsub">на моделируемый сегмент парка (20 самосвалов, 5 экскаваторов). Дополнительная добыча в деньги не переводится — оценка консервативная; ставки — оценки из config.ts.</div>
       </div>
       <div class="card">
         <h3>Честно о границах</h3>
-        <p>Эффект зависит от дефицита техники: 15 самосвалов — <b class="accent">+7,9%</b> добычи и ≈19,2 млрд ₸/год; 25 самосвалов — прироста добычи нет (−0,1%), узкое место — экскаваторы; эффект ≈6,3 млрд ₸/год только за счёт плановых ремонтов вместо аварийных.</p>
+        <p>Эффект зависит от дефицита техники: 15 самосвалов — <b class="accent">+7,7%</b> добычи и ≈28,5 млрд ₸/год; 25 самосвалов — добыча почти та же (+0,8%), узкое место — экскаваторы; эффект ≈5,8 млрд ₸/год за счёт плановых ремонтов вместо аварийных. Меди в концентрате у системы на 0,7% меньше: без неё чаще возят с богатого забоя, но качество руды скачет.</p>
       </div>
     </div>
   </div>
