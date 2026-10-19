@@ -518,8 +518,13 @@ function Bay({ title, hint, trucks, sim, onTruck, empty, tone }: { title: string
 // ───────────────────────────── выщелачивание и отвал ─────────────────────────────
 
 function Dump({ sim, kind, onTruck }: { sim: Simulation; kind: 'leach' | 'waste'; onTruck: (id: number) => void }) {
-  const d = sim.dumps[kind === 'leach' ? 1 : 2];
   const mat = kind === 'leach' ? 'oxide' : 'waste';
+  // Отвалов вскрыши несколько — показываем итог по всем (места разгрузки, очередь, тоннаж).
+  const all = sim.dumps.filter((x) => x.material === mat);
+  const d =
+    all.length === 1
+      ? all[0]
+      : { ...all[0], bays: all.reduce((n, x) => n + x.bays, 0), active: all.flatMap((x) => x.active), queue: all.flatMap((x) => x.queue), tonnes: all.reduce((n, x) => n + x.tonnes, 0) };
   const plan = sim.cfg.planT[mat];
   const pct = plan > 0 ? Math.min(1.2, d.tonnes / plan) : 0;
   const color = MATERIAL_COLOR[mat];

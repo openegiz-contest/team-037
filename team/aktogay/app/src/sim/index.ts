@@ -7,3 +7,4 @@ export * from './mine';
 export * from './ore';
 export { createStrategy, SmartStrategy, FixedStrategy } from './dispatch';
 export * from './drivers';
+export * from './concentrate';

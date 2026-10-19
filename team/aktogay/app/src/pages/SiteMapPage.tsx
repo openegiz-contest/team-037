@@ -21,6 +21,7 @@ const MODES: { key: ViewMode; label: string }[] = [
   { key: 'hybrid', label: 'Гибрид' },
   { key: 'topo', label: 'Рельеф' },
   { key: 'osm', label: 'Карта' },
+  { key: 'history', label: 'История' },
 ];
 
 interface Props {

@@ -447,6 +447,39 @@ export const STOCKPILE_SENSORS: SensorSpec[] = [
   },
 ];
 
+export const CONCENTRATE_SENSORS: SensorSpec[] = [
+  {
+    id: 'stock',
+    name: 'Учёт склада концентрата',
+    hardware: 'конвейерные весы на подаче с фабрики + лазерный сканер штабеля',
+    location: 'крытый склад концентрата',
+    measures: 'выпуск и остаток концентрата, т',
+    features: ['stock', 'produced_total'],
+    periodS: 60,
+    purpose: 'сколько концентрата готово к отгрузке',
+  },
+  {
+    id: 'wagon_scale',
+    name: 'Вагонные весы',
+    hardware: 'тензометрические весы под путём погрузки',
+    location: 'ж/д погрузка',
+    measures: 'масса концентрата в каждом вагоне, т',
+    features: ['wagons_loaded', 'wagon_progress'],
+    periodS: 10,
+    purpose: 'недогруз и перегруз вагонов, учёт отгрузки',
+  },
+  {
+    id: 'rfid',
+    name: 'RFID-считыватели вагонов',
+    hardware: 'считыватели меток на въезде и выезде с пути погрузки',
+    location: 'ж/д пути у склада',
+    measures: 'номера вагонов, отправленные составы',
+    features: ['trains_shift', 'shipped_total', 'cu_shipped'],
+    periodS: 10,
+    purpose: 'отгрузка по составам и вагонам',
+  },
+];
+
 export const GEOLOGY_SENSORS: SensorSpec[] = [
   {
     id: 'core',
@@ -502,6 +535,7 @@ export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   'drill-rig': DRILL_SENSORS,
   stockpile: STOCKPILE_SENSORS,
   orebody: GEOLOGY_SENSORS,
+  'concentrate-store': CONCENTRATE_SENSORS,
 };
 
 /** Компактная запись для attributes.sensors двойника в Ditto. */
@@ -517,3 +551,4 @@ export const garageSensorAttributes = () => sensorAttributes(GARAGE_SENSORS);
 export const drillSensorAttributes = () => sensorAttributes(DRILL_SENSORS);
 export const stockpileSensorAttributes = () => sensorAttributes(STOCKPILE_SENSORS);
 export const geologySensorAttributes = () => sensorAttributes(GEOLOGY_SENSORS);
+export const concentrateSensorAttributes = () => sensorAttributes(CONCENTRATE_SENSORS);

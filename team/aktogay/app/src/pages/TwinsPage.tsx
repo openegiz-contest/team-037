@@ -42,6 +42,7 @@ const KEY_METRICS: Record<string, string[]> = {
   'drill-rig': ['state', 'block', 'holes_done', 'penetration', 'hole_depth'],
   stockpile: ['state', 'level', 'hours_left', 'fill', 'dust'],
   orebody: ['assays_total', 'assays_ore', 'last_assay_cu', 'last_assay_block'],
+  'concentrate-store': ['stock', 'wagons_loaded', 'trains_shift', 'shipped_total'],
   crusher: ['state', 'bin', 'bin_grade', 'starved'],
   concentrator: ['state', 'feed_rate', 'feed_grade', 'cu_concentrate'],
   'heap-leach': ['tonnes_total', 'queue'],
@@ -61,7 +62,7 @@ const GROUPS: { title: string; kinds: string[] }[] = [
   { title: 'Экскаваторы', kinds: ['excavator'] },
   { title: 'Буровые станки', kinds: ['drill-rig'] },
   { title: 'Самосвалы', kinds: ['haul-truck'] },
-  { title: 'Переработка', kinds: ['crusher', 'stockpile', 'concentrator', 'heap-leach', 'waste-dump'] },
+  { title: 'Переработка', kinds: ['crusher', 'stockpile', 'concentrator', 'concentrate-store', 'heap-leach', 'waste-dump'] },
   { title: 'Агрегаты цехов', kinds: ['unit'] },
   { title: 'Инфраструктура', kinds: ['garage', 'road-network', 'blasting', 'shift-log'] },
 ];
@@ -197,6 +198,10 @@ function summary(r: TwinRecord): [string, keyof typeof TONE_COLOR] {
       const a = Number(v('active') ?? 0);
       const w = Number(v('announced') ?? 0);
       return [a ? 'оцепление' : w ? 'объявлен взрыв' : 'нет', a ? 'bad' : w ? 'warn' : 'idle'];
+    }
+    case 'concentrate-store': {
+      const w = Number(v('wagons_loaded') ?? 0);
+      return [`склад ${Math.round(Number(v('stock') ?? 0)).toLocaleString('ru-RU')} т · вагонов ${w} · составов ${v('trains_shift') ?? 0}`, w > 0 ? 'busy' : 'ok'];
     }
     case 'orebody': {
       const n = Number(v('assays_total') ?? 0);

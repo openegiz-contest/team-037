@@ -14,10 +14,11 @@ import type { Kpis } from '../sim/kpi';
 import type { Simulation } from '../sim/engine';
 import { MATERIALS, TRUCK_STATES, type Blast, type Destination, type FailureType, type Material, type StrategyName, type TruckState } from '../sim/types';
 import { gradeAt } from '../sim/ore';
+import { CONC_GRADE, TRAIN_WAGONS, WAGON_LOAD_SEC, WAGON_T } from '../sim/concentrate';
 import { BENCH_M, BLOCK_M, blockSummary, buildOreModel, CUTOFF, DENSITY, holeAssays, pitResources, type OreModel } from '../geo/orebody';
 import { PIT_DEPTH } from '../geo/relief';
 import { UNIT_DEFS, type UnitState } from '../sim/equipment';
-import { drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
+import { concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -41,6 +42,7 @@ export const thingIds = (v: StrategyName) => {
     shift: `${ns}:shift`,
     stockpile: `${ns}:stockpile`,
     geology: `${ns}:geology`,
+    concentrate: `${ns}:concentrate`,
     unit: (key: string) => `${ns}:${key}`,
     drill: (i: number) => `${ns}:drill-${i + 1}`,
   };
@@ -152,8 +154,27 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
       features: serializeGeology(sim),
     };
   }
+  out[id.concentrate] = {
+    policyId: POLICY,
+    attributes: {
+      name: 'Склад концентрата и ж/д отгрузка',
+      kind: 'concentrate-store',
+      _isType: false,
+      _parents: parent,
+      conc_grade_pct: CONC_GRADE * 100,
+      wagon_t: WAGON_T,
+      train_wagons: TRAIN_WAGONS,
+      note: 'состав масштабирован под моделируемый сегмент парка',
+      sensors: concentrateSensorAttributes(),
+    },
+    features: serializeConcentrate(sim),
+  };
   out[id.leach] = { policyId: POLICY, attributes: { name: 'Площадка кучного выщелачивания', kind: 'heap-leach', _isType: false, _parents: parent, sensors: leachSensorAttributes() }, features: serializeDump(sim, 1) };
-  out[id.waste] = { policyId: POLICY, attributes: { name: 'Отвал вскрыши', kind: 'waste-dump', _isType: false, _parents: parent, sensors: wasteSensorAttributes() }, features: serializeDump(sim, 2) };
+  out[id.waste] = {
+    policyId: POLICY,
+    attributes: { name: 'Отвалы вскрыши', kind: 'waste-dump', _isType: false, _parents: parent, sensors: wasteSensorAttributes(), dumps: sim.dumps.filter((d) => d.material === 'waste').map((d) => d.name) },
+    features: serializeWaste(sim),
+  };
   out[id.garage] = { policyId: POLICY, attributes: { name: 'Гараж, АЗС и стоянка', kind: 'garage', _isType: false, _parents: parent, slots: sim.parking.slots.length, sensors: garageSensorAttributes() }, features: serializeGarage(sim) };
   out[id.roads] = { policyId: POLICY, attributes: { name: 'Дорожная сеть карьера', kind: 'road-network', _isType: false, _parents: parent, edges: sim.layout.graph.edges.length }, features: serializeRoads(sim) };
   out[id.blasting] = { policyId: POLICY, attributes: { name: 'Буровзрывные работы', kind: 'blasting', _isType: false, _parents: parent }, features: serializeBlasting(sim) };
@@ -377,6 +398,23 @@ export function serializePlant(sim: Simulation): Features {
   };
 }
 
+/** Отвалы вскрыши (их несколько): итог и по каждому — dump_<i>_*. */
+export function serializeWaste(sim: Simulation): Features {
+  const ds = sim.dumps.filter((d) => d.material === 'waste');
+  const out: Features = {
+    tonnes_total: f(Math.round(ds.reduce((n, d) => n + d.tonnes, 0)), 't'),
+    queue: f(ds.reduce((n, d) => n + d.queue.length, 0), 'trucks'),
+    queue_ids: f(ds.flatMap((d) => d.queue).join(',')),
+    dumping_ids: f(ds.flatMap((d) => d.active.map((a) => a.truck)).join(',')),
+  };
+  ds.forEach((d, i) => {
+    out[`dump_${i + 1}_t`] = f(Math.round(d.tonnes), 't');
+    out[`dump_${i + 1}_queue_ids`] = f(d.queue.join(','));
+    out[`dump_${i + 1}_dumping_ids`] = f(d.active.map((a) => a.truck).join(','));
+  });
+  return out;
+}
+
 export function serializeDump(sim: Simulation, k: number): Features {
   const d = sim.dumps[k];
   return {
@@ -445,6 +483,20 @@ export function serializeGeology(sim: Simulation): Features {
     out[`face_${e.id + 1}_zone`] = f(m.zone(e.x, e.y, z));
   }
   return out;
+}
+
+/** Признаки склада концентрата и ж/д отгрузки. */
+export function serializeConcentrate(sim: Simulation): Features {
+  const c = sim.concentrate;
+  return {
+    stock: f(Math.round(c.stockT), 't'),
+    produced_total: f(Math.round(c.producedT), 't'),
+    wagons_loaded: f(c.wagons, 'pcs'),
+    wagon_progress: f(Math.round(c.loadingProgress * 100), '%'),
+    trains_shift: f(c.trains, 'pcs'),
+    shipped_total: f(Math.round(c.shippedT), 't'),
+    cu_shipped: f(Math.round(c.cuShippedT * 10) / 10, 't'),
+  };
 }
 
 /** Признаки склада дроблёной руды. */
@@ -540,13 +592,14 @@ export function serializeAll(sim: Simulation, v: StrategyName, k: Kpis): Record<
   out[id.crusher] = serializeCrusher(sim);
   out[id.plant] = serializePlant(sim);
   out[id.leach] = serializeDump(sim, 1);
-  out[id.waste] = serializeDump(sim, 2);
+  out[id.waste] = serializeWaste(sim);
   out[id.garage] = serializeGarage(sim);
   out[id.roads] = serializeRoads(sim);
   out[id.blasting] = serializeBlasting(sim);
   for (const d of UNIT_DEFS) out[id.unit(d.key)] = serializeUnit(sim, d.key);
   out[id.stockpile] = serializeStockpile(sim);
   out[id.geology] = serializeGeology(sim);
+  out[id.concentrate] = serializeConcentrate(sim);
   sim.drill.rigs.forEach((_, i) => (out[id.drill(i)] = serializeDrill(sim, i)));
   return out;
 }
@@ -704,6 +757,20 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     g.opStats.expectedM = num(fs, 'op_expected_m');
   });
 
+  // Склад концентрата.
+  const cf2 = things.get(id.concentrate);
+  if (cf2) {
+    const c = sim.concentrate;
+    c.stockT = num(cf2, 'stock', c.stockT);
+    c.producedT = num(cf2, 'produced_total', c.producedT);
+    c.wagons = num(cf2, 'wagons_loaded', c.wagons);
+    const prog = num(cf2, 'wagon_progress') / 100;
+    c.loadLeft = prog > 0 ? (1 - prog) * WAGON_LOAD_SEC : 0;
+    c.trains = num(cf2, 'trains_shift', c.trains);
+    c.shippedT = num(cf2, 'shipped_total', c.shippedT);
+    c.cuShippedT = num(cf2, 'cu_shipped', c.cuShippedT);
+  }
+
   // Склад дроблёной руды.
   const spf = things.get(id.stockpile);
   if (spf) {
@@ -750,14 +817,27 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     c.queue = ids(str(cf, 'queue_ids'));
     c.active = ids(str(cf, 'dumping_ids')).map((t) => ({ truck: t, left: 0 }));
   }
-  ([1, 2] as const).forEach((k2) => {
-    const fs = things.get(k2 === 1 ? id.leach : id.waste);
-    if (!fs) return;
-    const d = sim.dumps[k2];
-    d.tonnes = num(fs, 'tonnes_total');
-    d.queue = ids(str(fs, 'queue_ids'));
-    d.active = ids(str(fs, 'dumping_ids')).map((t) => ({ truck: t, left: 0 }));
-  });
+  {
+    const fs = things.get(id.leach);
+    if (fs) {
+      const d = sim.dumps[1];
+      d.tonnes = num(fs, 'tonnes_total');
+      d.queue = ids(str(fs, 'queue_ids'));
+      d.active = ids(str(fs, 'dumping_ids')).map((t) => ({ truck: t, left: 0 }));
+    }
+  }
+  {
+    const fs = things.get(id.waste);
+    if (fs) {
+      sim.dumps
+        .filter((d) => d.material === 'waste')
+        .forEach((d, i) => {
+          d.tonnes = num(fs, `dump_${i + 1}_t`, i === 0 ? num(fs, 'tonnes_total') : 0);
+          d.queue = ids(str(fs, `dump_${i + 1}_queue_ids`, i === 0 ? str(fs, 'queue_ids') : ''));
+          d.active = ids(str(fs, `dump_${i + 1}_dumping_ids`, i === 0 ? str(fs, 'dumping_ids') : '')).map((t) => ({ truck: t, left: 0 }));
+        });
+    }
+  }
   const pf = things.get(id.plant);
   if (pf) {
     sim.stats.plantFeedT = num(pf, 'feed_total');

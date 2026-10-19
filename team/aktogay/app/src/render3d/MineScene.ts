@@ -220,6 +220,14 @@ export class MineScene {
     place(leach, sim.layout.leach.node, 175, false);
     const dump = makeWasteDump();
     place(dump, sim.layout.waste.node, 300, false);
+    // Остальные отвалы вскрыши (восточный, юго-восточный).
+    const extraDumps = sim.layout.wasteExtra.map((site) => {
+      const m = makeWasteDump();
+      place(m, site.node, 300, false);
+      m.userData = { building: 'waste' };
+      this.buildings.push(m);
+      return m;
+    });
     const garage = makeGarage();
     this.crusher.root.userData = { building: 'crusher' };
     leach.userData = { building: 'leach' };
@@ -438,8 +446,12 @@ export class MineScene {
     });
     const leachD = sim.dumps[1];
     panel(new THREE.Vector3(leach.position.x, leach.position.y + 110, leach.position.z), () => `<b>КУЧНОЕ ВЫЩЕЛАЧИВАНИЕ</b><br>Оксид: <span class="v">${fmtInt(leachD.tonnes)} т</span>`);
-    const wasteD = sim.dumps[2];
-    panel(new THREE.Vector3(dump.position.x, dump.position.y + 150, dump.position.z), () => `<b>ОТВАЛ</b><br>Вскрыша: <span class="v">${fmtInt(wasteD.tonnes)} т</span>`);
+    const wasteDumps = sim.dumps.filter((x) => x.material === 'waste');
+    [dump, ...extraDumps].forEach((m, i) => {
+      const wd = wasteDumps[i];
+      if (!wd) return;
+      panel(new THREE.Vector3(m.position.x, m.position.y + 150, m.position.z), () => `<b>${wd.name.toUpperCase()}</b><br>Вскрыша: <span class="v">${fmtInt(wd.tonnes)} т</span>${wd.queue.length ? ` · очередь ${wd.queue.length}` : ''}`);
+    });
 
     // Мягкое свечение фонарей, окон, колец статуса.
     if (!light) {

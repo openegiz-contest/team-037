@@ -101,7 +101,8 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
   const gsm = { x: -905, y: 2165 }; // промплощадка (OSM)
   const camp = { x: -1115, y: 3415 }; // жилой посёлок (OSM: landuse=residential)
   const kpp = { x: -1250, y: 2900 };
-  const wasteE = { x: 1400, y: -1740 }; // восточный отвал (OSM: landuse=landfill)
+  const wasteE = S.wasteExtra[0] ?? { x: 450, y: -2050 }; // восточный отвал (снимок, OSM: landuse=landfill)
+  const wasteSE = S.wasteExtra[1] ?? { x: 2150, y: -1100 };
   const railW = { x: -2335, y: 5330 };
   const railE = { x: 1305, y: 725 };
   const crusher = sim.crusher;
@@ -194,9 +195,16 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       layer: 'process',
       shape: { kind: 'rect', x: conc.x, y: conc.y, w: 260, h: 110, rot: 0 },
       fill: '#92400e',
-      live: false,
-      about: 'Медный концентрат после сушки хранится в крытом складе и грузится в вагоны для отправки потребителям.',
-      facts: ['концентрат ~25 % Cu (открытые источники)', 'отгрузка по железной дороге'],
+      live: true,
+      about: 'Медный концентрат после сушки хранится в крытом складе и грузится в вагоны; полный состав уходит на станцию. Состав масштабирован под моделируемый сегмент парка.',
+      facts: ['концентрат ~25 % Cu (открытые источники)', 'вагон ~69 т, в составе модели 6 вагонов (оценка, масштаб сегмента)'],
+      metrics: (s2) => [
+        ['На складе', `${fmt(s2.concentrate.stockT)} т`],
+        ['Вагонов в составе', `${s2.concentrate.wagons} из 6${s2.concentrate.loadLeft > 0 ? ' · грузится' : ''}`],
+        ['Составов за смену', String(s2.concentrate.trains)],
+        ['Отгружено', `${fmt(s2.concentrate.shippedT)} т (~${fmt(s2.concentrate.cuShippedT)} т меди)`],
+      ],
+      twin: 'concentrate',
       label: 'Склад концентрата',
     },
     {
@@ -238,27 +246,50 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
     // ── отвалы и хвосты ──
     {
       id: 'waste',
-      name: 'Отвал вскрыши',
+      name: 'Отвал вскрыши северо-западный',
       layer: 'waste',
       shape: { kind: 'circle', x: S.waste.x, y: S.waste.y, r: 330 },
       fill: '#57534e',
       live: true,
       about: 'Пустая порода из карьера отсыпается ярусами.',
       facts: ['коэффициент вскрыши у Актогая низкий (открытые источники)'],
-      metrics: (s) => [['Отсыпано за смену', `${fmt(s.dumps.find((x) => x.material === 'waste')?.tonnes ?? 0)} т`]],
+      metrics: (s) => [['Отсыпано за смену', `${fmt(s.dumps.filter((x) => x.material === 'waste')[0]?.tonnes ?? 0)} т`], ['Все отвалы за смену', `${fmt(s.stats.mined.waste)} т`]],
       building: 'waste',
       twin: 'waste-dump',
     },
     {
       id: 'wasteE',
-      name: 'Отвал вскрыши (восточный)',
+      name: 'Отвал вскрыши восточный',
       layer: 'waste',
-      shape: { kind: 'circle', x: wasteE.x, y: wasteE.y, r: 700 },
+      shape: { kind: 'circle', x: wasteE.x, y: wasteE.y, r: 420 },
       fill: '#57534e',
-      live: false,
-      about: 'Второй крупный отвал вскрыши — к востоку от карьера, ярусами. В модели вскрыша везётся на северо-западный отвал.',
+      live: true,
+      about: 'Ярусный отвал вскрыши к востоку от главного карьера. Умная диспетчеризация выбирает отвал по времени рейса и очереди; без системы самосвал едет на ближайший к своему забою.',
       facts: ['расположение — по спутниковому снимку и OpenStreetMap'],
+      metrics: (s2) => {
+        const d = s2.dumps.filter((x) => x.material === 'waste')[1];
+        return d ? [['Отсыпано за смену', `${fmt(d.tonnes)} т`], ['Очередь', String(d.queue.length)]] : [];
+      },
+      building: 'waste',
+      twin: 'waste-dump',
       label: 'Отвал восточный',
+    },
+    {
+      id: 'wasteSE',
+      name: 'Отвал вскрыши юго-восточный',
+      layer: 'waste',
+      shape: { kind: 'circle', x: wasteSE.x, y: wasteSE.y, r: 380 },
+      fill: '#57534e',
+      live: true,
+      about: 'Ярусный отвал вскрыши к юго-востоку от главного карьера, рядом с картами выщелачивания.',
+      facts: ['расположение — по спутниковому снимку'],
+      metrics: (s2) => {
+        const d = s2.dumps.filter((x) => x.material === 'waste')[2];
+        return d ? [['Отсыпано за смену', `${fmt(d.tonnes)} т`], ['Очередь', String(d.queue.length)]] : [];
+      },
+      building: 'waste',
+      twin: 'waste-dump',
+      label: 'Отвал юго-восточный',
     },
     {
       id: 'tsf',

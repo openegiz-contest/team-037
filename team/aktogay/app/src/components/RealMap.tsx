@@ -12,7 +12,21 @@ import { pitPointOf, type Simulation } from '../sim';
 import { isLive, smoothTruck } from '../render/smooth';
 import { TRUCK_COLOR } from '../ui/theme';
 
-export type MapMode = 'satellite' | 'hybrid' | 'topo' | 'osm';
+export type MapMode = 'satellite' | 'hybrid' | 'topo' | 'osm' | 'history';
+
+/**
+ * Архивные снимки над карьером (Esri World Imagery Wayback): выпуск архива и дата съёмки именно этого
+ * места — проверены по метаданным выпусков. 2011 — до начала строительства рудника (2013).
+ */
+export const HISTORY: { release: number; date: string; label: string; note: string }[] = [
+  { release: 3319, date: '01.09.2011', label: '2011', note: 'степь — до начала строительства (2013)' },
+  { release: 119, date: '11.05.2019', label: '2019', note: 'первая очередь: карьер и фабрика №1' },
+  { release: 11475, date: '18.10.2021', label: '2021', note: 'год запуска фабрики №2' },
+  { release: 41468, date: '01.04.2023', label: '2023', note: '' },
+  { release: 36557, date: '30.05.2024', label: '2024', note: '' },
+  { release: 22252, date: '31.03.2025', label: '2025', note: 'текущий снимок' },
+];
+const waybackUrl = (release: number) => `https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/${release}/{z}/{y}/{x}`;
 
 const TILES: Record<MapMode, { url: string; attribution: string; maxZoom: number; overlay?: string }> = {
   satellite: {
@@ -35,6 +49,11 @@ const TILES: Record<MapMode, { url: string; attribution: string; maxZoom: number
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '© участники OpenStreetMap',
     maxZoom: 19,
+  },
+  history: {
+    url: waybackUrl(22252),
+    attribution: 'Архив снимков © Esri World Imagery Wayback (DigitalGlobe, Maxar, Vantor)',
+    maxZoom: 18,
   },
 };
 
@@ -81,13 +100,14 @@ export function RealMap({ sim, mode, objects, lines, layers, showSchematic, sele
     };
   }, []);
 
-  // Подложка по выбранному виду.
+  // Подложка по выбранному виду (в «Истории» — снимок выбранного года).
+  const [year, setYear] = useState(HISTORY.length - 1);
   useEffect(() => {
     const m = map.current;
     if (!m) return;
     base.current.forEach((t) => t.remove());
     setTileErrors(0);
-    const t = TILES[mode];
+    const t = mode === 'history' ? { ...TILES.history, url: waybackUrl(HISTORY[year].release) } : TILES[mode];
     const mk = (url: string) => {
       const layer = L.tileLayer(url, { maxZoom: t.maxZoom, attribution: t.attribution, subdomains: 'abc' });
       layer.on('tileerror', () => setTileErrors((n) => n + 1));
@@ -96,7 +116,7 @@ export function RealMap({ sim, mode, objects, lines, layers, showSchematic, sele
     };
     base.current = [mk(t.url), ...(t.overlay ? [mk(t.overlay)] : [])];
     base.current.forEach((l) => l.bringToBack());
-  }, [mode]);
+  }, [mode, year]);
 
   // Наложение модели: карьер, дороги, объекты, коммуникации.
   useEffect(() => {
@@ -202,6 +222,21 @@ export function RealMap({ sim, mode, objects, lines, layers, showSchematic, sele
   return (
     <div className="relative h-full w-full">
       <div ref={host} className="absolute inset-0" style={{ background: '#1a1712' }} />
+      {mode === 'history' && (
+        <div className="absolute bottom-6 left-1/2 z-[1000] -translate-x-1/2 rounded-lg bg-black/80 px-3 py-2 text-white shadow-lg">
+          <div className="flex items-center gap-1">
+            {HISTORY.map((h, i) => (
+              <button key={h.release} onClick={() => setYear(i)} className={`rounded px-2.5 py-1 text-[13px] font-semibold ${i === year ? 'bg-amber-500 text-black' : 'text-white/80 hover:bg-white/15'}`}>
+                {h.label}
+              </button>
+            ))}
+          </div>
+          <div className="mt-1 text-center text-[11.5px] text-white/75">
+            Снимок от {HISTORY[year].date}
+            {HISTORY[year].note ? ` — ${HISTORY[year].note}` : ''}
+          </div>
+        </div>
+      )}
       {tileErrors > 8 && (
         <div className="pointer-events-none absolute left-1/2 top-3 z-[1000] -translate-x-1/2 rounded-md bg-black/80 px-3 py-1.5 text-[12.5px] text-amber-200">
           Подложка не загружается — нет доступа в интернет. Переключитесь на вид «Схема».

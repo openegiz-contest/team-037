@@ -18,9 +18,17 @@ export const KIND_LABEL: Record<string, string> = {
   'drill-rig': 'Буровой станок',
   stockpile: 'Склад дроблёной руды',
   orebody: 'Геология',
+  'concentrate-store': 'Склад концентрата',
 };
 
 export const FEATURE_LABEL: Record<string, string> = {
+  // склад концентрата и отгрузка
+  produced_total: 'Выпущено концентрата за смену',
+  wagons_loaded: 'Вагонов в текущем составе',
+  wagon_progress: 'Погрузка вагона',
+  trains_shift: 'Составов отправлено за смену',
+  shipped_total: 'Отгружено концентрата',
+  cu_shipped: 'Меди в отгруженном концентрате',
   // геология
   assays_total: 'Проб XRF за смену',
   assays_ore: 'Проб с рудой (≥ 0,2 % Cu)',

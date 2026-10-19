@@ -47,6 +47,8 @@ export interface MineLayout {
   crusher: SiteNodes;
   leach: SiteNodes;
   waste: SiteNodes;
+  /** Дополнительные отвалы (в порядке cfg.sites.wasteExtra). */
+  wasteExtra: SiteNodes[];
   garage: SiteNodes;
   parking: ParkingLayout;
   plant: Point;
@@ -222,11 +224,12 @@ export function buildMine(cfg: SimConfig): MineLayout {
   const crusher = attach(cfg.sites.crusher);
   const leach = attach(cfg.sites.leach);
   const waste = attach(cfg.sites.waste);
+  const wasteExtra = cfg.sites.wasteExtra.map((w) => attach(w));
   const garage = attach(cfg.sites.garage);
   const parking = buildParking(g, garage.node);
 
   // Границы с запасом под площадки (их контуры рисуются дальше от карьера, чем узел дороги).
-  const extra = [cfg.sites.plant, cfg.sites.leach, cfg.sites.waste, cfg.sites.garage].flatMap((p) => {
+  const extra = [cfg.sites.plant, cfg.sites.leach, cfg.sites.waste, ...cfg.sites.wasteExtra, cfg.sites.garage].flatMap((p) => {
     const l = Math.hypot(p.x, p.y) || 1;
     return [p, { x: p.x + (p.x / l) * 420, y: p.y + (p.y / l) * 420 }];
   });
@@ -253,6 +256,7 @@ export function buildMine(cfg: SimConfig): MineLayout {
     crusher,
     leach,
     waste,
+    wasteExtra,
     garage,
     parking,
     plant: cfg.sites.plant,

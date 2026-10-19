@@ -12,6 +12,7 @@ import { buildMine, type MineLayout } from './mine';
 import { hash01, Rng, subSeed } from './rng';
 import { emptyDriverStats, FATIGUE_ALERT, makeDriver } from './drivers';
 import { PlantEquipment } from './equipment';
+import { ConcentrateYard } from './concentrate';
 import { DrillOps } from './drilling';
 import {
   MATERIALS,
@@ -102,6 +103,8 @@ export class Simulation {
   equipment!: PlantEquipment;
   /** Буровые станки, блоки у забоев, запас взорванной массы. */
   drill!: DrillOps;
+  /** Склад концентрата и ж/д отгрузка. */
+  readonly concentrate = new ConcentrateYard();
   /** ГПСЧ событий вождения (резкие торможения) — по потоку на самосвал. */
   private readonly driverRng: Rng[] = [];
   /** Отдельный поток для усталости водителей: модуль диагностический и не сдвигает остальную модель. */
@@ -207,7 +210,8 @@ export class Simulation {
     });
     this.dumps.push(mkDump('crusher', 'Дробилка ККД', 'sulfide', this.layout.crusher, d.crusher.bays, d.crusher.dumpMin));
     this.dumps.push(mkDump('leach', 'Кучное выщелачивание', 'oxide', this.layout.leach, d.leach.bays, d.leach.dumpMin));
-    this.dumps.push(mkDump('waste', 'Отвал вскрыши', 'waste', this.layout.waste, d.waste.bays, d.waste.dumpMin));
+    this.dumps.push(mkDump('waste', 'Отвал северо-западный', 'waste', this.layout.waste, d.waste.bays, d.waste.dumpMin));
+    this.cfg.sites.wasteExtra.forEach((w, i) => this.dumps.push(mkDump('waste', w.name, 'waste', this.layout.wasteExtra[i], d.waste.bays, d.waste.dumpMin)));
     this.stockpile.capT = d.crusher.stockpileCapT;
     this.stockpile.t = d.crusher.stockpileInitialT;
     this.stockpile.cuT = (d.crusher.stockpileInitialT * this.cfg.grade.targetPct) / 100;
@@ -320,9 +324,34 @@ export class Simulation {
     }
   }
 
+  /** Ближайший к забою пункт разгрузки для его материала (по дорогам). */
+  nearestDump(ex: Excavator): DumpSite {
+    let best = this.dumps.find((d) => d.material === ex.material)!;
+    let bd = Infinity;
+    for (const d of this.dumps) {
+      if (d.material !== ex.material) continue;
+      const dist = this.router.distance(ex.node, d.node);
+      if (dist < bd) {
+        bd = dist;
+        best = d;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Куда везти груз: руда — на дробилку или выщелачивание, вскрыша — на один из отвалов.
+   * Умная стратегия выбирает отвал по времени рейса и очереди; иначе — ближайший к забою.
+   */
+  dumpFor(t: Truck, ex: Excavator): number {
+    const cands = this.dumps.filter((d) => d.material === ex.material);
+    if (cands.length === 1) return cands[0].id;
+    return this.strategy.chooseDump?.(this, t, ex, cands) ?? this.nearestDump(ex).id;
+  }
+
   /** Расчётный цикл самосвала на экскаваторе (без очередей), с. */
   estimatedCycleSec(ex: Excavator): number {
-    const dump = this.dumps.find((d) => d.material === ex.material)!;
+    const dump = this.nearestDump(ex);
     const haul = this.router.distance(ex.node, dump.node);
     const back = this.router.distance(dump.node, ex.node);
     return haul / this.speedLoaded + back / this.speedEmpty + this.expectedLoadTime(ex) + dump.dumpTimeSec;
@@ -670,6 +699,7 @@ export class Simulation {
 
     this.crush(dt);
     this.feedPlant(dt);
+    this.concentrate.update(this, dt);
     this.buildLaneOccupancy();
     for (const t of this.trucks) this.updateTruck(t, dt);
     for (const ex of this.excavators) this.updateExcavator(ex, dt);
@@ -1165,8 +1195,7 @@ export class Simulation {
     ex.tonnes += load;
     ex.loads++;
     this.drill.consume(ex.id, load);
-    const dumpId = this.dumps.findIndex((d) => d.material === ex.material);
-    this.setDestination(t, { kind: 'dump', id: dumpId });
+    this.setDestination(t, { kind: 'dump', id: this.dumpFor(t, ex) });
     t.state = 'loaded';
   }
 

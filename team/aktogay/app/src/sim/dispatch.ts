@@ -8,7 +8,7 @@
  */
 import type { Simulation } from './engine';
 import { gradeAt } from './ore';
-import { MATERIALS, type Excavator, type Material, type StrategyName, type Truck } from './types';
+import { MATERIALS, type DumpSite, type Excavator, type Material, type StrategyName, type Truck } from './types';
 
 export interface DispatchStrategy {
   readonly name: StrategyName;
@@ -18,6 +18,8 @@ export interface DispatchStrategy {
   onExcavatorDown?(sim: Simulation, ex: Excavator): void;
   /** Реакция на любое изменение обстановки (дороги, ремонт). */
   onDisruption?(sim: Simulation): void;
+  /** Выбрать пункт разгрузки, когда их несколько (отвалы вскрыши). */
+  chooseDump?(sim: Simulation, truck: Truck, ex: Excavator, candidates: DumpSite[]): number;
 }
 
 export class FixedStrategy implements DispatchStrategy {
@@ -206,6 +208,25 @@ export class SmartStrategy implements DispatchStrategy {
     const urgency = clamp((cfg.smart.binLowT - projected) / cfg.smart.binLowT, 0, 1);
     bonus.sulfide += cfg.smart.crusherWeightSec * urgency;
     return bonus;
+  }
+
+  /** Отвал: время гружёного рейса + ожидаемая очередь (с учётом уже едущих туда) + обратный путь к забою. */
+  chooseDump(sim: Simulation, _truck: Truck, ex: Excavator, candidates: DumpSite[]): number {
+    let best = candidates[0].id;
+    let bestScore = Infinity;
+    for (const d of candidates) {
+      const haul = sim.router.distance(ex.node, d.node) / sim.speedLoaded;
+      const back = sim.router.distance(d.node, ex.node) / sim.speedEmpty;
+      const heading = sim.trucks.filter((o) => o.state === 'loaded' && o.dest?.kind === 'dump' && o.dest.id === d.id).length;
+      const ahead = d.queue.length + d.active.length + heading;
+      const wait = Math.max(0, ahead - d.bays + 1) * (d.dumpTimeSec / Math.max(1, d.bays));
+      const score = haul + wait + back;
+      if (score < bestScore) {
+        bestScore = score;
+        best = d.id;
+      }
+    }
+    return best;
   }
 
   onExcavatorDown(sim: Simulation, ex: Excavator): void {
