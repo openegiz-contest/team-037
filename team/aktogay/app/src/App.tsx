@@ -5,6 +5,7 @@ import { BuildingView } from './components/BuildingView';
 import type { BuildingKind } from './render3d/MineScene';
 import { DiagnosticsPanel } from './components/DiagnosticsPanel';
 import { KpiPanel } from './components/KpiPanel';
+import { CostPanel } from './components/CostPanel';
 import { WeatherChip } from './components/WeatherChip';
 import { Mine3D } from './components/Mine3D';
 import { MineCanvas } from './components/MineCanvas';
@@ -504,7 +505,7 @@ export default function App() {
   }
 
   const dashboard = (
-    <div className="scanlines flex h-full flex-col gap-2 p-3">
+    <div className={`scanlines flex ${isEffect ? 'min-h-full' : 'h-full'} flex-col gap-2 p-3`}>
       {/* Заголовок */}
       <header className="flex items-center gap-4">
         <div className="flex items-center gap-3">
@@ -651,6 +652,14 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
         </div>
       </div>
 
+      {isEffect && (
+        <CostPanel
+          sims={sims}
+          kpis={kpis}
+          labels={sims.map((s) => (s.strategyName === 'smart' ? 'Реальная работа' : 'Без системы (расчёт)'))}
+        />
+      )}
+
       <footer className="flex items-center justify-between text-[11px] text-ink-3">
         <span>Модель построена по открытым данным. Операционные данные смоделированы. Проект не связан с KAZ Minerals.</span>
         <span>
@@ -727,7 +736,7 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
         onToggleTheme={toggleTheme}
         session={session}
       />
-      <main className="h-full min-w-0 flex-1">
+      <main className={`h-full min-w-0 flex-1 ${route === 'effect' ? 'overflow-y-auto' : ''}`}>
         {(route === 'mine' || route === 'effect') && dashboard}
         {route === 'twins' && (
           <TwinsPage

@@ -23,9 +23,21 @@ export const KIND_LABEL: Record<string, string> = {
   'tailings-dam': 'Хвостохранилище',
   'weather-station': 'Погода и сезон',
   'power-meter': 'Электроснабжение',
+  'cost-model': 'Себестоимость меди',
 };
 
 export const FEATURE_LABEL: Record<string, string> = {
+  // себестоимость
+  usd_per_lb: 'Себестоимость, $ за фунт меди',
+  kzt_per_t_cu: 'Себестоимость, ₸ за тонну меди',
+  total_kzt: 'Затраты за смену',
+  modelled_pct: 'Доля затрат, посчитанная моделью',
+  payable_cu: 'Оплачиваемая медь за смену',
+  mining_kzt: 'Добыча',
+  processing_kzt: 'Переработка (сульфид)',
+  oxide_kzt: 'Оксидная линия',
+  logistics_kzt: 'Логистика и плавка',
+  overhead_kzt: 'Содержание площадки',
   // энергоучёт
   total_mw: 'Потребляемая мощность',
   peak_mw: 'Пиковая мощность за смену',

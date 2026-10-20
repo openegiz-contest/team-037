@@ -270,6 +270,25 @@ export interface SimConfig {
     plannedRepairKzt: number;
     /** Цена меди в концентрате (за вычетом переработки), ₸/т. Оценка. */
     copperKztPerT: number;
+    /** Курс для пересчёта себестоимости в доллары, ₸/$. Оценка. */
+    kztPerUsd: number;
+    /** Серная кислота, ₸/т. Оценка. */
+    acidKztPerT: number;
+    /** Персонал смены на моделируемый сегмент, ₸/смену. Оценка. */
+    payrollKztPerShift: number;
+    /** Реагенты флотации и шары с футеровкой мельниц, ₸ на тонну руды. Оценки. */
+    reagentsKztPerTOre: number;
+    grindingKztPerTOre: number;
+    /** Взрывчатка с буровым инструментом и содержание дорог, ₸ на тонну горной массы. Оценки. */
+    blastingKztPerTMoved: number;
+    auxKztPerTMoved: number;
+    /** Общезаводские расходы, ₸/смену. Оценка. */
+    siteKztPerShift: number;
+    /** Ж/д доставка концентрата, ₸/т, и плата за плавку и рафинирование, ₸ на тонну меди. Оценки. */
+    railKztPerTConc: number;
+    smelterKztPerTCu: number;
+    /** Доля меди в концентрате, которую оплачивает плавильный завод, %. Оценка. */
+    payableCuPct: number;
     /** Число 12-часовых смен в году с учётом плановых остановов. */
     shiftsPerYear: number;
   };
@@ -551,6 +570,18 @@ export const DEFAULT_CONFIG: SimConfig = {
     unplannedRepairKzt: 3_500_000, // оценка
     plannedRepairKzt: 1_000_000, // оценка
     copperKztPerT: 3_500_000, // оценка: ~$9 000/т Cu × курс, минус затраты на переработку
+    // Ставки ниже — оценки по открытым данным; из них складывается себестоимость тонны меди.
+    kztPerUsd: 520,
+    acidKztPerT: 85_000,
+    payrollKztPerShift: 12_000_000,
+    reagentsKztPerTOre: 300,
+    grindingKztPerTOre: 450,
+    blastingKztPerTMoved: 120,
+    auxKztPerTMoved: 60,
+    siteKztPerShift: 8_000_000,
+    railKztPerTConc: 25_000,
+    smelterKztPerTCu: 250_000,
+    payableCuPct: 96.5,
     shiftsPerYear: 670, // 2 смены × 365 дней × ~92% готовности
   },
 };

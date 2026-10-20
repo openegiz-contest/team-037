@@ -15,6 +15,7 @@ import type { Simulation } from '../sim/engine';
 import { MATERIALS, TRUCK_STATES, type Blast, type Destination, type FailureType, type Material, type StrategyName, type TruckState } from '../sim/types';
 import { gradeAt } from '../sim/ore';
 import { EW_CELL_VOLTS } from '../sim/energy';
+import { costBreakdown, GROUP_RU, type CostGroup } from '../sim/cost';
 import { BLAST_WIND_MS, LEACH_FROST_C, MONTH_RU, SEASON_RU, SKY, type Sky } from '../sim/weather';
 import { CAPACITY_MT, CREST_M, FREEBOARD_MIN_M, POND_AREA_M2, RECYCLE_PCT, SOLIDS_PCT } from '../sim/tailings';
 import { CELL_CAP_T, EW_CELLS, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, LEACH_DAYS, OXIDE_GRADE_PCT, REC_MAX, SX_EFFICIENCY, type CellStage } from '../sim/leach';
@@ -51,6 +52,7 @@ export const thingIds = (v: StrategyName) => {
     tailings: `${ns}:tailings`,
     weather: `${ns}:weather`,
     energy: `${ns}:energy`,
+    cost: `${ns}:cost`,
     unit: (key: string) => `${ns}:${key}`,
     drill: (i: number) => `${ns}:drill-${i + 1}`,
   };
@@ -196,6 +198,20 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
     },
     features: serializeLeach(sim),
   };
+  out[id.cost] = {
+    policyId: POLICY,
+    attributes: {
+      name: 'Себестоимость тонны меди',
+      kind: 'cost-model',
+      _isType: false,
+      _parents: parent,
+      standard: 'C1 cash cost: прямые затраты без амортизации, процентов и налогов',
+      kzt_per_usd: sim.cfg.economics.kztPerUsd,
+      payable_cu_pct: sim.cfg.economics.payableCuPct,
+      note: 'часть статей считает модель, часть — ставки-оценки по открытым данным; доля посчитанного в modelled_pct',
+    },
+    features: serializeCost(sim),
+  };
   out[id.energy] = {
     policyId: POLICY,
     attributes: {
@@ -205,7 +221,7 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
       _parents: parent,
       tariff_kzt_kwh: sim.cfg.economics.energyKztPerKwh,
       ew_cell_volts: EW_CELL_VOLTS,
-      note: 'мощности агрегатов — оценки по открытым данным; самосвалы и экскаваторы дизельные и в баланс не входят',
+      note: 'мощности агрегатов — оценки; самосвалы и экскаваторы дизельные и в баланс не входят; areas_kwh: участок:кВт·ч через «;»',
       sensors: energySensorAttributes(),
     },
     features: serializeEnergy(sim),
@@ -521,6 +537,21 @@ export function serializeLeach(sim: Simulation): Features {
   };
 }
 
+/** Себестоимость тонны меди: итог и по группам затрат. */
+export function serializeCost(sim: Simulation): Features {
+  const r = costBreakdown(sim);
+  const out: Features = {
+    usd_per_lb: f(Math.round(r.usdPerLb * 1000) / 1000, 'USD/lb'),
+    kzt_per_t_cu: f(Math.round(r.kztPerTCu), 'KZT/t'),
+    total_kzt: f(Math.round(r.totalKzt), 'KZT'),
+    modelled_pct: f(r.totalKzt > 0 ? Math.round((r.modelledKzt / r.totalKzt) * 100) : 0, '%'),
+    payable_cu: f(Math.round(r.payableCuT * 10) / 10, 't'),
+  };
+  for (const g of Object.keys(GROUP_RU) as CostGroup[])
+    out[`${g}_kzt`] = f(Math.round(r.lines.filter((l) => l.group === g).reduce((s, l) => s + l.kzt, 0)), 'KZT');
+  return out;
+}
+
 /** Энергоучёт по участкам. */
 export function serializeEnergy(sim: Simulation): Features {
   const e = sim.energy;
@@ -533,6 +564,7 @@ export function serializeEnergy(sim: Simulation): Features {
     kwh_per_t_cu: f(Math.round(e.perTonneCu(sim)), 'kWh/t'),
     idle_kwh: f(Math.round(e.idleKwh), 'kWh'),
     cost_kzt: f(Math.round(e.costKzt(sim)), 'KZT'),
+    areas_kwh: f(e.areas.map((a) => `${a.id}:${Math.round(a.kwh)}`).join(';')),
     plant_mw: f(by('plant'), 'MW'),
     crusher_mw: f(by('crusher'), 'MW'),
     sxew_mw: f(by('sxew'), 'MW'),
@@ -776,6 +808,7 @@ export function serializeAll(sim: Simulation, v: StrategyName, k: Kpis): Record<
   out[id.tailings] = serializeTailings(sim);
   out[id.weather] = serializeWeather(sim);
   out[id.energy] = serializeEnergy(sim);
+  out[id.cost] = serializeCost(sim);
   out[id.waste] = serializeWaste(sim);
   out[id.garage] = serializeGarage(sim);
   out[id.roads] = serializeRoads(sim);
@@ -816,7 +849,7 @@ export function kpisFromMine(fs: Props | undefined): Kpis | null {
     truckIdleH: num(fs, 'truck_idle_h'),
     excavatorIdleH: num(fs, 'excavator_idle_h'),
     idleCostKzt: num(fs, 'idle_cost'),
-    fuelL: num(fs, 'fuel'),
+    fuelL: num(fs, 'fuel'),  // ниже кладём и в stats: по ним считается себестоимость
     fuelCostKzt: num(fs, 'fuel_cost'),
     fuelLPerT: num(fs, 'fuel_per_t'),
     planPct: { sulfide: num(fs, 'plan_sulfide_pct'), oxide: num(fs, 'plan_oxide_pct'), waste: num(fs, 'plan_waste_pct') },
@@ -866,6 +899,7 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
   const k = kpisFromMine(mine);
   if (k) {
     sim.stats.mined = { ...k.mined };
+    sim.stats.fuelL = k.fuelL;
     sim.stats.unplannedFailures = k.unplannedFailures;
     sim.stats.preventedFailures = k.preventedFailures;
     sim.stats.falseAlarms = k.falseAlarms;
@@ -1028,6 +1062,18 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
       L.plsGpl = num(fs, 'pls_cu', L.plsGpl);
       L.cuLeachedT = num(fs, 'cu_leached_total', L.cuLeachedT);
       L.syncedOxideT = d.tonnes;
+    }
+    const ef = things.get(id.energy);
+    if (ef) {
+      const en = sim.energy;
+      en.totalKwh = num(ef, 'kwh_shift', en.totalKwh);
+      en.peakMw = num(ef, 'peak_mw', en.peakMw);
+      en.idleKwh = num(ef, 'idle_kwh', en.idleKwh);
+      for (const part of str(ef, 'areas_kwh').split(';')) {
+        const [aid, kwh] = part.split(':');
+        const area = en.areas.find((a) => a.id === aid);
+        if (area) area.kwh = Number(kwh) || 0;
+      }
     }
     const wf = things.get(id.weather);
     if (wf) {

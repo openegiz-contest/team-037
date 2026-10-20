@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Simulation } from '..';
+import { costBreakdown, Simulation } from '..';
 
 describe('энергоучёт', () => {
   it('сумма по участкам равна общей мощности, энергия накапливается', () => {
@@ -31,5 +31,38 @@ describe('энергоучёт', () => {
     s.advance(60);
     expect(s.energy.idleKwh).toBeGreaterThan(0);
     expect(s.energy.areas.find((a) => a.id === 'plant')!.mw).toBeGreaterThan(0);
+  });
+});
+
+describe('себестоимость тонны меди', () => {
+  it('сумма статей равна итогу, медь считается по двум потокам', () => {
+    const s = new Simulation({ seed: 3, truckCount: 20, strategy: 'smart' });
+    s.advance(12 * 3600);
+    const r = costBreakdown(s);
+    expect(r.lines.reduce((a, l) => a + l.kzt, 0)).toBeCloseTo(r.totalKzt, 3);
+    expect(r.modelledKzt + r.estimatedKzt).toBeCloseTo(r.totalKzt, 3);
+    // оплачиваемая медь: катоды целиком плюс доля меди в концентрате
+    expect(r.payableCuT).toBeCloseTo(r.cathodeT + (s.stats.cuConcT * s.cfg.economics.payableCuPct) / 100, 6);
+    expect(r.payableCuT).toBeLessThan(s.stats.cuConcT + r.cathodeT);
+  });
+
+  it('себестоимость в правдоподобном для медного рудника диапазоне', () => {
+    const s = new Simulation({ seed: 3, truckCount: 20, strategy: 'smart' });
+    s.advance(12 * 3600);
+    const r = costBreakdown(s);
+    expect(r.usdPerLb).toBeGreaterThan(0.5);
+    expect(r.usdPerLb).toBeLessThan(3);
+    // часть статей посчитана моделью, часть принята оценкой — и то и другое заметно
+    expect(r.modelledKzt / r.totalKzt).toBeGreaterThan(0.2);
+    expect(r.estimatedKzt / r.totalKzt).toBeGreaterThan(0.2);
+  });
+
+  it('с системой себестоимость не выше, чем без неё', () => {
+    const run = (strategy: 'smart' | 'fixed') => {
+      const s = new Simulation({ seed: 3, truckCount: 20, strategy });
+      s.advance(12 * 3600);
+      return costBreakdown(s).usdPerLb;
+    };
+    expect(run('smart')).toBeLessThanOrEqual(run('fixed'));
   });
 });

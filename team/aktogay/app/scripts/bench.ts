@@ -7,6 +7,7 @@
  */
 import { writeFileSync } from 'node:fs';
 import { computeEffect, computeKpis, deltaPct, Simulation, type Kpis } from '../src/sim';
+import { costBreakdown } from '../src/sim/cost';
 
 const trucks = Number(process.argv[2] ?? 20);
 const seedFrom = Number(process.argv[3] ?? 1);
@@ -60,6 +61,8 @@ const seeds: number[] = [];
 for (let s = seedFrom; s <= seedTo; s++) seeds.push(s);
 
 const sums = { fixed: rows.map(() => 0), smart: rows.map(() => 0) };
+/** Себестоимость тонны меди по вариантам, $/фунт (считается отдельно от строк KPI). */
+const cost = { fixed: 0, smart: 0 };
 let wins = 0;
 let effectYear = 0;
 const perSeed: string[] = [];
@@ -78,6 +81,8 @@ for (const seed of seeds) {
     sums.fixed[i] += r.get(kf);
     sums.smart[i] += r.get(ks);
   });
+  cost.fixed += costBreakdown(fixed).usdPerLb;
+  cost.smart += costBreakdown(smart).usdPerLb;
   if (ks.minedTotal >= kf.minedTotal) wins++;
   perSeed.push(
     `| ${seed} | ${n0(kf.minedTotal)} | ${n0(ks.minedTotal)} | ${fmtDelta(deltaPct(kf.minedTotal, ks.minedTotal))} | ${n1(kf.crusherIdleMin)} | ${n1(ks.crusherIdleMin)} | ${mln(eff.perYearKzt)} |`,
@@ -103,6 +108,8 @@ rows.forEach((r, i) => {
   const good = r.better === 'up' ? b >= a : b <= a;
   lines.push(`| ${r.label} | ${r.fmt(a)} | ${r.fmt(b)} | ${fmtDelta(d)} | ${good ? '✅' : '❌'} |`);
 });
+lines.push('');
+lines.push(`| Себестоимость меди, $/фунт | ${(cost.fixed / n).toFixed(2)} | ${(cost.smart / n).toFixed(2)} | ${fmtDelta(deltaPct(cost.fixed / n, cost.smart / n))} | ${cost.smart <= cost.fixed ? '✅' : '❌'} |`);
 lines.push('');
 lines.push(`**Экономический эффект (среднее): ${(effectYear / n / 1e9).toFixed(2)} млрд ₸/год** на моделируемый сегмент парка.`);
 lines.push(`Умная стратегия добыла не меньше фиксированной в **${wins} из ${n}** смен.`);
