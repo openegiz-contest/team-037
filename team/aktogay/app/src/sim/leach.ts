@@ -85,6 +85,8 @@ export class HeapLeach {
   ewKA = 0;
   /** Тоннаж площадки, уже разнесённый по картам (для приращения отсыпки). */
   syncedOxideT = 0;
+  /** Сценарий «остановка орошения»: сколько ещё карты не поливают, с. */
+  holdLeft = 0;
 
   constructor() {
     this.cells = INITIAL.map((c, i) => {
@@ -135,10 +137,15 @@ export class HeapLeach {
     const g = this.activeGroup(sim.now);
     // Холод резко тормозит химию, в мороз орошение останавливают: раствор в капельницах замерзает.
     const w = sim.weather;
+    if (this.holdLeft > 0) {
+      this.holdLeft = Math.max(0, this.holdLeft - dt);
+      if (this.holdLeft === 0) sim.addLog('Орошение карт возобновлено', 'info');
+    }
+    const on = w.irrigationOn && this.holdLeft === 0;
     let cuRate = 0; // т/ч
     let wet = 0;
     for (const c of this.cells) {
-      c.irrigated = w.irrigationOn && c.stage === 'irrigating' && this.groupOf(c) === g;
+      c.irrigated = on && c.stage === 'irrigating' && this.groupOf(c) === g;
       if (!c.irrigated) continue;
       wet++;
       // Под поливом время выщелачивания идёт втрое быстрее «среднего», чтобы за полный круг групп
@@ -159,7 +166,8 @@ export class HeapLeach {
     this.plsGpl = this.plsM3h > 0 ? (cuRate * 1e6) / (this.plsM3h * 1000) : 0;
     // SX-EW: медь из раствора → катоды; ток серии ванн — по закону Фарадея (Cu²⁺, ~1,186 г/(А·ч)),
     // выход по току ~90 %, ванн в серии EW_CELLS.
-    const cathRate = cuRate * SX_EFFICIENCY; // т/ч
+    // Без электричества электролиз стоит: медь копится в электролите, катоды не растут.
+    const cathRate = sim.powerCutLeft > 0 ? 0 : cuRate * SX_EFFICIENCY; // т/ч
     this.cathodeT += (cathRate * dt) / 3600;
     this.acidT += ((cathRate * dt) / 3600) * ACID_T_PER_T_CU;
     this.ewKA = (cathRate * 1e6) / 1.186 / 0.9 / EW_CELLS / 1000;

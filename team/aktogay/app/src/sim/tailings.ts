@@ -24,14 +24,22 @@ export const ENTRAINED_M3_PER_T = 0.22;
 /** Проектная ёмкость чаши и заполнение на начало смены, млн т (оценки по площади контура). */
 export const CAPACITY_MT = 420;
 export const INITIAL_MT = 168;
-/** Отметка гребня дамбы над дном чаши и минимально допустимый запас до гребня, м. */
-export const CREST_M = 32;
+/**
+ * Проектная отметка дамбы над дном чаши, м: до неё чашу нарастят к концу отработки.
+ * Дамбу наращивают ярусами по мере намыва, поэтому в работе гребень идёт над пляжем
+ * с постоянным превышением — отсюда и рабочий запас до гребня.
+ */
+export const CREST_FINAL_M = 32;
+/** Превышение гребня над намытым пляжем в работе и минимально допустимый запас, м. */
+export const CREST_ABOVE_BEACH_M = 6;
 export const FREEBOARD_MIN_M = 2.5;
-/** Зеркало пруда оборотной воды, м², и уровень на начало смены, м. */
-export const POND_AREA_M2 = 900_000;
-export const POND_INITIAL_M = 2.6;
+/** Зеркало пруда отстоявшейся воды, м², и уровень на начало смены, м. */
+export const POND_AREA_M2 = 300_000;
+export const POND_INITIAL_M = 2.4;
 /** Испарение с зеркала пруда, мм/сут (степной климат, среднегодовое — оценка). */
 export const EVAP_MM_DAY = 4;
+/** Аварийная откачка пруда, когда запас до гребня ниже нормы, м³/ч. Оценка. */
+export const EMERGENCY_PUMP_M3H = 60_000;
 
 export type DamStatus = 'norm' | 'watch' | 'alarm';
 
@@ -47,6 +55,11 @@ export class TailingsDam {
   makeupM3 = 0;
   /** Пришло со снеготаянием за смену, м³. */
   meltM3 = 0;
+  /** Сценарий «ливень»: приток в пруд, м³/ч, и сколько он ещё длится, с. */
+  stormM3h = 0;
+  stormLeft = 0;
+  /** Откачано аварийно, когда запас до гребня ушёл ниже нормы, м³ за смену. */
+  emergencyM3 = 0;
   /** Текущие расходы: пульпа, м³/ч; твёрдое, т/ч; оборотная вода, м³/ч. */
   pulpM3h = 0;
   solidsTph = 0;
@@ -77,7 +90,17 @@ export class TailingsDam {
     const evap = ((EVAP_MM_DAY / 1000) * POND_AREA_M2 * dt * sim.weather.evapFactor) / 86400;
     const melt = (sim.weather.meltM3h * dt) / 3600;
     this.meltM3 += melt;
-    this.pondV = Math.max(0, this.pondV + toPond + melt - reclaim - evap);
+    // Ливень или снеготаяние по сценарию.
+    let storm = 0;
+    if (this.stormLeft > 0) {
+      this.stormLeft = Math.max(0, this.stormLeft - dt);
+      storm = (this.stormM3h * dt) / 3600;
+      if (this.stormLeft === 0) this.stormM3h = 0;
+    }
+    // Если запас до гребня ушёл ниже нормы — включают аварийную откачку в пруды-накопители.
+    const emergency = this.freeboardM < FREEBOARD_MIN_M ? (EMERGENCY_PUMP_M3H * dt) / 3600 : 0;
+    this.emergencyM3 += emergency;
+    this.pondV = Math.max(0, this.pondV + toPond + melt + storm - reclaim - evap - emergency);
     // Чего не вернулось с пруда — добирают свежей водой из водовода.
     this.makeupM3 += Math.max(0, water - reclaim);
 
@@ -92,9 +115,14 @@ export class TailingsDam {
     return (this.storedT / (CAPACITY_MT * 1e6)) * 100;
   }
 
-  /** Отметка намытого пляжа и уровень пруда над ним, м. */
+  /** Отметка намытого пляжа, м: чаша заполняется снизу вверх к проектной отметке. */
   get beachM(): number {
-    return (CREST_M * this.fillPct) / 100;
+    return (CREST_FINAL_M * this.fillPct) / 100;
+  }
+
+  /** Отметка гребня на сегодня: дамбу наращивают над пляжем. */
+  get crestM(): number {
+    return Math.min(CREST_FINAL_M, this.beachM + CREST_ABOVE_BEACH_M);
   }
 
   get pondM(): number {
@@ -103,7 +131,7 @@ export class TailingsDam {
 
   /** Запас до гребня дамбы, м — главный показатель безопасности. */
   get freeboardM(): number {
-    return CREST_M - this.beachM - this.pondM;
+    return this.crestM - this.beachM - this.pondM;
   }
 
   /**
@@ -119,8 +147,9 @@ export class TailingsDam {
   }
 
   get status(): DamStatus {
+    // Ниже нормы — намыв останавливают; близко к норме — под наблюдением.
     if (this.freeboardM < FREEBOARD_MIN_M) return 'alarm';
-    if (this.freeboardM < FREEBOARD_MIN_M * 2 || this.piezoPct > 70) return 'watch';
+    if (this.freeboardM < FREEBOARD_MIN_M + 0.7 || this.piezoPct > 72) return 'watch';
     return 'norm';
   }
 }

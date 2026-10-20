@@ -10,7 +10,7 @@ import { SENSORS_BY_KIND } from '../platform/sensors';
 import type { BuildingKind } from '../render3d/MineScene';
 import { TRUCK_STATE_LABEL, type Simulation } from '../sim';
 import { CONC_GRADE, TRAIN_WAGONS, WAGON_T } from '../sim/concentrate';
-import { CAPACITY_MT, CREST_M, FREEBOARD_MIN_M, SOLIDS_PCT } from '../sim/tailings';
+import { CAPACITY_MT, CREST_FINAL_M, FREEBOARD_MIN_M, SOLIDS_PCT } from '../sim/tailings';
 import { CELL_CAP_T, EW_CELLS, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, SX_EFFICIENCY, type CellStage } from '../sim/leach';
 import { fmtInt } from '../ui/format';
 import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
@@ -790,7 +790,7 @@ function Tailings({ sim }: { sim: Simulation }) {
   const G = 330; // отметка естественного рельефа на схеме
   const PX = 5.6; // пикселей на метр по высоте
   const yOf = (m: number) => G - m * PX;
-  const crest = yOf(CREST_M);
+  const crest = yOf(t.crestM);
   const beach = yOf(t.beachM);
   const pond = yOf(t.beachM + t.pondM);
   // Внутренний откос дамбы: от гребня (430) к подошве (560) — на нём лежит урез воды.
@@ -836,7 +836,7 @@ function Tailings({ sim }: { sim: Simulation }) {
         <path d={`M${slopeX(pond)} ${pond} L700 ${pond} L700 ${beach} L560 ${G} Z`} fill="#2d6f7d" fillOpacity={0.8} stroke="#4fb3c4" />
 
         {/* отметки */}
-        <text x={400} y={crest - 12} textAnchor="middle" fontSize={11.5} fill={C.dim}>гребень дамбы · {CREST_M} м</text>
+        <text x={400} y={crest - 12} textAnchor="middle" fontSize={11.5} fill={C.dim}>гребень дамбы · {t.crestM.toFixed(1)} м (проект {CREST_FINAL_M} м)</text>
         <text x={592} y={pond - 12} fontSize={12} fill="#7fdbe8">пруд · {t.pondM.toFixed(2)} м</text>
         <text x={870} y={beach + 48} textAnchor="middle" fontSize={12} fill="#4a4232">намытые хвосты · пляж {t.beachM.toFixed(1)} м</text>
 

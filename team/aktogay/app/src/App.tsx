@@ -245,7 +245,7 @@ export default function App() {
     const ru = SKY[sky].ru;
     const b = bridgeRef.current;
     if (b?.sims) {
-      void b.send('weather', 0, { arg: sky });
+      void b.send('weather', sky);
       flash(`❄ Сценарий отправлен в OpenEgiz: ${ru}`);
       return;
     }

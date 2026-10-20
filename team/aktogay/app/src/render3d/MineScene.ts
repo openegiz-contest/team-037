@@ -12,7 +12,6 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { gradeAt, MATERIAL_SHORT, pitPointOf, pitScaleAt, type Blast, type Simulation, type TruckState } from '../sim';
 import { BLOCK_PAD } from '../sim/drilling';
 import { TRAIN_WAGONS } from '../sim/concentrate';
-import { CREST_M } from '../sim/tailings';
 import { SHIFT_START_HOUR } from '../sim/weather';
 import { daylight } from './daylight';
 import { isLive, smoothTruck } from '../render/smooth';
@@ -577,7 +576,7 @@ export class MineScene {
       const c2 = sim.concentrate;
       return `<b>СКЛАД КОНЦЕНТРАТА</b><br>На складе: <span class="v">${fmtInt(c2.stockT)} т</span><br>Вагонов в составе: <span class="v">${c2.wagons} из ${TRAIN_WAGONS}</span><br>Составов за смену: <span class="v">${c2.trains}</span>`;
     }, this.concRoot);
-    panel(new THREE.Vector3(cfg.sites.tsf.x, tsf.baseY + CREST_M + 150, cfg.sites.tsf.y), () => {
+    panel(new THREE.Vector3(cfg.sites.tsf.x, tsf.baseY + sim.tailings.crestM + 150, cfg.sites.tsf.y), () => {
       const t = sim.tailings;
       const tone = t.status === 'alarm' ? 'bad' : t.status === 'watch' ? 'warn' : 'v';
       return `<b>ХВОСТОХРАНИЛИЩЕ</b><br>Пульпа: <span class="v">${fmtInt(t.pulpM3h)} м³/ч</span><br>Запас до гребня: <span class="${tone}">${t.freeboardM.toFixed(1)} м</span><br>Оборотная вода: <span class="v">${fmtInt(t.reclaimM3h)} м³/ч</span>`;

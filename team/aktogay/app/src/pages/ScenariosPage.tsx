@@ -13,14 +13,31 @@ import { fmtClock, fmtInt } from '../ui/format';
 import { MATERIAL_COLOR, STRATEGY_COLOR } from '../ui/theme';
 import { stateTone, TONE_COLOR, VALUE_LABEL } from '../ui/twinLabels';
 
-type Kind = 'breakdown' | 'close_road' | 'blast' | 'drill_down' | 'reset';
+type Kind = 'breakdown' | 'close_road' | 'blast' | 'drill_down' | 'power_cut' | 'storm_water' | 'leach_stop' | 'weather' | 'reset';
+/** Сценарии с длительностью: для них показываем ползунок времени. */
+type TimedKind = 'breakdown' | 'close_road' | 'drill_down' | 'power_cut' | 'storm_water' | 'leach_stop' | 'weather';
 
 const KINDS: { kind: Kind; icon: string; title: string; text: string; tone: string }[] = [
   { kind: 'breakdown', icon: '⚠', title: 'Поломка экскаватора', text: 'Экскаватор встаёт на ремонт. Кто перевезёт его самосвалы?', tone: '#ef4444' },
   { kind: 'close_road', icon: '⊘', title: 'Перекрытие съезда', text: 'Участок спирального съезда закрыт: маршруты идут в объезд.', tone: '#f97316' },
   { kind: 'blast', icon: '✸', title: 'Внеплановый взрыв', text: 'Предупреждение 15 мин, затем оцепление 30 мин вокруг забоя.', tone: '#f59e0b' },
   { kind: 'drill_down', icon: '⚒', title: 'Поломка бурового станка', text: 'Блок не обурен — взрыв переносится, экскаватору становится нечего грузить.', tone: '#a855f7' },
+  { kind: 'power_cut', icon: '✖', title: 'Отключение энергии', text: 'Фабрика, дробилка и электролиз встают. Самосвалы возят — бункер наполняется.', tone: '#eab308' },
+  { kind: 'storm_water', icon: '☔', title: 'Ливень на хвостохранилище', text: 'Пруд поднимается, запас до гребня дамбы падает. Ниже нормы — намыв и фабрику останавливают.', tone: '#38bdf8' },
+  { kind: 'leach_stop', icon: '⬡', title: 'Остановка орошения', text: 'Карты выщелачивания не поливают: раствор на завод не идёт, катоды не растут.', tone: '#14b8a6' },
+  { kind: 'weather', icon: '❄', title: 'Непогода', text: 'Метель, пыльная буря или туман: скорость возки падает, взрывать нельзя.', tone: '#60a5fa' },
   { kind: 'reset', icon: '↺', title: 'Новая смена', text: 'Та же техника, другой сценарий случайных поломок и закрытий дорог.', tone: '#38bdf8' },
+];
+
+/** Варианты для сценариев, где выбирается не объект, а характер события. */
+const STORM_KINDS = [
+  { id: 0, name: 'Ливень', note: 'приток 120 000 м³/ч в пруд' },
+  { id: 1, name: 'Снеготаяние', note: 'приток 70 000 м³/ч, дольше и ровнее' },
+];
+const WEATHER_KINDS = [
+  { id: 0, sky: 'blizzard', name: 'Метель', note: 'возка 50 % от нормы, взрывы запрещены' },
+  { id: 1, sky: 'dust', name: 'Пыльная буря', note: 'возка 82 %, видимость 800 м' },
+  { id: 2, sky: 'fog', name: 'Туман', note: 'возка 76 %, видимость 350 м' },
 ];
 
 interface Props {
@@ -39,8 +56,8 @@ interface Props {
 export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun, seed, fleet, history, act }: Props) {
   const ref = sims[sims.length - 1];
   const [kind, setKind] = useState<Kind>('breakdown');
-  const [target, setTarget] = useState<Record<Kind, number>>({ breakdown: 0, close_road: 0, blast: 1, drill_down: 2, reset: 0 });
-  const [dur, setDur] = useState<Record<'breakdown' | 'close_road' | 'drill_down', number>>({ ...DEFAULT_DUR });
+  const [target, setTarget] = useState<Record<Kind, number>>({ breakdown: 0, close_road: 0, blast: 1, drill_down: 2, power_cut: 0, storm_water: 0, leach_stop: 0, weather: 0, reset: 0 });
+  const [dur, setDur] = useState<Record<TimedKind, number>>({ ...DEFAULT_DUR });
   const [newSeed, setNewSeed] = useState(seed);
   if (!ref) return null;
 
@@ -52,7 +69,9 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
       ? { value: 'reset', seed: newSeed }
       : kind === 'blast'
         ? { value: 'blast', arg: target.blast }
-        : { value: kind, arg: target[kind], dur: dur[kind] };
+        : kind === 'weather'
+          ? { value: 'weather', arg: WEATHER_KINDS[target.weather].sky, dur: dur.weather }
+          : { value: kind, arg: target[kind], dur: dur[kind as TimedKind] };
   const preview = JSON.stringify({ ...cmd, seq: '<номер>' }, null, 1).replace(/"<номер>"/, '<номер>');
 
   const pick = (k: Kind, v: number) => setTarget((t) => ({ ...t, [k]: v }));
@@ -101,7 +120,26 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
             ))}
           </div>
 
-          <SectionTitle n="2" title={kind === 'reset' ? 'Параметры смены' : kind === 'close_road' ? 'Какой участок' : kind === 'drill_down' ? 'Какой станок' : 'Какой экскаватор'} />
+          <SectionTitle
+            n="2"
+            title={
+              kind === 'reset'
+                ? 'Параметры смены'
+                : kind === 'close_road'
+                  ? 'Какой участок'
+                  : kind === 'drill_down'
+                    ? 'Какой станок'
+                    : kind === 'storm_water'
+                      ? 'Откуда вода'
+                      : kind === 'weather'
+                        ? 'Какая погода'
+                        : kind === 'power_cut'
+                          ? 'Что встанет'
+                          : kind === 'leach_stop'
+                            ? 'Что остановится'
+                            : 'Какой экскаватор'
+            }
+          />
           <div className="px-4 pb-4">
             {(kind === 'breakdown' || kind === 'blast') && (
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 2xl:grid-cols-3">
@@ -128,6 +166,45 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
                   );
                 })}
               </div>
+            )}
+            {(kind === 'storm_water' || kind === 'weather') && (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {(kind === 'storm_water' ? STORM_KINDS : WEATHER_KINDS).map((o) => {
+                  const active = target[kind] === o.id;
+                  return (
+                    <button
+                      key={o.id}
+                      onClick={() => pick(kind, o.id)}
+                      className={`rounded-lg border px-3 py-2 text-left ${active ? 'border-amber-500 bg-amber-500/10' : 'border-line hover:border-ink-3'}`}
+                    >
+                      <span className="block text-[13px] font-semibold">{o.name}</span>
+                      <span className="block text-[11.5px] text-ink-3">{o.note}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {(kind === 'power_cut' || kind === 'leach_stop') && (
+              <ul className="space-y-1 text-[12.5px] text-ink-2">
+                {(kind === 'power_cut'
+                  ? [
+                      'Обогатительная фабрика и дробилка — стоят, руда копится в бункере и на складе',
+                      'Электролиз SX-EW — стоит, медь остаётся в электролите, катоды не растут',
+                      'Потребление падает до аварийного: ~4 МВт вместо ~60',
+                      'Самосвалы продолжают возить: это видно по росту бункера и очереди',
+                    ]
+                  : [
+                      'Карты не поливают — продуктивный раствор на завод не идёт',
+                      'Расход PLS падает до нуля, катодная медь не растёт',
+                      'Выщелачивание в картах при этом не прекращается — медь просто остаётся в штабеле',
+                    ]
+                ).map((t) => (
+                  <li key={t} className="flex gap-2">
+                    <span className="text-ink-3">—</span>
+                    {t}
+                  </li>
+                ))}
+              </ul>
             )}
             {kind === 'drill_down' && (
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">

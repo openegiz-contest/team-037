@@ -178,7 +178,7 @@ export class PlatformBridge {
   }
 
   /** Отправить команду симулятору: меняем признак command двойника управления в Ditto. */
-  async send(value: string, arg?: number, extra: Record<string, unknown> = {}): Promise<boolean> {
+  async send(value: string, arg?: number | string, extra: Record<string, unknown> = {}): Promise<boolean> {
     const body = { value, arg: arg ?? 0, seq: ++this.seq, ...extra };
     try {
       const r = await fetch(`${BASE}/things/${CONTROL_ID}/features/command/properties`, {

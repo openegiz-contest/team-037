@@ -14,7 +14,7 @@ import { emptyDriverStats, FATIGUE_ALERT, makeDriver } from './drivers';
 import { PlantEquipment } from './equipment';
 import { ConcentrateYard } from './concentrate';
 import { HeapLeach } from './leach';
-import { TailingsDam } from './tailings';
+import { FREEBOARD_MIN_M, TailingsDam } from './tailings';
 import { EnergyMeter } from './energy';
 import { Weather } from './weather';
 import { DrillOps } from './drilling';
@@ -120,6 +120,10 @@ export class Simulation {
   /** Учёт электроэнергии по участкам. */
   readonly energy = new EnergyMeter();
   private readonly windWarned = new Set<number>();
+  /** Сценарий «отключение энергии»: сколько ещё стоит фабрика, дробилка и электролиз, с. */
+  powerCutLeft = 0;
+  /** Фабрика остановлена из-за запаса до гребня дамбы (её нельзя грузить хвостами). */
+  private damStopped = false;
   /** ГПСЧ событий вождения (резкие торможения) — по потоку на самосвал. */
   private readonly driverRng: Rng[] = [];
   /** Отдельный поток для усталости водителей: модуль диагностический и не сдвигает остальную модель. */
@@ -490,6 +494,26 @@ export class Simulation {
   }
 
   /** Ручной взрыв для демо: объявляется сейчас, взрыв — через inSec. */
+  /** Сценарий: отключение электроснабжения на заданное время. */
+  injectPowerCut(sec: number): void {
+    this.powerCutLeft = Math.max(this.powerCutLeft, sec);
+    this.addLog(`✖ Отключение электроснабжения на ~${Math.round(sec / 60)} мин: фабрика, дробилка и электролиз встали`, 'alarm');
+    this.strategy.onDisruption?.(this);
+  }
+
+  /** Сценарий: ливень или снеготаяние — приток воды в пруд хвостохранилища. */
+  injectStormWater(m3PerH: number, sec: number): void {
+    this.tailings.stormM3h = m3PerH;
+    this.tailings.stormLeft = sec;
+    this.addLog(`☔ Приток воды в хвостохранилище ${Math.round(m3PerH)} м³/ч на ~${Math.round(sec / 60)} мин: пруд поднимается`, 'warn');
+  }
+
+  /** Сценарий: остановка орошения карт выщелачивания. */
+  injectLeachStop(sec: number): void {
+    this.leach.holdLeft = Math.max(this.leach.holdLeft, sec);
+    this.addLog(`✖ Орошение карт остановлено на ~${Math.round(sec / 60)} мин: раствор на завод не идёт`, 'warn');
+  }
+
   scheduleBlast(exId: number, inSec: number): Blast {
     const b = this.makeBlast(exId, this.now + inSec, this.cfg.blasting.durationMin * 60, true);
     b.id = this.blasts.length;
@@ -723,6 +747,10 @@ export class Simulation {
     }
 
     this.weather.update(this, dt);
+    if (this.powerCutLeft > 0) {
+      this.powerCutLeft = Math.max(0, this.powerCutLeft - dt);
+      if (this.powerCutLeft === 0) this.addLog('Электроснабжение восстановлено: фабрика, дробилка и электролиз запускаются', 'info');
+    }
     this.crush(dt);
     this.feedPlant(dt);
     this.concentrate.update(this, dt);
@@ -1274,6 +1302,12 @@ export class Simulation {
   private crush(dt: number): void {
     const c = this.crusher;
     const s = this.stockpile;
+    // Без электричества дробилка стоит: самосвалы продолжают разгружаться, бункер наполняется.
+    if (this.powerCutLeft > 0) {
+      s.crushing = false;
+      s.lastIn = 0;
+      return;
+    }
     // В мороз сырая и подмёрзшая руда зависает в приёмном бункере — дробилка выдаёт меньше.
     const move = Math.min(c.binT, ((this.cfg.dumps.crusher.crusherTpm * this.weather.crusherFactor) / 60) * dt, Math.max(0, s.capT - s.t));
     s.crushing = move > 1e-6;
@@ -1291,6 +1325,18 @@ export class Simulation {
   private feedPlant(dt: number): void {
     const c = this.crusher;
     const s = this.stockpile;
+    if (this.powerCutLeft > 0) return; // фабрика обесточена
+    // Нельзя сбрасывать хвосты — нельзя и перерабатывать: запас до гребня дамбы ниже нормы.
+    // Гистерезис: останавливаем ниже нормы, запускаем только когда откачали с запасом.
+    const free = this.tailings.freeboardM;
+    if (!this.damStopped && free < FREEBOARD_MIN_M) {
+      this.damStopped = true;
+      this.addLog(`Фабрика остановлена: запас до гребня дамбы ${free.toFixed(2)} м — намыв хвостов приостановлен`, 'alarm');
+    } else if (this.damStopped && free > FREEBOARD_MIN_M + 0.2) {
+      this.damStopped = false;
+      this.addLog(`Запас до гребня восстановлен откачкой (${free.toFixed(2)} м) — фабрика запускается`, 'info');
+    }
+    if (this.damStopped) return;
     const need = (this.cfg.dumps.crusher.plantFeedTpm / 60) * dt;
     const grade = this.feedGrade;
     const fed = Math.min(s.t, need);

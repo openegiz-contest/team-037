@@ -58,14 +58,15 @@ export class EnergyMeter {
   update(sim: Simulation, dt: number): void {
     const cfg = sim.cfg;
     const starving = sim.stockpile.t <= 0.01;
+    const cut = sim.powerCutLeft > 0;
     // Фабрика: мельницы и флотация под нагрузкой; без руды агрегаты крутятся вхолостую.
-    const plant = starving ? 13 : 48;
+    const plant = cut ? 1.5 : starving ? 13 : 48;
     this.area('plant').mw = plant;
-    if (starving) this.idleKwh += (plant * 1000 * dt) / 3600;
+    if (starving && !cut) this.idleKwh += (plant * 1000 * dt) / 3600;
     // Дробилка и конвейеры: под нагрузкой и на холостом ходу.
-    this.area('crusher').mw = (sim.stockpile.crushing ? 6.2 : 0.6) + 2.4;
+    this.area('crusher').mw = cut ? 0.4 : (sim.stockpile.crushing ? 6.2 : 0.6) + 2.4;
     // Электролиз: мощность по закону Джоуля от тока серии, плюс насосы экстракции.
-    this.area('sxew').mw = (sim.leach.ewKA * 1000 * EW_CELL_VOLTS * EW_CELLS) / 1e6 + 1.5;
+    this.area('sxew').mw = cut ? 0.3 : (sim.leach.ewKA * 1000 * EW_CELL_VOLTS * EW_CELLS) / 1e6 + 1.5;
     // Насосные: мощность по фактическому расходу и напору.
     this.area('tailings').mw = pumpMw(sim.tailings.pulpM3h, HEAD.pulp) + pumpMw(sim.tailings.reclaimM3h, HEAD.reclaim);
     this.area('leach').mw = pumpMw(sim.leach.plsM3h * 2, HEAD.pls); // продуктивный раствор и рафинат обратно

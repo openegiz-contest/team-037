@@ -10,7 +10,8 @@ import type { Simulation } from '../sim/engine';
 export interface Command {
   value: string;
   /** Объект сценария: номер экскаватора, участка дороги или id взрыва. */
-  arg?: number;
+  /** Параметр сценария: номер объекта или, для погоды, название явления. */
+  arg?: number | string;
   /** Длительность сценария, мин (поломка, перекрытие). По умолчанию — DEFAULT_DUR. */
   dur?: number;
   /** Номер команды: повтор с тем же номером не выполняется. */
@@ -23,8 +24,8 @@ export interface Command {
   month?: number;
 }
 
-export const DEFAULT_DUR = { breakdown: 50, close_road: 40, drill_down: 240, weather: 60 } as const;
-export const DUR_RANGE = { breakdown: [10, 180], close_road: [10, 120], drill_down: [30, 600], weather: [15, 360] } as const;
+export const DEFAULT_DUR = { breakdown: 50, close_road: 40, drill_down: 240, weather: 60, power_cut: 25, storm_water: 180, leach_stop: 180 } as const;
+export const DUR_RANGE = { breakdown: [10, 180], close_road: [10, 120], drill_down: [30, 600], weather: [15, 360], power_cut: [5, 120], storm_water: [15, 240], leach_stop: [30, 720] } as const;
 
 const clampDur = (kind: keyof typeof DUR_RANGE, v: number | undefined) => {
   const [lo, hi] = DUR_RANGE[kind];
@@ -62,6 +63,23 @@ export function applyScenario(sims: Simulation[], c: Command): string | null {
     case 'open_road': {
       const ok = sims.map((s) => s.openRoad(a)).some(Boolean);
       return ok ? `открыт ${ref.layout.closureGroups[a]?.label ?? a}` : 'участок не был закрыт';
+    }
+    case 'power_cut': {
+      const dur = clampDur('power_cut', c.dur);
+      for (const s of sims) s.injectPowerCut(dur * 60);
+      return `отключение электроснабжения на ${dur} мин`;
+    }
+    case 'storm_water': {
+      const dur = clampDur('storm_water', c.dur);
+      // arg: 0 — ливень, 1 — сильное снеготаяние; приток в пруд, м³/ч.
+      const rate = a >= 1 ? 70_000 : 120_000;
+      for (const s of sims) s.injectStormWater(rate, dur * 60);
+      return `${a >= 1 ? 'снеготаяние' : 'ливень'}: приток ${rate.toLocaleString('ru-RU')} м³/ч в пруд на ${dur} мин`;
+    }
+    case 'leach_stop': {
+      const dur = clampDur('leach_stop', c.dur);
+      for (const s of sims) s.injectLeachStop(dur * 60);
+      return `орошение карт остановлено на ${dur} мин`;
     }
     case 'weather': {
       const sky = String(c.arg ?? 'blizzard') as Sky;

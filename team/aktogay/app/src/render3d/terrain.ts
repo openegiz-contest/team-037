@@ -7,7 +7,6 @@
 import * as THREE from 'three';
 import { pitPointOf, type SimConfig, type Simulation } from '../sim';
 import { ROCK_GEO } from './models';
-import { CREST_M } from '../sim/tailings';
 import { BERM, makeHeightAt, PIT_DEPTH, pitAt, pitsBounds, smoothstep } from '../geo/relief';
 
 export { makeHeightAt, PIT_DEPTH } from '../geo/relief';
@@ -261,7 +260,8 @@ export function buildTailings(sim: Simulation, heightAt: (x: number, y: number) 
   for (const k of [0.3, 0.55, 0.8, 1]) for (const [x, y] of ringXY(k)) samples.push(heightAt(x, y));
   const baseY = Math.max(...samples);
   const t = sim.tailings;
-  const crestY = baseY + CREST_M;
+  // Гребень идёт над намытым пляжем: дамбу наращивают ярусами по мере заполнения чаши.
+  const crestY = baseY + t.crestM;
   const beachY = baseY + t.beachM;
   const waterY = beachY + t.pondM;
 

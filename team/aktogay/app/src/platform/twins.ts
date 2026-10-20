@@ -17,7 +17,7 @@ import { gradeAt } from '../sim/ore';
 import { EW_CELL_VOLTS } from '../sim/energy';
 import { costBreakdown, GROUP_RU, type CostGroup } from '../sim/cost';
 import { BLAST_WIND_MS, LEACH_FROST_C, MONTH_RU, SEASON_RU, SKY, type Sky } from '../sim/weather';
-import { CAPACITY_MT, CREST_M, FREEBOARD_MIN_M, POND_AREA_M2, RECYCLE_PCT, SOLIDS_PCT } from '../sim/tailings';
+import { CAPACITY_MT, CREST_ABOVE_BEACH_M, CREST_FINAL_M, FREEBOARD_MIN_M, POND_AREA_M2, RECYCLE_PCT, SOLIDS_PCT } from '../sim/tailings';
 import { CELL_CAP_T, EW_CELLS, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, LEACH_DAYS, OXIDE_GRADE_PCT, REC_MAX, SX_EFFICIENCY, type CellStage } from '../sim/leach';
 import { CONC_GRADE, TRAIN_WAGONS, WAGON_LOAD_SEC, WAGON_T } from '../sim/concentrate';
 import { BENCH_M, BLOCK_M, blockSummary, buildOreModel, CUTOFF, DENSITY, holeAssays, pitResources, type OreModel } from '../geo/orebody';
@@ -251,7 +251,8 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
       _isType: false,
       _parents: parent,
       capacity_mt: CAPACITY_MT,
-      crest_m: CREST_M,
+      crest_final_m: CREST_FINAL_M,
+      crest_above_beach_m: CREST_ABOVE_BEACH_M,
       freeboard_min_m: FREEBOARD_MIN_M,
       solids_pct: SOLIDS_PCT,
       recycle_pct: RECYCLE_PCT,
