@@ -87,7 +87,7 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
   const tsf = S.tsf; // хвостохранилище к юго-востоку от фабрик (контур — OSM)
   const sx = S.sxew; // корпуса у карт выщелачивания — завод SX-EW
   const ponds = S.ponds;
-  const conc = { x: 420, y: 3200 }; // склад концентрата у ж/д путей между фабриками
+  const conc = S.conc; // склад концентрата у ж/д путей между фабриками
   const sub = { x: 550, y: 2545 }; // подстанция фабрики №1 (OSM: power=substation)
   const sub2 = { x: -335, y: 3710 }; // подстанция фабрики №2 (OSM)
   const water = { x: 1345, y: 3025 }; // резервуар (OSM: water=reservoir)
@@ -101,8 +101,6 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
   const kpp = { x: -1250, y: 2900 };
   const wasteE = S.wasteExtra[0] ?? { x: 450, y: -2050 }; // восточный отвал (снимок, OSM: landuse=landfill)
   const wasteSE = S.wasteExtra[1] ?? { x: 2150, y: -1100 };
-  const railW = { x: -2335, y: 5330 };
-  const railE = { x: 1305, y: 725 };
   const crusher = sim.crusher;
   const objects: SiteObject[] = [
     // ── карьер ──
@@ -224,6 +222,7 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
         ['Составов за смену', String(s2.concentrate.trains)],
         ['Отгружено', `${fmt(s2.concentrate.shippedT)} т (~${fmt(s2.concentrate.cuShippedT)} т меди)`],
       ],
+      building: 'conc',
       twin: 'concentrate',
       label: 'Склад концентрата',
     },
@@ -497,7 +496,7 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
     { id: 'raff', name: 'Рафинат → орошение площадки', layer: 'process', kind: 'solution', pts: [[sx.x + 150, sx.y - 60], [S.leach.x - 150, S.leach.y + 150]] },
     { id: 'p1', name: 'ЛЭП → ОФ-1, дробилка, SX-EW', layer: 'utility', kind: 'power', pts: [[pl.x, pl.y], [sub.x, sub.y], [cr.x, cr.y], [sx.x, sx.y]] },
     { id: 'p2', name: 'ЛЭП → ОФ-2', layer: 'utility', kind: 'power', pts: [[sub.x, sub.y], [sub2.x, sub2.y], [pl2.x, pl2.y]] },
-    { id: 'rail', name: 'Железная дорога: станция → фабрики → промзона', layer: 'transport', kind: 'rail', pts: [[railW.x - 1500, railW.y + 1800], [railW.x, railW.y], [conc.x, conc.y], [railE.x, railE.y], [railE.x + 1600, railE.y - 600]] },
+    { id: 'rail', name: 'Железная дорога: станция → фабрики → промзона', layer: 'transport', kind: 'rail', pts: S.rail.map(([x, y]) => [x, y] as [number, number]) },
     { id: 'r1', name: 'Дорога карьер → фабрики → посёлок', layer: 'transport', kind: 'road', pts: [[cr.x, cr.y], [abk.x, abk.y], [sub.x, sub.y], [g.x, g.y], [kpp.x, kpp.y], [camp.x, camp.y]] },
     { id: 'r2', name: 'Дорога к ОФ-2 и складу концентрата', layer: 'transport', kind: 'road', pts: [[g.x, g.y], [conc.x, conc.y], [pl2.x, pl2.y]] },
     { id: 'r3', name: 'Дорога к складу ВМ (условно)', layer: 'transport', kind: 'road', pts: [[S.waste.x + 300, S.waste.y - 500], [magazine.x, magazine.y]] },

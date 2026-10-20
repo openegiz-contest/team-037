@@ -500,6 +500,55 @@ export function makeSxEw(): THREE.Group {
   return root;
 }
 
+/** Длина вагона с промежутком, м (масштаб сцены). */
+export const WAGON_LEN = 34;
+
+/**
+ * Склад концентрата и ж/д погрузка: крытый склад, галерея с течкой над путём и сцепка вагонов.
+ * Путь идёт вдоль локальной оси X, склад — сбоку; сцепка двигается, чтобы под течкой стоял тот
+ * вагон, который грузится сейчас.
+ */
+export function makeConcentrateStore(wagons: number): { root: THREE.Group; rake: THREE.Group; heaps: THREE.Mesh[] } {
+  const root = new THREE.Group();
+  const conc = std('#4a3f33', { roughness: 1, flatShading: true });
+  // Крытый склад сбоку от путей.
+  root.add(box(210, 4, 96, MAT.concreteDark, -30, 2, -78));
+  const hall = shed(190, 44, 80);
+  hall.position.set(-30, 4, -78);
+  root.add(hall);
+  // Галерея от склада к течке над путём.
+  root.add(box(14, 7, 56, MAT.steel, 10, 40, -42));
+  root.add(box(18, 26, 18, MAT.wall, 10, 30, -12));
+  root.add(box(13, 14, 13, std('#8a6b3f'), 10, 16, -12)); // течка
+  for (const z of [-30, -4]) root.add(box(4, 32, 4, MAT.steel, 10, 16, z));
+  // Путь: рельсы и шпалы.
+  const L = 1500;
+  for (const z of [-7, 7]) root.add(box(L, 2.4, 3, MAT.steel, 300, 3, z));
+  for (let i = 0; i < 70; i++) root.add(box(4, 1.6, 22, std('#4b4038'), -420 + i * (L / 70), 1.6, 0));
+  root.add(box(L, 1.2, 34, std('#6d6257', { roughness: 1 }), 300, 0.6, 0)); // балласт
+
+  // Сцепка вагонов-хопперов: кузов, тележки и горка концентрата сверху.
+  const rake = new THREE.Group();
+  const heaps: THREE.Mesh[] = [];
+  for (let i = 0; i < wagons; i++) {
+    const w = new THREE.Group();
+    w.add(box(27, 11, 17, std('#5c6670', { metalness: 0.4, roughness: 0.6 }), 0, 13, 0));
+    w.add(box(29, 2.5, 19, MAT.darker, 0, 6.5, 0));
+    for (const bx of [-9, 9]) w.add(box(7, 4, 15, MAT.darker, bx, 3.5, 0));
+    const heap = new THREE.Mesh(new THREE.BoxGeometry(23, 5, 13), conc);
+    heap.position.set(0, 20.5, 0);
+    heap.scale.y = 0.001;
+    heap.castShadow = true;
+    w.add(heap);
+    heaps.push(heap);
+    w.position.x = 10 + i * WAGON_LEN;
+    w.castShadow = true;
+    rake.add(w);
+  }
+  root.add(rake);
+  return { root, rake, heaps };
+}
+
 /** Гараж / АЗС: боксы с воротами, топливные резервуары. */
 export function makeGarage(): THREE.Group {
   const root = new THREE.Group();

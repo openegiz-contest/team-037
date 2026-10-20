@@ -11,6 +11,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { gradeAt, MATERIAL_SHORT, pitPointOf, pitScaleAt, type Blast, type Simulation, type TruckState } from '../sim';
 import { BLOCK_PAD } from '../sim/drilling';
+import { TRAIN_WAGONS } from '../sim/concentrate';
 import { CREST_M } from '../sim/tailings';
 import { isLive, smoothTruck } from '../render/smooth';
 import type { Selection } from '../render/drawMine';
@@ -22,6 +23,8 @@ import {
   makeCrusher,
   makeExcavator,
   makeGarage,
+  makeConcentrateStore,
+  WAGON_LEN,
   makeLeachPad,
   makeSolutionPonds,
   makeSxEw,
@@ -66,7 +69,7 @@ const LANE_OFFSET = 15;
 /** Что можно найти и к чему подлететь камерой. */
 export type FocusTarget = { kind: 'truck' | 'excavator' | 'drill'; id: number } | { kind: 'building'; id: BuildingKind };
 
-export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew' | 'tsf';
+export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew' | 'tsf' | 'conc';
 
 const BG = '#0a1526';
 
@@ -303,6 +306,25 @@ export class MineScene {
 
     // Хвостохранилище: хвосты флотации идут пульпопроводом в чашу, осветлённая вода — обратно
     // на фабрику. Обе нитки на общей эстакаде, одна над другой.
+    // Склад концентрата и ж/д погрузка: путь развёрнут вдоль реальной трассы железной дороги.
+    {
+      const at = cfg.sites.conc;
+      const rail = cfg.sites.rail;
+      let near = 0;
+      for (let i = 1; i < rail.length; i++)
+        if (Math.hypot(rail[i][0] - at.x, rail[i][1] - at.y) < Math.hypot(rail[near][0] - at.x, rail[near][1] - at.y)) near = i;
+      const other = rail[near + 1] ?? rail[near - 1] ?? [at.x + 1, at.y];
+      const store = makeConcentrateStore(TRAIN_WAGONS);
+      store.root.position.set(at.x, this.heightAt(at.x, at.y) - 2, at.y);
+      store.root.rotation.y = -Math.atan2(other[1] - at.y, other[0] - at.x);
+      store.root.userData = { building: 'conc' };
+      this.scene.add(store.root);
+      this.buildings.push(store.root);
+      this.concRake = store.rake;
+      this.concHeaps = store.heaps;
+      this.concAt = store.root.position.clone();
+    }
+
     const tsf = buildTailings(sim, this.heightAt);
     tsf.group.userData = { building: 'tsf' };
     this.scene.add(tsf.group);
@@ -322,6 +344,7 @@ export class MineScene {
       { x: cfg.sites.ponds.x, y: cfg.sites.ponds.y, r: 330 },
       { x: cfg.sites.sxew.x, y: cfg.sites.sxew.y, r: 330 },
       { x: cfg.sites.tsf.x, y: cfg.sites.tsf.y, r: 1700 },
+      { x: cfg.sites.conc.x, y: cfg.sites.conc.y, r: 420 },
       { x: dump.position.x, y: dump.position.z, r: 320 },
       { x: garage.position.x, y: garage.position.z, r: 170 },
       { x: sim.parkingSlot(2 * sim.parking.cols + 2).x, y: sim.parkingSlot(2 * sim.parking.cols + 2).y, r: 460 },
@@ -512,6 +535,10 @@ export class MineScene {
       const L = sim.leach;
       return `<b>ПРУДЫ РАСТВОРОВ</b><br>PLS: <span class="v">${fmtInt(L.plsM3h)} м³/ч</span><br>Медь: <span class="v">${L.plsGpl.toFixed(2)} г/л</span>`;
     });
+    panel(new THREE.Vector3(this.concAt.x, this.concAt.y + 130, this.concAt.z), () => {
+      const c2 = sim.concentrate;
+      return `<b>СКЛАД КОНЦЕНТРАТА</b><br>На складе: <span class="v">${fmtInt(c2.stockT)} т</span><br>Вагонов в составе: <span class="v">${c2.wagons} из ${TRAIN_WAGONS}</span><br>Составов за смену: <span class="v">${c2.trains}</span>`;
+    });
     panel(new THREE.Vector3(cfg.sites.tsf.x, tsf.baseY + CREST_M + 150, cfg.sites.tsf.y), () => {
       const t = sim.tailings;
       const tone = t.status === 'alarm' ? 'bad' : t.status === 'watch' ? 'warn' : 'v';
@@ -634,6 +661,27 @@ export class MineScene {
     };
   }
 
+  /**
+   * Погрузка концентрата: сцепку подают так, чтобы под течкой стоял грузимый вагон, гружёные
+   * вагоны видны горкой. Отправку состава ловим по счётчику составов — он приходит и из Ditto.
+   */
+  private syncConcentrate(sim: Simulation, now: number): void {
+    const c = sim.concentrate;
+    if (c.trains !== this.concTrains) {
+      if (this.concTrains >= 0 && c.trains > this.concTrains) this.concDepartAt = now;
+      this.concTrains = c.trains;
+    }
+    const leaving = now - this.concDepartAt;
+    const away = this.concDepartAt >= 0 && leaving < 2600;
+    const k = away ? (leaving / 2600) ** 2 : 0;
+    this.concRake.position.x = away ? -TRAIN_WAGONS * WAGON_LEN - k * 1500 : -(c.wagons + c.loadingProgress) * WAGON_LEN;
+    for (let i = 0; i < this.concHeaps.length; i++) {
+      const full = away ? 1 : i < c.wagons ? 1 : i === c.wagons ? c.loadingProgress : 0;
+      this.concHeaps[i].scale.y = Math.max(0.001, full);
+      this.concHeaps[i].position.y = 18 + full * 2.5;
+    }
+  }
+
   /** Труба между площадками: идёт по ломаной трассы и по рельефу, на опорах. */
   private addPipePath(route: { x: number; y: number }[], color: string, over: number): void {
     const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.3 });
@@ -673,6 +721,8 @@ export class MineScene {
     if (t.kind === 'excavator') return this.excavators[t.id] ? { at: this.excavators[t.id].root.position.clone(), size: 80 } : null;
     if (t.kind === 'drill') return this.drills[t.id] ? { at: this.drills[t.id].root.position.clone(), size: 60 } : null;
     if (t.id === 'stockpile') return { at: this.stockpileAt.clone(), size: 220 };
+    // У склада концентрата габарит задаёт длинный путь — кадрируем по самой погрузке.
+    if (t.id === 'conc') return { at: this.concAt.clone().add(new THREE.Vector3(0, 20, 0)), size: 300 };
     const obj = this.buildings.find((b) => b.userData.building === t.id);
     if (!obj) return null;
     const box = new THREE.Box3().setFromObject(obj);
@@ -815,6 +865,11 @@ export class MineScene {
   }
   private lastDrillLabel = 0;
 
+  private concRake!: THREE.Group;
+  private concHeaps: THREE.Mesh[] = [];
+  private concAt = new THREE.Vector3();
+  private concTrains = -1;
+  private concDepartAt = -1;
   private tsfWater!: THREE.Mesh;
   private tsfBaseY = 0;
   private stockpileAt = new THREE.Vector3();
@@ -1039,6 +1094,7 @@ export class MineScene {
     this.crusher.fillMat.emissive.set(fillCol);
     const starving = sim.stockpile.t <= 0.01;
     this.syncStockpile(now);
+    this.syncConcentrate(sim, now);
     // Зеркало пруда хвостохранилища — по отметке пляжа и уровню воды из модели.
     this.tsfWater.position.y = this.tsfBaseY + sim.tailings.beachM + sim.tailings.pondM;
     this.conveyorMat.emissive.set(starving ? (blink ? '#7f1d1d' : '#000000') : '#000000');

@@ -9,6 +9,7 @@ import { webglAvailable } from '../render3d/quality';
 import { SENSORS_BY_KIND } from '../platform/sensors';
 import type { BuildingKind } from '../render3d/MineScene';
 import { TRUCK_STATE_LABEL, type Simulation } from '../sim';
+import { CONC_GRADE, TRAIN_WAGONS, WAGON_T } from '../sim/concentrate';
 import { CAPACITY_MT, CREST_M, FREEBOARD_MIN_M, SOLIDS_PCT } from '../sim/tailings';
 import { CELL_CAP_T, EW_CELLS, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, SX_EFFICIENCY, type CellStage } from '../sim/leach';
 import { fmtInt } from '../ui/format';
@@ -26,8 +27,9 @@ const TITLE: Record<BuildingKind, string> = {
   stockpile: 'Склад дроблёной руды',
   sxew: 'Завод SX-EW и пруды растворов',
   tsf: 'Хвостохранилище: дамба, пруд и оборотная вода',
+  conc: 'Склад концентрата и ж/д погрузка',
 };
-const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile', sxew: 'sxew-plant', tsf: 'tailings-dam' };
+const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile', sxew: 'sxew-plant', tsf: 'tailings-dam', conc: 'concentrate-store' };
 
 // Цвета схемы (тёмный «экран»).
 const C = {
@@ -91,6 +93,7 @@ export function BuildingView({ sim, kind, onClose, onTruck, light = false }: Pro
         {kind === 'stockpile' && <Stockpile sim={sim} />}
         {kind === 'sxew' && <SxEw sim={sim} />}
         {kind === 'tsf' && <Tailings sim={sim} />}
+        {kind === 'conc' && <ConcStore sim={sim} />}
         {(kind === 'crusher' || kind === 'plant' || kind === 'garage') && <UnitStrip sim={sim} building={kind} />}
         {sensors.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -886,6 +889,94 @@ function Tailings({ sim }: { sim: Simulation }) {
       </Stats>
       <div className="mt-2 text-[11.5px] text-ink-3">
         Контур чаши — настоящий (OpenStreetMap), ёмкость и отметки — оценки. Фильтрационный расчёт и устойчивость откосов в модели не считаются: показаны те величины, которые на реальной дамбе снимают приборами.
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────── склад концентрата ─────────────────────────────
+
+/** Фабрика → крытый склад → погрузка в вагоны → состав на станцию. Всё живое из двойника. */
+function ConcStore({ sim }: { sim: Simulation }) {
+  const c = sim.concentrate;
+  const prog = c.loadingProgress;
+  const loading = c.loadLeft > 0;
+  return (
+    <div>
+      <svg viewBox="0 0 1000 340" className="w-full">
+        <defs>
+          <marker id="cArr" viewBox="0 0 10 10" refX={8} refY={5} markerWidth={6} markerHeight={6} orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill={C.pipe} />
+          </marker>
+        </defs>
+
+        {/* с фабрики */}
+        <g transform="translate(14 14)">
+          <rect width={196} height={92} rx={8} fill={C.box} stroke={C.line} />
+          <text x={14} y={24} fontSize={12} fill={C.dim}>С фабрики после сушки</text>
+          <text x={14} y={52} fontSize={18} fontWeight={800} fill={C.text} fontFamily="var(--font-mono)">{fmtInt(c.producedT)} т</text>
+          <text x={14} y={72} fontSize={11.5} fill={C.dim}>выпущено за смену</text>
+          <text x={14} y={86} fontSize={11.5} fill="#f59e0b">концентрат ~{Math.round(CONC_GRADE * 100)} % меди</text>
+        </g>
+        <line x1={210} y1={60} x2={256} y2={60} stroke={C.pipe} strokeWidth={3} markerEnd="url(#cArr)" />
+
+        {/* крытый склад */}
+        <g transform="translate(260 14)">
+          <rect width={250} height={132} rx={8} fill={C.box} stroke="#92400e" strokeWidth={1.5} />
+          <text x={125} y={24} textAnchor="middle" fontSize={12.5} fontWeight={700} fill={C.text}>Крытый склад</text>
+          {/* штабель концентрата */}
+          <path d="M26 112 L80 72 L170 72 L224 112 Z" fill="#4a3f33" />
+          <text x={125} y={100} textAnchor="middle" fontSize={17} fontWeight={800} fill="#f0d8b0" fontFamily="var(--font-mono)">{fmtInt(c.stockT)} т</text>
+          <text x={125} y={126} textAnchor="middle" fontSize={11.5} fill={C.dim}>готово к отгрузке</text>
+          <SensorDot x={228} y={40} label="весы и лазерный сканер штабеля" />
+        </g>
+
+        {/* галерея со склада и течка над тем вагоном, который грузится сейчас */}
+        <path d={`M385 146 L385 170 L${90 + c.wagons * 160} 170 L${90 + c.wagons * 160} 190`} fill="none" stroke={C.pipe} strokeWidth={4} markerEnd="url(#cArr)" />
+        <text x={Math.min(820, 102 + c.wagons * 160)} y={166} fontSize={11.5} fill={loading ? '#f59e0b' : C.dim}>
+          {loading ? `грузится · ${Math.round(prog * 100)} %` : 'подача вагона'}
+        </text>
+
+        {/* путь и сцепка */}
+        <line x1={14} y1={266} x2={986} y2={266} stroke={C.line} strokeWidth={3} />
+        {Array.from({ length: TRAIN_WAGONS }, (_, i) => {
+          const full = i < c.wagons ? 1 : i === c.wagons ? prog : 0;
+          return (
+            <g key={i} transform={`translate(${20 + i * 160} 200)`}>
+              <rect width={140} height={46} rx={4} fill={C.boxHi} stroke={full > 0 ? '#92400e' : C.line} strokeWidth={full > 0 ? 2 : 1} />
+              <rect x={6} y={6 + 34 * (1 - full)} width={128} height={34 * full} fill="#4a3f33" />
+              <circle cx={32} cy={54} r={8} fill={C.line} />
+              <circle cx={108} cy={54} r={8} fill={C.line} />
+              <text x={70} y={32} textAnchor="middle" fontSize={11.5} fill={full > 0.5 ? '#f0d8b0' : C.dim}>
+                {full >= 1 ? `${WAGON_T} т` : full > 0 ? `${Math.round(full * WAGON_T)} т` : 'порожний'}
+              </text>
+            </g>
+          );
+        })}
+        <text x={500} y={300} textAnchor="middle" fontSize={12} fill={C.dim}>вагон ~{WAGON_T} т · в составе {TRAIN_WAGONS} вагонов (масштаб сегмента)</text>
+        <SensorDot x={120} y={288} label="вагонные весы, RFID вагонов" />
+
+        {/* отправленные составы */}
+        <g transform="translate(700 14)">
+          <rect width={286} height={132} rx={8} fill={C.boxHi} stroke="#c2763a" strokeWidth={1.5} />
+          <text x={143} y={26} textAnchor="middle" fontSize={12} fill={C.dim}>Отправлено на станцию</text>
+          <text x={143} y={66} textAnchor="middle" fontSize={28} fontWeight={800} fill="#f59e0b" fontFamily="var(--font-mono)">
+            {c.trains}
+          </text>
+          <text x={143} y={88} textAnchor="middle" fontSize={12} fill={C.dim}>составов за смену</text>
+          <text x={143} y={112} textAnchor="middle" fontSize={13} fill={C.text}>
+            {fmtInt(c.shippedT)} т · ~{fmtInt(c.cuShippedT)} т меди
+          </text>
+        </g>
+      </svg>
+      <Stats>
+        <Stat label="На складе" value={`${fmtInt(c.stockT)} т`} />
+        <Stat label="Вагонов в составе" value={`${c.wagons} из ${TRAIN_WAGONS}`} tone={c.wagons > 0 ? C.ok : undefined} />
+        <Stat label="Выпущено за смену" value={`${fmtInt(c.producedT)} т`} />
+        <Stat label="Медь в отгруженном" value={`${fmtInt(c.cuShippedT)} т`} />
+      </Stats>
+      <div className="mt-2 text-[11.5px] text-ink-3">
+        Состав масштабирован под моделируемый сегмент парка: на реальном комбинате в составе десятки вагонов. Содержание меди в концентрате — по открытым данным.
       </div>
     </div>
   );
