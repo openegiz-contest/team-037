@@ -45,6 +45,8 @@ export class TailingsDam {
   waterInM3 = 0;
   reclaimM3 = 0;
   makeupM3 = 0;
+  /** Пришло со снеготаянием за смену, м³. */
+  meltM3 = 0;
   /** Текущие расходы: пульпа, м³/ч; твёрдое, т/ч; оборотная вода, м³/ч. */
   pulpM3h = 0;
   solidsTph = 0;
@@ -71,8 +73,11 @@ export class TailingsDam {
     const toPond = Math.max(0, water - entrained);
     const reclaim = (toPond * RECYCLE_PCT) / 100;
     this.reclaimM3 += reclaim;
-    const evap = ((EVAP_MM_DAY / 1000) * POND_AREA_M2 * dt) / 86400;
-    this.pondV = Math.max(0, this.pondV + toPond - reclaim - evap);
+    // Летом зеркало интенсивно испаряется, весной снеготаяние поднимает пруд.
+    const evap = ((EVAP_MM_DAY / 1000) * POND_AREA_M2 * dt * sim.weather.evapFactor) / 86400;
+    const melt = (sim.weather.meltM3h * dt) / 3600;
+    this.meltM3 += melt;
+    this.pondV = Math.max(0, this.pondV + toPond + melt - reclaim - evap);
     // Чего не вернулось с пруда — добирают свежей водой из водовода.
     this.makeupM3 += Math.max(0, water - reclaim);
 

@@ -14,13 +14,14 @@ import type { Kpis } from '../sim/kpi';
 import type { Simulation } from '../sim/engine';
 import { MATERIALS, TRUCK_STATES, type Blast, type Destination, type FailureType, type Material, type StrategyName, type TruckState } from '../sim/types';
 import { gradeAt } from '../sim/ore';
+import { BLAST_WIND_MS, LEACH_FROST_C, MONTH_RU, SEASON_RU, SKY, type Sky } from '../sim/weather';
 import { CAPACITY_MT, CREST_M, FREEBOARD_MIN_M, POND_AREA_M2, RECYCLE_PCT, SOLIDS_PCT } from '../sim/tailings';
 import { CELL_CAP_T, EW_CELLS, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, LEACH_DAYS, OXIDE_GRADE_PCT, REC_MAX, SX_EFFICIENCY, type CellStage } from '../sim/leach';
 import { CONC_GRADE, TRAIN_WAGONS, WAGON_LOAD_SEC, WAGON_T } from '../sim/concentrate';
 import { BENCH_M, BLOCK_M, blockSummary, buildOreModel, CUTOFF, DENSITY, holeAssays, pitResources, type OreModel } from '../geo/orebody';
 import { PIT_DEPTH } from '../geo/relief';
 import { UNIT_DEFS, type UnitState } from '../sim/equipment';
-import { tailingsSensorAttributes, sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
+import { weatherSensorAttributes, tailingsSensorAttributes, sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -47,6 +48,7 @@ export const thingIds = (v: StrategyName) => {
     concentrate: `${ns}:concentrate`,
     sxew: `${ns}:sxew`,
     tailings: `${ns}:tailings`,
+    weather: `${ns}:weather`,
     unit: (key: string) => `${ns}:${key}`,
     drill: (i: number) => `${ns}:drill-${i + 1}`,
   };
@@ -191,6 +193,23 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
       sensors: leachSensorAttributes(),
     },
     features: serializeLeach(sim),
+  };
+  out[id.weather] = {
+    policyId: POLICY,
+    attributes: {
+      name: 'Погода и сезон',
+      kind: 'weather-station',
+      _isType: false,
+      _parents: parent,
+      month: sim.weather.month,
+      month_name: MONTH_RU[sim.weather.month - 1],
+      season: SEASON_RU[sim.weather.season],
+      blast_wind_limit_ms: BLAST_WIND_MS,
+      leach_frost_c: LEACH_FROST_C,
+      note: 'климатические нормы — оценки по открытым данным востока Казахстана, не метеостанция рудника',
+      sensors: weatherSensorAttributes(),
+    },
+    features: serializeWeather(sim),
   };
   out[id.tailings] = {
     policyId: POLICY,
@@ -486,6 +505,23 @@ export function serializeLeach(sim: Simulation): Features {
   };
 }
 
+/** Погода и сезон: что сейчас за бортом и как это влияет на работу. */
+export function serializeWeather(sim: Simulation): Features {
+  const w = sim.weather;
+  return {
+    sky: f(w.ru),
+    temp: f(Math.round(w.tempC * 10) / 10, 'C'),
+    wind: f(Math.round(w.windMs * 10) / 10, 'm/s'),
+    visibility: f(w.visibilityM, 'm'),
+    season: f(SEASON_RU[w.season]),
+    month: f(MONTH_RU[w.month - 1]),
+    speed_factor: f(Math.round(w.speedFactor * 100), '%'),
+    crusher_factor: f(Math.round(w.crusherFactor * 100), '%'),
+    leach_factor: f(Math.round(w.leachFactor * 100), '%'),
+    blast_ok: f(w.blastOk ? 'да' : 'нет'),
+  };
+}
+
 /** Хвостохранилище: пульпа, чаша, пруд оборотной воды и контроль дамбы. */
 export function serializeTailings(sim: Simulation): Features {
   const t = sim.tailings;
@@ -505,6 +541,7 @@ export function serializeTailings(sim: Simulation): Features {
     reclaim_total: f(Math.round(t.reclaimM3), 'm3'),
     makeup_water: f(Math.round(t.makeupM3), 'm3'),
     water_in: f(Math.round(t.waterInM3), 'm3'),
+    melt_total: f(Math.round(t.meltM3), 'm3'),
     status: f(t.status),
   };
 }
@@ -699,6 +736,7 @@ export function serializeAll(sim: Simulation, v: StrategyName, k: Kpis): Record<
   out[id.leach] = serializeLeach(sim);
   out[id.sxew] = serializeSxew(sim);
   out[id.tailings] = serializeTailings(sim);
+  out[id.weather] = serializeWeather(sim);
   out[id.waste] = serializeWaste(sim);
   out[id.garage] = serializeGarage(sim);
   out[id.roads] = serializeRoads(sim);
@@ -951,6 +989,15 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
       L.plsGpl = num(fs, 'pls_cu', L.plsGpl);
       L.cuLeachedT = num(fs, 'cu_leached_total', L.cuLeachedT);
       L.syncedOxideT = d.tonnes;
+    }
+    const wf = things.get(id.weather);
+    if (wf) {
+      const w = sim.weather;
+      const ru = str(wf, 'sky');
+      const sky = (Object.keys(SKY) as Sky[]).find((k) => SKY[k].ru === ru);
+      if (sky) w.sky = sky;
+      w.tempC = num(wf, 'temp', w.tempC);
+      w.windMs = num(wf, 'wind', w.windMs);
     }
     const tl = things.get(id.tailings);
     if (tl) {

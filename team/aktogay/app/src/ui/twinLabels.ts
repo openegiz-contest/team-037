@@ -21,9 +21,22 @@ export const KIND_LABEL: Record<string, string> = {
   'concentrate-store': 'Склад концентрата',
   'sxew-plant': 'Завод SX-EW',
   'tailings-dam': 'Хвостохранилище',
+  'weather-station': 'Погода и сезон',
 };
 
 export const FEATURE_LABEL: Record<string, string> = {
+  // погода и сезон
+  sky: 'Состояние погоды',
+  temp: 'Температура воздуха',
+  wind: 'Скорость ветра',
+  visibility: 'Дальность видимости',
+  season: 'Сезон',
+  month: 'Месяц',
+  speed_factor: 'Скорость возки от нормы',
+  crusher_factor: 'Производительность дробилки от нормы',
+  leach_factor: 'Скорость выщелачивания от нормы',
+  blast_ok: 'Взрывные работы разрешены',
+  melt_total: 'Пришло со снеготаянием',
   // хвостохранилище
   stored_t: 'Накоплено хвостов в чаше',
   fill_pct: 'Заполнение чаши',

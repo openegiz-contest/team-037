@@ -72,6 +72,10 @@ export type FocusTarget = { kind: 'truck' | 'excavator' | 'drill'; id: number } 
 export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew' | 'tsf' | 'conc';
 
 const BG = '#0a1526';
+/** Оттенки дымки: обычная, снежная и пыльная. */
+const BG_COLOR = new THREE.Color(BG);
+const SNOW_HAZE = new THREE.Color('#c3cdd6');
+const DUST_HAZE = new THREE.Color('#c2a579');
 
 /** HTML подписи «таблички»: точка статуса + текст. */
 function tag(dot: string, html: string): string {
@@ -203,6 +207,24 @@ export class MineScene {
     // Атмосфера и свет.
     this.scene.background = new THREE.Color(BG);
     this.scene.fog = new THREE.Fog(BG, 5500, 14000);
+    // Осадки: облако частиц вокруг камеры — снег, дождь или пыль, смотря какая погода.
+    {
+      const n = 1400;
+      const pos = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) {
+        pos[i * 3] = (Math.random() - 0.5) * 2200;
+        pos[i * 3 + 1] = Math.random() * 900;
+        pos[i * 3 + 2] = (Math.random() - 0.5) * 2200;
+      }
+      this.precipBase = pos.slice();
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      this.precipMat = new THREE.PointsMaterial({ color: '#ffffff', size: 7, transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true });
+      this.precip = new THREE.Points(geo, this.precipMat);
+      this.precip.frustumCulled = false;
+      this.precip.visible = false;
+      this.scene.add(this.precip);
+    }
     this.scene.add(new THREE.HemisphereLight('#d6e6ff', '#3b2c1f', 1.25));
     const sun = new THREE.DirectionalLight('#ffe2b8', 2.6);
     sun.position.set(-2200, 3200, 1800);
@@ -662,6 +684,44 @@ export class MineScene {
   }
 
   /**
+   * Погода на сцене: дымка по дальности видимости и осадки вокруг камеры. Снег и пыль сносит
+   * ветром, поэтому частицы падают наискосок.
+   */
+  private syncWeather(sim: Simulation, now: number): void {
+    const w = sim.weather;
+    const fog = this.scene.fog as THREE.Fog;
+    const far = Math.max(1400, Math.min(14000, w.visibilityM * 0.8));
+    fog.far += (far - fog.far) * 0.05;
+    fog.near = fog.far * 0.38;
+    const tint = w.sky === 'dust' ? DUST_HAZE : w.sky === 'snow' || w.sky === 'blizzard' || w.sky === 'fog' ? SNOW_HAZE : BG_COLOR;
+    (this.scene.background as THREE.Color).lerp(tint, 0.05);
+    fog.color.copy(this.scene.background as THREE.Color);
+
+    const drops = w.sky === 'blizzard' ? 1 : w.sky === 'snow' ? 0.55 : w.sky === 'dust' ? 0.7 : w.sky === 'rain' ? 0.5 : 0;
+    this.precip.visible = drops > 0;
+    if (drops === 0) return;
+    this.precipMat.opacity = 0.75 * drops;
+    this.precipMat.size = w.sky === 'rain' ? 4 : w.sky === 'dust' ? 9 : 7;
+    this.precipMat.color.set(w.sky === 'dust' ? '#c9ab7d' : w.sky === 'rain' ? '#9fc4d8' : '#ffffff');
+    // Облако следует за камерой, частицы падают и сносятся ветром.
+    const c = this.camera.position;
+    this.precip.position.set(c.x, c.y - 450, c.z);
+    const fall = w.sky === 'rain' ? 420 : 90;
+    const drift = w.windMs * 14;
+    const arr = this.precip.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const t = now / 1000;
+    for (let i = 0; i < arr.count; i++) {
+      const bx = this.precipBase[i * 3];
+      const by = this.precipBase[i * 3 + 1];
+      const bz = this.precipBase[i * 3 + 2];
+      arr.setY(i, ((by - t * fall) % 900 + 900) % 900);
+      arr.setX(i, (((bx + t * drift) % 2200) + 3300) % 2200 - 1100);
+      arr.setZ(i, bz);
+    }
+    arr.needsUpdate = true;
+  }
+
+  /**
    * Погрузка концентрата: сцепку подают так, чтобы под течкой стоял грузимый вагон, гружёные
    * вагоны видны горкой. Отправку состава ловим по счётчику составов — он приходит и из Ditto.
    */
@@ -865,6 +925,9 @@ export class MineScene {
   }
   private lastDrillLabel = 0;
 
+  private precip!: THREE.Points;
+  private precipMat!: THREE.PointsMaterial;
+  private readonly precipBase: Float32Array;
   private concRake!: THREE.Group;
   private concHeaps: THREE.Mesh[] = [];
   private concAt = new THREE.Vector3();
@@ -1095,6 +1158,7 @@ export class MineScene {
     const starving = sim.stockpile.t <= 0.01;
     this.syncStockpile(now);
     this.syncConcentrate(sim, now);
+    this.syncWeather(sim, now);
     // Зеркало пруда хвостохранилища — по отметке пляжа и уровню воды из модели.
     this.tsfWater.position.y = this.tsfBaseY + sim.tailings.beachM + sim.tailings.pondM;
     this.conveyorMat.emissive.set(starving ? (blink ? '#7f1d1d' : '#000000') : '#000000');

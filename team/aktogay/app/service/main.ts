@@ -24,6 +24,8 @@ const MQTT_URL = `mqtt://${env('MQTT_HOST', 'localhost')}:${env('MQTT_PORT', '18
 /** Секунд модельного времени за секунду реального (x1 в интерфейсе = 10). */
 let speed = Number(env('SIM_SPEEDUP', '10'));
 let seed = Number(env('SIM_SEED', '42'));
+/** Месяц года для погоды и сезона (1…12). */
+let month = Number(env('SIM_MONTH', '10'));
 /** Парк техники: самосвалы и состав экскаваторов (меняется командой reset { fleet }). */
 let fleet: Fleet = defaultFleet(Math.max(5, Math.min(30, Number(env('SIM_TRUCKS', '20')))));
 /** Как часто публиковать состояние двойников, мс реального времени. */
@@ -43,8 +45,8 @@ const history: [number, string][] = [];
 
 function makeSims(): Record<StrategyName, Simulation> {
   return {
-    fixed: new Simulation({ seed, truckCount: fleet.trucks, strategy: 'fixed', config: fleetConfig(fleet) }),
-    smart: new Simulation({ seed, truckCount: fleet.trucks, strategy: 'smart', config: fleetConfig(fleet) }),
+    fixed: new Simulation({ seed, truckCount: fleet.trucks, strategy: 'fixed', config: fleetConfig(fleet), month }),
+    smart: new Simulation({ seed, truckCount: fleet.trucks, strategy: 'smart', config: fleetConfig(fleet), month }),
   };
 }
 
@@ -177,6 +179,7 @@ async function applyCommand(c: Command): Promise<void> {
       const prevTrucks = fleet.trucks;
       const prevExcavators = fleet.excavators.length;
       if (c.seed !== undefined) seed = Number(c.seed);
+      if (c.month !== undefined) month = Math.max(1, Math.min(12, Number(c.month)));
       if (c.fleet !== undefined) fleet = sanitizeFleet(c.fleet, fleet);
       if (c.trucks !== undefined) fleet = sanitizeFleet({ ...fleet, trucks: Number(c.trucks) }, fleet);
       sims = makeSims();

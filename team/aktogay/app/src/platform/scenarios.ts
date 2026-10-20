@@ -3,6 +3,7 @@
  * org.aktogay:control) и для автономного режима интерфейса. Сценарий всегда применяется
  * ко всем моделям сразу, чтобы сравнение стратегий оставалось честным.
  */
+import { SKY, type Sky } from '../sim/weather';
 import type { Simulation } from '../sim/engine';
 
 /** Команда в признаке command двойника управления. */
@@ -18,10 +19,12 @@ export interface Command {
   trucks?: number;
   /** Новый парк техники (reset): см. platform/fleet.ts. */
   fleet?: unknown;
+  /** Месяц года для погоды и сезона (команда reset). */
+  month?: number;
 }
 
-export const DEFAULT_DUR = { breakdown: 50, close_road: 40, drill_down: 240 } as const;
-export const DUR_RANGE = { breakdown: [10, 180], close_road: [10, 120], drill_down: [30, 600] } as const;
+export const DEFAULT_DUR = { breakdown: 50, close_road: 40, drill_down: 240, weather: 60 } as const;
+export const DUR_RANGE = { breakdown: [10, 180], close_road: [10, 120], drill_down: [30, 600], weather: [15, 360] } as const;
 
 const clampDur = (kind: keyof typeof DUR_RANGE, v: number | undefined) => {
   const [lo, hi] = DUR_RANGE[kind];
@@ -59,6 +62,13 @@ export function applyScenario(sims: Simulation[], c: Command): string | null {
     case 'open_road': {
       const ok = sims.map((s) => s.openRoad(a)).some(Boolean);
       return ok ? `открыт ${ref.layout.closureGroups[a]?.label ?? a}` : 'участок не был закрыт';
+    }
+    case 'weather': {
+      const sky = String(c.arg ?? 'blizzard') as Sky;
+      if (!(sky in SKY)) return null;
+      const dur = clampDur('weather', c.dur);
+      for (const s of sims) s.weather.force(s, sky, dur * 60);
+      return `погода: ${SKY[sky].ru} на ${dur} мин`;
     }
     case 'blast': {
       const ex = ref.excavators[a];

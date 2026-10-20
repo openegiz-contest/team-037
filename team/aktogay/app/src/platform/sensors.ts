@@ -329,6 +329,39 @@ export const LEACH_SENSORS: SensorSpec[] = [
   },
 ];
 
+export const WEATHER_SENSORS: SensorSpec[] = [
+  {
+    id: 'ams',
+    name: 'Автоматическая метеостанция',
+    hardware: 'датчики температуры и влажности, анемометр и флюгер на мачте 10 м, барометр',
+    location: 'промплощадка у карьера',
+    measures: 'температура воздуха, °C; скорость и направление ветра, м/с',
+    features: ['temp', 'wind', 'season', 'month'],
+    periodS: 60,
+    purpose: 'ветер решает, можно ли взрывать; мороз — работу дробилки и выщелачивания',
+  },
+  {
+    id: 'visibility',
+    name: 'Датчик видимости',
+    hardware: 'трансмиссометр на выезде из карьера',
+    location: 'главный съезд',
+    measures: 'метеорологическая дальность видимости, м',
+    features: ['visibility', 'sky'],
+    periodS: 60,
+    purpose: 'по видимости вводят ограничение скорости и останавливают возку',
+  },
+  {
+    id: 'road_state',
+    name: 'Контроль состояния дорожного покрытия',
+    hardware: 'дорожные датчики температуры покрытия и наличия льда',
+    location: 'технологические дороги и съезды',
+    measures: 'гололёд, снег и вода на дороге',
+    features: ['speed_factor'],
+    periodS: 300,
+    purpose: 'насколько снижена скорость возки относительно сухой дороги',
+  },
+];
+
 export const TAILINGS_SENSORS: SensorSpec[] = [
   {
     id: 'pulp_line',
@@ -646,6 +679,7 @@ export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   'concentrate-store': CONCENTRATE_SENSORS,
   'sxew-plant': SXEW_SENSORS,
   'tailings-dam': TAILINGS_SENSORS,
+  'weather-station': WEATHER_SENSORS,
 };
 
 /** Компактная запись для attributes.sensors двойника в Ditto. */
@@ -664,3 +698,4 @@ export const geologySensorAttributes = () => sensorAttributes(GEOLOGY_SENSORS);
 export const concentrateSensorAttributes = () => sensorAttributes(CONCENTRATE_SENSORS);
 export const sxewSensorAttributes = () => sensorAttributes(SXEW_SENSORS);
 export const tailingsSensorAttributes = () => sensorAttributes(TAILINGS_SENSORS);
+export const weatherSensorAttributes = () => sensorAttributes(WEATHER_SENSORS);

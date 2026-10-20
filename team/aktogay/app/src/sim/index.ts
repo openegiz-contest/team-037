@@ -10,3 +10,4 @@ export * from './drivers';
 export * from './concentrate';
 export * from './leach';
 export * from './tailings';
+export * from './weather';

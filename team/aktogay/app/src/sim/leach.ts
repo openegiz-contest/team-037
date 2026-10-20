@@ -133,15 +133,17 @@ export class HeapLeach {
 
     // Орошение по графику и выход меди в раствор.
     const g = this.activeGroup(sim.now);
+    // Холод резко тормозит химию, в мороз орошение останавливают: раствор в капельницах замерзает.
+    const w = sim.weather;
     let cuRate = 0; // т/ч
     let wet = 0;
     for (const c of this.cells) {
-      c.irrigated = c.stage === 'irrigating' && this.groupOf(c) === g;
+      c.irrigated = w.irrigationOn && c.stage === 'irrigating' && this.groupOf(c) === g;
       if (!c.irrigated) continue;
       wet++;
       // Под поливом время выщелачивания идёт втрое быстрее «среднего», чтобы за полный круг групп
       // карта получала столько же орошения, сколько при непрерывном поливе.
-      const dDays = (dt / 86400) * IRRIGATION_GROUPS;
+      const dDays = (dt / 86400) * IRRIGATION_GROUPS * w.leachFactor;
       const before = c.daysLeached;
       c.daysLeached += dDays;
       const dCu = c.cuT * (recovered(c.daysLeached) - recovered(before));

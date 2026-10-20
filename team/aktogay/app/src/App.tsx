@@ -5,6 +5,7 @@ import { BuildingView } from './components/BuildingView';
 import type { BuildingKind } from './render3d/MineScene';
 import { DiagnosticsPanel } from './components/DiagnosticsPanel';
 import { KpiPanel } from './components/KpiPanel';
+import { WeatherChip } from './components/WeatherChip';
 import { Mine3D } from './components/Mine3D';
 import { MineCanvas } from './components/MineCanvas';
 import { Sidebar, routeFromHash, ROUTE_HASH, type Route } from './components/Sidebar';
@@ -27,6 +28,7 @@ import { applyTheme, loadTheme, saveTheme, type ThemeMode } from './ui/themeMode
 import { glRenderer, loadQualityMode, resolveQuality, saveQualityMode, softwareGL, webglAvailable, type QualityMode } from './render3d/quality';
 import type { Selection } from './render/drawMine';
 import { computeEffect, computeKpis, deltaPct, MATERIAL_SHORT, Simulation, type StrategyName } from './sim';
+import { SKY } from './sim/weather';
 import { fmtClock, fmtDelta, fmtInt, fmtKzt } from './ui/format';
 import { MATERIAL_COLOR, STATE_GROUPS, STRATEGY_COLOR } from './ui/theme';
 
@@ -77,6 +79,7 @@ export default function App() {
   const [localHistory, setLocalHistory] = useState<[number, string][]>([]);
 
   const simsRef = useRef<Simulation[]>([]);
+  const weatherIdx = useRef(0);
   /** Подключение к OpenEgiz: если интерфейс открыт со Стенда, данные берутся из двойников Ditto. */
   const [bridge, setBridge] = useState<PlatformBridge | null>(null);
   const bridgeRef = useRef<PlatformBridge | null>(null);
@@ -234,6 +237,24 @@ export default function App() {
     if (!runningRef.current) setRunning(true);
   }, [selection]);
 
+  /** Сценарий «что если»: вызвать непогоду — метель, пыльную бурю или туман по очереди. */
+  const triggerWeather = useCallback(() => {
+    const kinds = ['blizzard', 'dust', 'fog'] as const;
+    const sky = kinds[weatherIdx.current++ % kinds.length];
+    const ru = SKY[sky].ru;
+    const b = bridgeRef.current;
+    if (b?.sims) {
+      void b.send('weather', 0, { arg: sky });
+      flash(`❄ Сценарий отправлен в OpenEgiz: ${ru}`);
+      return;
+    }
+    const sims = simsRef.current;
+    if (!sims.length) return;
+    for (const s of sims) s.weather.force(s, sky, 60 * 60);
+    flash(`❄ ${ru[0].toUpperCase()}${ru.slice(1)} на 60 мин — скорость возки ${Math.round(SKY[sky].speed * 100)} % от нормы`);
+    if (!runningRef.current) setRunning(true);
+  }, []);
+
   const triggerBlast = useCallback(() => {
     const b = bridgeRef.current;
     if (b?.sims) {
@@ -284,6 +305,7 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === 'INPUT') return;
+      if (e.code === 'KeyW') triggerWeather();
       if (e.code === 'KeyB') triggerBreakdown();
       else if (e.code === 'KeyC') triggerClosure();
       else if (e.code === 'KeyE') triggerBlast();
@@ -299,7 +321,7 @@ export default function App() {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [triggerBreakdown, triggerClosure, triggerBlast, createSims]);
+  }, [triggerBreakdown, triggerClosure, triggerBlast, triggerWeather, createSims]);
 
   const platformSims = bridge?.sims ?? null;
   /** Оба варианта: [теневой без системы, реальный]. */
@@ -568,7 +590,11 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
             ⚄
           </button>
         </label>
+        {allSims[0] && <WeatherChip sim={allSims[0]} />}
         <div className="ml-auto flex items-center gap-2">
+          <button onClick={triggerWeather} className="rounded-md bg-sky-700/80 px-3 py-1.5 font-bold text-white hover:bg-sky-600" title="Клавиша W. Вызвать непогоду: метель, пыльная буря или туман — по очереди.">
+            ❄ Непогода
+          </button>
           <button onClick={triggerBreakdown} className="rounded-md bg-red-600/90 px-3 py-1.5 font-bold text-white hover:bg-red-500" title="Клавиша B. Если выбран экскаватор — ломается он.">
             ⚠ Вызвать поломку
           </button>
@@ -628,7 +654,7 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
       <footer className="flex items-center justify-between text-[11px] text-ink-3">
         <span>Модель построена по открытым данным. Операционные данные смоделированы. Проект не связан с KAZ Minerals.</span>
         <span>
-          seed {seed} · {currentFleet.trucks} самосвалов, {currentFleet.excavators.length} экскаваторов · рудник работает непрерывно · B — поломка, E — взрыв, C — перекрыть съезд, R — сброс
+          seed {seed} · {currentFleet.trucks} самосвалов, {currentFleet.excavators.length} экскаваторов · рудник работает непрерывно · B — поломка, E — взрыв, C — перекрыть съезд, W — непогода, R — сброс
         </span>
       </footer>
 

@@ -19,6 +19,8 @@ services:
       SIM_SPEEDUP: ${AKTOGAY_SPEEDUP:-10}
       SIM_SEED: ${AKTOGAY_SEED:-42}
       SIM_TRUCKS: ${AKTOGAY_TRUCKS:-20}
+      # Месяц года для погоды и сезона (1…12): влияет на скорость возки, дробилку, выщелачивание и пруд.
+      SIM_MONTH: ${AKTOGAY_MONTH:-10}
     depends_on:
       init:
         condition: service_completed_successfully

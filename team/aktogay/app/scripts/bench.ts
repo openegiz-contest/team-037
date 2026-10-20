@@ -11,6 +11,8 @@ import { computeEffect, computeKpis, deltaPct, Simulation, type Kpis } from '../
 const trucks = Number(process.argv[2] ?? 20);
 const seedFrom = Number(process.argv[3] ?? 1);
 const seedTo = Number(process.argv[4] ?? 10);
+/** Месяц для погоды и сезона (1…12); по умолчанию — из конфига. */
+const month = process.argv[5] ? Number(process.argv[5]) : undefined;
 
 interface Row {
   key: string;
@@ -64,8 +66,8 @@ const perSeed: string[] = [];
 const t0 = Date.now();
 
 for (const seed of seeds) {
-  const fixed = new Simulation({ seed, truckCount: trucks, strategy: 'fixed' });
-  const smart = new Simulation({ seed, truckCount: trucks, strategy: 'smart' });
+  const fixed = new Simulation({ seed, truckCount: trucks, strategy: 'fixed', month });
+  const smart = new Simulation({ seed, truckCount: trucks, strategy: 'smart', month });
   fixed.runToEnd();
   smart.runToEnd();
   const kf = computeKpis(fixed);

@@ -15,6 +15,7 @@ import { PlantEquipment } from './equipment';
 import { ConcentrateYard } from './concentrate';
 import { HeapLeach } from './leach';
 import { TailingsDam } from './tailings';
+import { Weather } from './weather';
 import { DrillOps } from './drilling';
 import {
   MATERIALS,
@@ -59,6 +60,8 @@ export interface SimOptions {
   truckCount: number;
   strategy: StrategyName;
   config?: SimConfig;
+  /** Месяц года для погоды и сезона (1…12); по умолчанию — из конфига. */
+  month?: number;
 }
 
 export class Simulation {
@@ -111,6 +114,9 @@ export class Simulation {
   readonly leach = new HeapLeach();
   /** Хвостохранилище: пульпа с фабрики, пруд оборотной воды, контроль дамбы. */
   readonly tailings = new TailingsDam();
+  /** Погода и сезон: влияют на возку, дробилку, выщелачивание, пруд и взрывы. */
+  readonly weather: Weather;
+  private readonly windWarned = new Set<number>();
   /** ГПСЧ событий вождения (резкие торможения) — по потоку на самосвал. */
   private readonly driverRng: Rng[] = [];
   /** Отдельный поток для усталости водителей: модуль диагностический и не сдвигает остальную модель. */
@@ -132,6 +138,7 @@ export class Simulation {
     this.router = new Router(this.layout.graph);
     this.strategy = createStrategy(opts.strategy);
     this.garageNode = this.layout.garage.node;
+    this.weather = new Weather(this.seed, opts.month ?? this.cfg.weather.month);
     this.speedLoaded = this.cfg.truck.speedLoadedKmh / 3.6;
     this.speedEmpty = this.cfg.truck.speedEmptyKmh / 3.6;
     this.stats = {
@@ -527,6 +534,15 @@ export class Simulation {
           }
           continue;
         }
+        // При сильном ветре и в метель взрывать нельзя: пылегазовое облако сносит.
+        if (!this.weather.blastOk) {
+          b.t += 1800;
+          if (!this.windWarned.has(b.id)) {
+            this.windWarned.add(b.id);
+            this.addLog(`Взрыв у ${this.excavators[b.target].name} перенесён: ${this.weather.ru}, ветер ${this.weather.windMs.toFixed(0)} м/с`, 'warn');
+          }
+          continue;
+        }
         this.startBlast(b);
       }
       if (b.phase === 'active' && this.now >= b.t + b.dur) b.phase = 'done';
@@ -703,6 +719,7 @@ export class Simulation {
       }
     }
 
+    this.weather.update(this, dt);
     this.crush(dt);
     this.feedPlant(dt);
     this.concentrate.update(this, dt);
@@ -783,7 +800,7 @@ export class Simulation {
         const g = this.layout.graph;
         const ei = t.seg < t.path.length - 1 ? g.edgeBetween(t.path[t.seg], t.path[t.seg + 1]) : undefined;
         const onRamp = ei !== undefined && g.edges[ei].kind === 'ramp';
-        const want = (t.state === 'loaded' ? this.speedLoaded : this.speedEmpty) * t.speedFactor * (onRamp ? t.driver.rampSkill : 1) * dt;
+        const want = (t.state === 'loaded' ? this.speedLoaded : this.speedEmpty) * t.speedFactor * this.weather.speedFactor * (onRamp ? t.driver.rampSkill : 1) * dt;
         const free = this.freeDistance(t);
         const step = Math.min(want, free);
         this.move(t, step);
@@ -1253,7 +1270,8 @@ export class Simulation {
   private crush(dt: number): void {
     const c = this.crusher;
     const s = this.stockpile;
-    const move = Math.min(c.binT, (this.cfg.dumps.crusher.crusherTpm / 60) * dt, Math.max(0, s.capT - s.t));
+    // В мороз сырая и подмёрзшая руда зависает в приёмном бункере — дробилка выдаёт меньше.
+    const move = Math.min(c.binT, ((this.cfg.dumps.crusher.crusherTpm * this.weather.crusherFactor) / 60) * dt, Math.max(0, s.capT - s.t));
     s.crushing = move > 1e-6;
     s.lastIn = move / dt;
     if (move <= 0) return;
