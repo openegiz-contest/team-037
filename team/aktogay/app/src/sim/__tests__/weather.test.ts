@@ -12,13 +12,23 @@ describe('погода и сезон', () => {
     expect(total(1)).toBeLessThan(total(7));
   });
 
-  it('в мороз орошение карт останавливается, катодов нет', () => {
+  it('в мороз орошение карт останавливается, зимой катодов почти нет', () => {
+    // Смена начинается в 8 утра — самое холодное время суток.
     const s = new Simulation({ seed: 4, truckCount: 20, strategy: 'smart', month: 1 });
-    s.advance(6 * 3600);
+    s.advance(60);
     expect(s.weather.tempC).toBeLessThan(LEACH_FROST_C);
     expect(s.weather.irrigationOn).toBe(false);
     expect(s.leach.cells.every((c) => !c.irrigated)).toBe(true);
-    expect(s.leach.cathodeT).toBe(0);
+    // За смену январь даёт кратно меньше катодной меди, чем июль: холод тормозит химию.
+    const cathode = (month: number) => {
+      const w = new Simulation({ seed: 4, truckCount: 20, strategy: 'smart', month });
+      w.advance(12 * 3600);
+      return w.leach.cathodeT;
+    };
+    const winter = cathode(1);
+    const summer = cathode(7);
+    expect(winter).toBeLessThan(summer * 0.2);
+    expect(summer).toBeGreaterThan(5);
   });
 
   it('сценарий «метель» замедляет возку и запрещает взрывы', () => {

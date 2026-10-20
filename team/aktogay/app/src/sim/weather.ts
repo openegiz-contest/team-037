@@ -4,8 +4,12 @@
  * возки, видимость, работу дробилки на подмёрзшей руде, скорость кучного выщелачивания,
  * водный баланс хвостохранилища и возможность взрывать.
  *
- * Месячные нормы — оценки по открытым климатическим данным востока Казахстана, не данные
- * метеостанции рудника. Коэффициенты влияния — тоже оценки, они собраны в этом файле.
+ * Месячные нормы взяты не на глаз: это статистика за 2015–2024 годы в точке рудника
+ * (46,969° с. ш., 79,975° в. д.) из архива реанализа ERA5 через Open-Meteo — средняя температура,
+ * средний ветер, доля дней с осадками и какая их часть выпадает снегом, доля жарких дней выше
+ * +32 °C, доля солнечного времени и испарение по ФАО. Из них и собраны таблица MONTH и
+ * вероятности погоды. Коэффициенты влияния на работу (насколько падает скорость возки и прочее) —
+ * по-прежнему оценки, они собраны здесь же.
  * Погода внутри смены разыгрывается отдельным потоком случайных чисел, поэтому добавление
  * модуля не сдвинуло остальные потоки модели.
  */
@@ -27,29 +31,25 @@ export const SKY: Record<Sky, { speed: number; visM: number; ru: string }> = {
   heat: { speed: 0.97, visM: 12000, ru: 'жара' },
 };
 
-/** Среднемесячная температура, °C, и ветер, м/с (оценки по открытым климатическим данным). */
-const MONTH: { tC: number; wind: number; evap: number }[] = [
-  { tC: -13, wind: 3.6, evap: 0.15 }, // январь
-  { tC: -12, wind: 3.8, evap: 0.15 },
-  { tC: -4, wind: 4.4, evap: 0.4 },
-  { tC: 7, wind: 4.6, evap: 1.0 },
-  { tC: 14, wind: 4.2, evap: 1.6 },
-  { tC: 20, wind: 3.8, evap: 2.4 },
-  { tC: 22, wind: 3.4, evap: 2.6 },
-  { tC: 20, wind: 3.4, evap: 2.3 },
-  { tC: 14, wind: 3.8, evap: 1.5 },
-  { tC: 5, wind: 4.2, evap: 0.8 }, // октябрь
-  { tC: -5, wind: 4.2, evap: 0.3 },
-  { tC: -11, wind: 3.8, evap: 0.15 },
+/**
+ * Норма месяца: средняя температура °C, средний ветер м/с, испарение относительно среднегодового
+ * и вероятности погоды. Всё — из архива за 2015–2024 в точке рудника; метель выделена из снегопадов
+ * по доле ветреных дней, туман и пыльная буря остались оценками (в архиве их нет).
+ */
+const MONTH: { tC: number; wind: number; evap: number; sky: Partial<Record<Sky, number>> }[] = [
+  { tC: -10.6, wind: 4.0, evap: 0.13, sky: { clear: 0.39, cloudy: 0.23, rain: 0.01, snow: 0.25, blizzard: 0.05, fog: 0.05, dust: 0.02 } }, // январь
+  { tC: -8.0, wind: 4.0, evap: 0.21, sky: { clear: 0.45, cloudy: 0.19, rain: 0.03, snow: 0.21, blizzard: 0.05, fog: 0.05, dust: 0.02 } },
+  { tC: 1.0, wind: 4.1, evap: 0.52, sky: { clear: 0.46, cloudy: 0.19, rain: 0.14, snow: 0.13, blizzard: 0.01, fog: 0.05, dust: 0.02 } },
+  { tC: 11.4, wind: 4.4, evap: 1.19, sky: { clear: 0.55, cloudy: 0.13, rain: 0.21, snow: 0.02, fog: 0.02, dust: 0.07 } },
+  { tC: 18.5, wind: 4.4, evap: 1.7, sky: { clear: 0.5, cloudy: 0.11, rain: 0.24, fog: 0.02, dust: 0.07, heat: 0.06 } },
+  { tC: 24.2, wind: 3.8, evap: 1.96, sky: { clear: 0.23, cloudy: 0.04, rain: 0.27, fog: 0.02, dust: 0.07, heat: 0.38 } },
+  { tC: 26.5, wind: 3.9, evap: 2.07, sky: { clear: 0.11, cloudy: 0.02, rain: 0.27, fog: 0.02, dust: 0.07, heat: 0.52 } }, // июль
+  { tC: 24.3, wind: 3.9, evap: 1.82, sky: { clear: 0.36, cloudy: 0.05, rain: 0.13, fog: 0.02, dust: 0.07, heat: 0.37 } },
+  { tC: 17.0, wind: 3.9, evap: 1.24, sky: { clear: 0.6, cloudy: 0.11, rain: 0.18, fog: 0.02, dust: 0.02, heat: 0.06 } },
+  { tC: 8.4, wind: 4.1, evap: 0.66, sky: { clear: 0.46, cloudy: 0.18, rain: 0.26, snow: 0.03, fog: 0.05, dust: 0.02 } }, // октябрь
+  { tC: -1.1, wind: 4.0, evap: 0.28, sky: { clear: 0.35, cloudy: 0.21, rain: 0.17, snow: 0.18, blizzard: 0.02, fog: 0.05, dust: 0.02 } },
+  { tC: -7.1, wind: 3.9, evap: 0.16, sky: { clear: 0.34, cloudy: 0.24, rain: 0.04, snow: 0.25, blizzard: 0.06, fog: 0.05, dust: 0.02 } },
 ];
-
-/** Какая погода вероятна в этом сезоне. */
-const WEIGHTS: Record<Season, Partial<Record<Sky, number>>> = {
-  winter: { clear: 0.34, cloudy: 0.34, snow: 0.22, blizzard: 0.06, fog: 0.04 },
-  spring: { clear: 0.4, cloudy: 0.3, rain: 0.15, dust: 0.1, fog: 0.05 },
-  summer: { clear: 0.5, cloudy: 0.2, heat: 0.2, dust: 0.08, rain: 0.02 },
-  autumn: { clear: 0.36, cloudy: 0.32, rain: 0.14, snow: 0.08, fog: 0.06, dust: 0.04 },
-};
 
 export const SEASON_RU: Record<Season, string> = { winter: 'зима', spring: 'весна', summer: 'лето', autumn: 'осень' };
 export const MONTH_RU = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
@@ -92,7 +92,7 @@ export class Weather {
   }
 
   private roll(): Sky {
-    const w = WEIGHTS[this.season];
+    const w = MONTH[this.month - 1].sky;
     const total = Object.values(w).reduce((a, b) => a + (b ?? 0), 0);
     let x = this.rng.next() * total;
     for (const [k, v] of Object.entries(w)) {
@@ -108,7 +108,8 @@ export class Weather {
     const norm = MONTH[this.month - 1];
     // Максимум около 15:00, минимум под утро.
     const diurnal = 6 * Math.sin((2 * Math.PI * (hour - 9)) / 24);
-    const skyT = this.sky === 'blizzard' ? -4 : this.sky === 'heat' ? 6 : this.sky === 'clear' ? 1 : this.sky === 'fog' ? -1 : 0;
+    // Поправка на характер погоды — небольшая: дневной прогрев уже учтён суточным ходом.
+    const skyT = this.sky === 'blizzard' ? -4 : this.sky === 'heat' ? 2 : this.sky === 'clear' ? 1 : this.sky === 'fog' ? -1 : 0;
     this.tempC = norm.tC + diurnal + skyT;
     this.windMs = norm.wind + (this.sky === 'blizzard' ? 9 : this.sky === 'dust' ? 6 : this.sky === 'heat' ? -1 : 0);
   }
