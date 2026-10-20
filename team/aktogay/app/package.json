@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "bench": "tsx scripts/bench.ts"
+    "bench": "tsx scripts/bench.ts",
+    "sensors": "tsx scripts/sensors-md.ts"
   },
   "dependencies": {
     "leaflet": "^1.9.4",
