@@ -14,6 +14,7 @@ import type { Kpis } from '../sim/kpi';
 import type { Simulation } from '../sim/engine';
 import { MATERIALS, TRUCK_STATES, type Blast, type Destination, type FailureType, type Material, type StrategyName, type TruckState } from '../sim/types';
 import { gradeAt } from '../sim/ore';
+import { EW_CELL_VOLTS } from '../sim/energy';
 import { BLAST_WIND_MS, LEACH_FROST_C, MONTH_RU, SEASON_RU, SKY, type Sky } from '../sim/weather';
 import { CAPACITY_MT, CREST_M, FREEBOARD_MIN_M, POND_AREA_M2, RECYCLE_PCT, SOLIDS_PCT } from '../sim/tailings';
 import { CELL_CAP_T, EW_CELLS, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, LEACH_DAYS, OXIDE_GRADE_PCT, REC_MAX, SX_EFFICIENCY, type CellStage } from '../sim/leach';
@@ -21,7 +22,7 @@ import { CONC_GRADE, TRAIN_WAGONS, WAGON_LOAD_SEC, WAGON_T } from '../sim/concen
 import { BENCH_M, BLOCK_M, blockSummary, buildOreModel, CUTOFF, DENSITY, holeAssays, pitResources, type OreModel } from '../geo/orebody';
 import { PIT_DEPTH } from '../geo/relief';
 import { UNIT_DEFS, type UnitState } from '../sim/equipment';
-import { weatherSensorAttributes, tailingsSensorAttributes, sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
+import { energySensorAttributes, weatherSensorAttributes, tailingsSensorAttributes, sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -49,6 +50,7 @@ export const thingIds = (v: StrategyName) => {
     sxew: `${ns}:sxew`,
     tailings: `${ns}:tailings`,
     weather: `${ns}:weather`,
+    energy: `${ns}:energy`,
     unit: (key: string) => `${ns}:${key}`,
     drill: (i: number) => `${ns}:drill-${i + 1}`,
   };
@@ -193,6 +195,20 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
       sensors: leachSensorAttributes(),
     },
     features: serializeLeach(sim),
+  };
+  out[id.energy] = {
+    policyId: POLICY,
+    attributes: {
+      name: 'Электроснабжение и энергоучёт',
+      kind: 'power-meter',
+      _isType: false,
+      _parents: parent,
+      tariff_kzt_kwh: sim.cfg.economics.energyKztPerKwh,
+      ew_cell_volts: EW_CELL_VOLTS,
+      note: 'мощности агрегатов — оценки по открытым данным; самосвалы и экскаваторы дизельные и в баланс не входят',
+      sensors: energySensorAttributes(),
+    },
+    features: serializeEnergy(sim),
   };
   out[id.weather] = {
     policyId: POLICY,
@@ -505,6 +521,28 @@ export function serializeLeach(sim: Simulation): Features {
   };
 }
 
+/** Энергоучёт по участкам. */
+export function serializeEnergy(sim: Simulation): Features {
+  const e = sim.energy;
+  const by = (id: string) => Math.round((e.areas.find((a) => a.id === id)?.mw ?? 0) * 10) / 10;
+  return {
+    total_mw: f(Math.round(e.totalMw * 10) / 10, 'MW'),
+    peak_mw: f(Math.round(e.peakMw * 10) / 10, 'MW'),
+    kwh_shift: f(Math.round(e.totalKwh), 'kWh'),
+    kwh_per_t_ore: f(Math.round(e.perTonneOre(sim) * 10) / 10, 'kWh/t'),
+    kwh_per_t_cu: f(Math.round(e.perTonneCu(sim)), 'kWh/t'),
+    idle_kwh: f(Math.round(e.idleKwh), 'kWh'),
+    cost_kzt: f(Math.round(e.costKzt(sim)), 'KZT'),
+    plant_mw: f(by('plant'), 'MW'),
+    crusher_mw: f(by('crusher'), 'MW'),
+    sxew_mw: f(by('sxew'), 'MW'),
+    tailings_mw: f(by('tailings'), 'MW'),
+    leach_mw: f(by('leach'), 'MW'),
+    pit_mw: f(by('pit'), 'MW'),
+    aux_mw: f(by('aux'), 'MW'),
+  };
+}
+
 /** Погода и сезон: что сейчас за бортом и как это влияет на работу. */
 export function serializeWeather(sim: Simulation): Features {
   const w = sim.weather;
@@ -737,6 +775,7 @@ export function serializeAll(sim: Simulation, v: StrategyName, k: Kpis): Record<
   out[id.sxew] = serializeSxew(sim);
   out[id.tailings] = serializeTailings(sim);
   out[id.weather] = serializeWeather(sim);
+  out[id.energy] = serializeEnergy(sim);
   out[id.waste] = serializeWaste(sim);
   out[id.garage] = serializeGarage(sim);
   out[id.roads] = serializeRoads(sim);

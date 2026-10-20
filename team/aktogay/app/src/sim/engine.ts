@@ -15,6 +15,7 @@ import { PlantEquipment } from './equipment';
 import { ConcentrateYard } from './concentrate';
 import { HeapLeach } from './leach';
 import { TailingsDam } from './tailings';
+import { EnergyMeter } from './energy';
 import { Weather } from './weather';
 import { DrillOps } from './drilling';
 import {
@@ -116,6 +117,8 @@ export class Simulation {
   readonly tailings = new TailingsDam();
   /** Погода и сезон: влияют на возку, дробилку, выщелачивание, пруд и взрывы. */
   readonly weather: Weather;
+  /** Учёт электроэнергии по участкам. */
+  readonly energy = new EnergyMeter();
   private readonly windWarned = new Set<number>();
   /** ГПСЧ событий вождения (резкие торможения) — по потоку на самосвал. */
   private readonly driverRng: Rng[] = [];
@@ -725,6 +728,7 @@ export class Simulation {
     this.concentrate.update(this, dt);
     this.leach.update(this, dt);
     this.tailings.update(this, dt);
+    this.energy.update(this, dt);
     this.buildLaneOccupancy();
     for (const t of this.trucks) this.updateTruck(t, dt);
     for (const ex of this.excavators) this.updateExcavator(ex, dt);

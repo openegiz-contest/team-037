@@ -49,6 +49,7 @@ const KEY_METRICS: Record<string, string[]> = {
   'sxew-plant': ['cathode_total', 'cathode_tpd', 'ew_current', 'acid_total'],
   'tailings-dam': ['fill_pct', 'freeboard', 'pulp_flow', 'reclaim_flow', 'piezo', 'seepage'],
   'weather-station': ['sky', 'temp', 'wind', 'visibility', 'speed_factor', 'blast_ok'],
+  'power-meter': ['total_mw', 'peak_mw', 'kwh_per_t_ore', 'kwh_shift', 'plant_mw', 'sxew_mw'],
   'waste-dump': ['tonnes_total', 'queue'],
   garage: ['occupied', 'in_service', 'refueling'],
   'road-network': ['closed_count'],
@@ -67,7 +68,7 @@ const GROUPS: { title: string; kinds: string[] }[] = [
   { title: 'Самосвалы', kinds: ['haul-truck'] },
   { title: 'Переработка', kinds: ['crusher', 'stockpile', 'concentrator', 'concentrate-store', 'heap-leach', 'sxew-plant', 'waste-dump', 'tailings-dam'] },
   { title: 'Агрегаты цехов', kinds: ['unit'] },
-  { title: 'Погода и среда', kinds: ['weather-station'] },
+  { title: 'Погода и среда', kinds: ['weather-station', 'power-meter'] },
   { title: 'Инфраструктура', kinds: ['garage', 'road-network', 'blasting', 'shift-log'] },
 ];
 
@@ -191,6 +192,8 @@ function summary(r: TwinRecord): [string, keyof typeof TONE_COLOR] {
       return [`${Math.round(Number(v('tph') ?? 0)).toLocaleString('ru-RU')} т/ч`, Number(v('finished')) ? 'idle' : 'ok'];
     case 'heap-leach':
       return [`${Math.round(Number(v('tonnes_total') ?? 0)).toLocaleString('ru-RU')} т · полив ${v('cells_irrigated') ?? 0} карт · PLS ${v('pls_cu') ?? 0} г/л`, Number(v('queue')) > 1 ? 'warn' : 'ok'];
+    case 'power-meter':
+      return [`${v('total_mw') ?? 0} МВт · ${v('kwh_per_t_ore') ?? 0} кВт·ч/т руды`, 'ok'];
     case 'weather-station': {
       const vis = Number(v('visibility') ?? 0);
       return [`${v('sky') ?? ''} · ${v('temp') ?? 0} °C · ветер ${v('wind') ?? 0} м/с`, vis < 1000 ? 'warn' : 'ok'];
@@ -548,7 +551,7 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
             <div className="panel">
               <div className="flex items-center gap-3 border-b border-line px-4 py-2.5">
                 <div className="text-[13px] font-semibold">
-                  Датчики {({ excavator: 'на экскаваторе', 'haul-truck': 'на самосвале', crusher: 'на дробилке', concentrator: 'на фабрике', 'heap-leach': 'на площадке выщелачивания', 'sxew-plant': 'на заводе SX-EW', 'tailings-dam': 'на хвостохранилище', 'weather-station': 'на метеостанции', 'concentrate-store': 'на складе концентрата', 'waste-dump': 'на отвале', garage: 'в гараже', 'drill-rig': 'на буровом станке' } as Record<string, string>)[selKind]} <span className="font-normal text-ink-3">· {sensors.length} · attributes.sensors</span>
+                  Датчики {({ excavator: 'на экскаваторе', 'haul-truck': 'на самосвале', crusher: 'на дробилке', concentrator: 'на фабрике', 'heap-leach': 'на площадке выщелачивания', 'sxew-plant': 'на заводе SX-EW', 'tailings-dam': 'на хвостохранилище', 'weather-station': 'на метеостанции', 'power-meter': 'на подстанции', 'concentrate-store': 'на складе концентрата', 'waste-dump': 'на отвале', garage: 'в гараже', 'drill-rig': 'на буровом станке' } as Record<string, string>)[selKind]} <span className="font-normal text-ink-3">· {sensors.length} · attributes.sensors</span>
                 </div>
                 <span className="ml-auto text-[11.5px] text-ink-3">клик — показать признаки датчика в таблице ниже</span>
               </div>

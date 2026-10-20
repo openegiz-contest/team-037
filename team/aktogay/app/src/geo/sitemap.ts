@@ -451,10 +451,17 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       layer: 'utility',
       shape: { kind: 'rect', x: sub.x, y: sub.y, w: 160, h: 110, rot: 0 },
       fill: '#854d0e',
-      live: false,
+      live: true,
       about: 'Питание мельниц, дробилки, конвейеров, электролиза и карьерных сетей.',
       facts: ['основные потребители — мельницы фабрик (десятки МВт)'],
       label: 'Подстанция',
+      metrics: (s2) => [
+        ['Мощность сейчас', `${s2.energy.totalMw.toFixed(1)} МВт`],
+        ['Пик за смену', `${s2.energy.peakMw.toFixed(1)} МВт`],
+        ['Энергия за смену', `${fmt(s2.energy.totalKwh)} кВт·ч`],
+        ['Удельный расход', `${s2.energy.perTonneOre(s2).toFixed(1)} кВт·ч/т руды`],
+      ],
+      twin: 'energy',
     },
     {
       id: 'sub2',

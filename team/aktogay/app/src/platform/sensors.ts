@@ -329,6 +329,39 @@ export const LEACH_SENSORS: SensorSpec[] = [
   },
 ];
 
+export const ENERGY_SENSORS: SensorSpec[] = [
+  {
+    id: 'feeders',
+    name: 'Счётчики на ячейках подстанции',
+    hardware: 'многофункциональные счётчики на фидерах 35/6 кВ, трансформаторы тока и напряжения',
+    location: 'главная понизительная подстанция',
+    measures: 'активная мощность и энергия по каждому участку, МВт и кВт·ч',
+    features: ['total_mw', 'kwh_shift', 'plant_mw', 'crusher_mw', 'sxew_mw', 'tailings_mw', 'leach_mw', 'pit_mw', 'aux_mw'],
+    periodS: 60,
+    purpose: 'куда уходит энергия и сколько стоит смена',
+  },
+  {
+    id: 'quality',
+    name: 'Анализатор качества электроэнергии',
+    hardware: 'анализатор на вводе: пики нагрузки, коэффициент мощности, провалы напряжения',
+    location: 'ввод главной подстанции',
+    measures: 'пиковая мощность за смену, МВт',
+    features: ['peak_mw'],
+    periodS: 60,
+    purpose: 'пик нагрузки определяет плату за мощность',
+  },
+  {
+    id: 'specific',
+    name: 'Расчёт удельного расхода',
+    hardware: 'не прибор: расчёт двойника по счётчикам, конвейерным весам и выпуску меди',
+    location: 'энергоучёт',
+    measures: 'кВт·ч на тонну руды и на тонну меди',
+    features: ['kwh_per_t_ore', 'kwh_per_t_cu', 'idle_kwh'],
+    periodS: 60,
+    purpose: 'главный показатель энергоэффективности и цена простоя фабрики в энергии',
+  },
+];
+
 export const WEATHER_SENSORS: SensorSpec[] = [
   {
     id: 'ams',
@@ -680,6 +713,7 @@ export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   'sxew-plant': SXEW_SENSORS,
   'tailings-dam': TAILINGS_SENSORS,
   'weather-station': WEATHER_SENSORS,
+  'power-meter': ENERGY_SENSORS,
 };
 
 /** Компактная запись для attributes.sensors двойника в Ditto. */
@@ -699,3 +733,4 @@ export const concentrateSensorAttributes = () => sensorAttributes(CONCENTRATE_SE
 export const sxewSensorAttributes = () => sensorAttributes(SXEW_SENSORS);
 export const tailingsSensorAttributes = () => sensorAttributes(TAILINGS_SENSORS);
 export const weatherSensorAttributes = () => sensorAttributes(WEATHER_SENSORS);
+export const energySensorAttributes = () => sensorAttributes(ENERGY_SENSORS);

@@ -256,6 +256,8 @@ export interface SimConfig {
   economics: {
     /** Цена дизельного топлива, ₸/л. Оценка. */
     dieselKztPerL: number;
+    /** Тариф на электроэнергию для промышленности, ₸/кВт·ч. Оценка. */
+    energyKztPerKwh: number;
     /** Стоимость часа простоя самосвала (амортизация, зарплата, накладные), ₸/ч. Оценка. */
     truckIdleKztPerH: number;
     /** Стоимость часа простоя экскаватора, ₸/ч. Оценка. */
@@ -542,6 +544,7 @@ export const DEFAULT_CONFIG: SimConfig = {
   },
   economics: {
     dieselKztPerL: 310, // оценка, ₸/л
+    energyKztPerKwh: 25, // оценка, ₸/кВт·ч
     truckIdleKztPerH: 45_000, // оценка
     excavatorIdleKztPerH: 120_000, // оценка
     crusherDowntimeKztPerH: 15_000_000, // оценка: упущенная выручка при остановке ОФ

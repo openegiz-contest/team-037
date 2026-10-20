@@ -31,6 +31,8 @@ export function Mine3D({ sim, selection, onSelect, showControls = true, light = 
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<MineScene | null>(null);
   const [orbit, setOrbit] = useState(false);
+  /** Подписи на сцене: все сразу или только у объекта под курсором. */
+  const [labelsAll, setLabelsAll] = useState(true);
   const [follow, setFollow] = useState(false);
   const [full, setFull] = useState(false);
 
@@ -73,18 +75,22 @@ export function Mine3D({ sim, selection, onSelect, showControls = true, light = 
     el.addEventListener('dblclick', onDbl);
     // Над зданием — курсор «рука»: его можно открыть.
     let lastMove = 0;
+    const onLeave = () => sceneRef.current?.setHover(null);
     const onMove = (e: PointerEvent) => {
       if (e.buttons || performance.now() - lastMove < 80) return;
       lastMove = performance.now();
       el.style.cursor = onBuildingRef.current && scene.pickBuilding(e.clientX, e.clientY) ? 'pointer' : '';
+      scene.setHover(e.clientX, e.clientY);
     };
     el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerleave', onLeave);
     el.addEventListener('pointerdown', onDown);
     el.addEventListener('pointerup', onUp);
     return () => {
       el.removeEventListener('pointerdown', onDown);
       el.removeEventListener('pointerup', onUp);
       el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerleave', onLeave);
       el.removeEventListener('dblclick', onDbl);
       window.clearTimeout(buildingTimer);
       scene.dispose();
@@ -117,6 +123,7 @@ export function Mine3D({ sim, selection, onSelect, showControls = true, light = 
     if (selection?.kind !== 'truck') setFollow(false);
   }, [selection]);
 
+  useEffect(() => sceneRef.current?.setLabelMode(labelsAll ? 'all' : 'hover'), [labelsAll]);
   useEffect(() => sceneRef.current?.setAutoRotate(orbit), [orbit]);
   useEffect(() => sceneRef.current?.setFollow(follow), [follow]);
 
@@ -131,6 +138,13 @@ export function Mine3D({ sim, selection, onSelect, showControls = true, light = 
               {p.label}
             </button>
           ))}
+          <button
+            onClick={() => setLabelsAll((v) => !v)}
+            className={`${btn} ${labelsAll ? 'bg-black/55 text-ink-2 hover:text-ink' : 'bg-amber-500 text-black'}`}
+            title={labelsAll ? 'Скрыть подписи — показывать только у объекта под курсором' : 'Показать все подписи'}
+          >
+            {labelsAll ? '◌ Скрыть подписи' : '◉ Подписи по наведению'}
+          </button>
           <button onClick={() => setOrbit((o) => !o)} className={`${btn} ${orbit ? 'bg-amber-500 text-black' : 'bg-black/55 text-ink-2 hover:text-ink'}`}>
             ⟳ Облёт
           </button>

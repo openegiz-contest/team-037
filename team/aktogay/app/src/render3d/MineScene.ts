@@ -69,6 +69,8 @@ const LANE_OFFSET = 15;
 /** Что можно найти и к чему подлететь камерой. */
 export type FocusTarget = { kind: 'truck' | 'excavator' | 'drill'; id: number } | { kind: 'building'; id: BuildingKind };
 
+export type LabelMode = 'all' | 'hover';
+
 export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew' | 'tsf' | 'conc';
 
 const BG = '#0a1526';
@@ -140,7 +142,11 @@ export class MineScene {
   private stackerPath: THREE.Vector3[] = [];
   private reclaimPath: THREE.Vector3[] = [];
   private readonly stackerMat: THREE.MeshStandardMaterial;
-  private readonly panels: { obj: CSS2DObject; render: () => string }[] = [];
+  private readonly panels: { obj: CSS2DObject; render: () => string; owner?: THREE.Object3D }[] = [];
+  /** Подписи: все сразу или только у объекта под курсором. */
+  private labelMode: LabelMode = 'all';
+  private hoverRoot: THREE.Object3D | null = null;
+  private hoverPick: { kind: 'excavator' | 'drill'; id: number } | null = null;
   private readonly closures = new Map<string, THREE.Group>();
   private readonly blastViz = new Map<number, { grp: THREE.Group; zone: THREE.Mesh; lbl: CSS2DObject; boomAt: number | null; dust: THREE.Mesh; flash: THREE.Mesh }>();
   private readonly ro: ResizeObserver;
@@ -342,6 +348,7 @@ export class MineScene {
       store.root.userData = { building: 'conc' };
       this.scene.add(store.root);
       this.buildings.push(store.root);
+      this.concRoot = store.root;
       this.concRake = store.rake;
       this.concHeaps = store.heaps;
       this.concAt = store.root.position.clone();
@@ -446,6 +453,7 @@ export class MineScene {
       this.scene.add(lbl);
       this.panels.push({
         obj: lbl,
+        owner: this.stockpileCone,
         render: () => {
           const sp = sim.stockpile;
           const h = sp.t / (cfg.dumps.crusher.plantFeedTpm * 60);
@@ -519,13 +527,13 @@ export class MineScene {
     this.truckLabel = label('lbl3d sel');
     this.scene.add(this.truckLabel);
 
-    // Голографические информационные панели.
-    const panel = (pos: THREE.Vector3, render: () => string) => {
+    // Голографические информационные панели. owner — объект, по наведению на который панель видна.
+    const panel = (pos: THREE.Vector3, render: () => string, owner?: THREE.Object3D) => {
       const obj = label('holo');
       obj.position.copy(pos);
       this.scene.add(obj);
       // Подсказка: по клику на здание открывается его «внутренний двойник».
-      this.panels.push({ obj, render: () => `${render()}<div class="hint">▸ клик по зданию — что внутри</div>` });
+      this.panels.push({ obj, owner, render: () => `${render()}<div class="hint">▸ клик по зданию — что внутри</div>` });
     };
     const c = sim.crusher;
     panel(new THREE.Vector3(this.crusherPos.x, this.crusherPos.y + 240, this.crusherPos.z), () => {
@@ -540,41 +548,41 @@ export class MineScene {
           ? `<span class="${Math.abs(sim.feedGrade - cfg.grade.targetPct) <= cfg.grade.bandPct ? 'ok' : 'bad'}">${sim.feedGrade.toFixed(2)}%</span> (цель ${cfg.grade.targetPct}%)`
           : '—'
       }`;
-    });
+    }, this.crusher.root);
     panel(new THREE.Vector3(pp.x, plant.position.y + 240, pp.y), () => {
       const m = sim.stats.mined;
       return `<b>ОБОГАТИТЕЛЬНАЯ ФАБРИКА</b><br>Руда (сульфид): <span class="v">${fmtInt(m.sulfide)} т</span><br>Простой ОФ: <span class="${
         c.starvedSec > 0 ? 'bad' : 'v'
       }">${(c.starvedSec / 60).toFixed(1)} мин</span>`;
-    });
+    }, plant);
     const leachD = sim.dumps[1];
     panel(new THREE.Vector3(leach.position.x, leach.position.y + 110, leach.position.z), () => {
       const L = sim.leach;
       const wet = L.cells.filter((cl) => cl.irrigated).length;
       return `<b>КУЧНОЕ ВЫЩЕЛАЧИВАНИЕ</b><br>Оксид: <span class="v">${fmtInt(leachD.tonnes)} т</span><br>Полив: <span class="v">${wet} из ${L.irrigatingCount} карт</span>`;
-    });
+    }, leach);
     panel(new THREE.Vector3(ponds.position.x, ponds.position.y + 90, ponds.position.z), () => {
       const L = sim.leach;
       return `<b>ПРУДЫ РАСТВОРОВ</b><br>PLS: <span class="v">${fmtInt(L.plsM3h)} м³/ч</span><br>Медь: <span class="v">${L.plsGpl.toFixed(2)} г/л</span>`;
-    });
+    }, ponds);
     panel(new THREE.Vector3(this.concAt.x, this.concAt.y + 130, this.concAt.z), () => {
       const c2 = sim.concentrate;
       return `<b>СКЛАД КОНЦЕНТРАТА</b><br>На складе: <span class="v">${fmtInt(c2.stockT)} т</span><br>Вагонов в составе: <span class="v">${c2.wagons} из ${TRAIN_WAGONS}</span><br>Составов за смену: <span class="v">${c2.trains}</span>`;
-    });
+    }, this.concRoot);
     panel(new THREE.Vector3(cfg.sites.tsf.x, tsf.baseY + CREST_M + 150, cfg.sites.tsf.y), () => {
       const t = sim.tailings;
       const tone = t.status === 'alarm' ? 'bad' : t.status === 'watch' ? 'warn' : 'v';
       return `<b>ХВОСТОХРАНИЛИЩЕ</b><br>Пульпа: <span class="v">${fmtInt(t.pulpM3h)} м³/ч</span><br>Запас до гребня: <span class="${tone}">${t.freeboardM.toFixed(1)} м</span><br>Оборотная вода: <span class="v">${fmtInt(t.reclaimM3h)} м³/ч</span>`;
-    });
+    }, tsf.group);
     panel(new THREE.Vector3(sxew.position.x, sxew.position.y + 150, sxew.position.z), () => {
       const L = sim.leach;
       return `<b>ЗАВОД SX-EW</b><br>Катоды: <span class="v">${L.cathodeT.toFixed(1)} т</span><br>Ток серии: <span class="v">${L.ewKA.toFixed(1)} кА</span>`;
-    });
+    }, sxew);
     const wasteDumps = sim.dumps.filter((x) => x.material === 'waste');
     [dump, ...extraDumps].forEach((m, i) => {
       const wd = wasteDumps[i];
       if (!wd) return;
-      panel(new THREE.Vector3(m.position.x, m.position.y + 150, m.position.z), () => `<b>${wd.name.toUpperCase()}</b><br>Вскрыша: <span class="v">${fmtInt(wd.tonnes)} т</span>${wd.queue.length ? ` · очередь ${wd.queue.length}` : ''}`);
+      panel(new THREE.Vector3(m.position.x, m.position.y + 150, m.position.z), () => `<b>${wd.name.toUpperCase()}</b><br>Вскрыша: <span class="v">${fmtInt(wd.tonnes)} т</span>${wd.queue.length ? ` · очередь ${wd.queue.length}` : ''}`, m);
     });
 
     // Мягкое свечение фонарей, окон, колец статуса.
@@ -928,6 +936,7 @@ export class MineScene {
   private precip!: THREE.Points;
   private precipMat!: THREE.PointsMaterial;
   private readonly precipBase: Float32Array;
+  private concRoot!: THREE.Object3D;
   private concRake!: THREE.Group;
   private concHeaps: THREE.Mesh[] = [];
   private concAt = new THREE.Vector3();
@@ -955,6 +964,50 @@ export class MineScene {
   }
 
   /** Здание под курсором — для «внутреннего двойника». */
+  /** Режим подписей: все сразу или только под курсором. */
+  setLabelMode(mode: LabelMode): void {
+    this.labelMode = mode;
+    if (mode === 'all') {
+      this.hoverRoot = null;
+      this.hoverPick = null;
+    }
+    this.applyLabelMode();
+  }
+
+  /** Что сейчас под курсором — от этого зависит, какую подпись показать. */
+  setHover(clientX: number | null, clientY = 0): void {
+    if (this.labelMode === 'all') return;
+    if (clientX === null) {
+      this.hoverRoot = null;
+      this.hoverPick = null;
+    } else {
+      this.hoverRoot = this.pickBuildingRoot(clientX, clientY);
+      const sel = this.pick(clientX, clientY);
+      this.hoverPick = sel && sel.kind !== 'truck' ? { kind: sel.kind as 'excavator' | 'drill', id: sel.id } : null;
+    }
+    this.applyLabelMode();
+  }
+
+  /** Видимость подписей по текущему режиму. Аварийные метки видны всегда. */
+  private applyLabelMode(): void {
+    const all = this.labelMode === 'all';
+    for (const p of this.panels) p.obj.visible = all || (!!p.owner && p.owner === this.hoverRoot);
+    this.exLabels.forEach((l, i) => (l.visible = all || (this.hoverPick?.kind === 'excavator' && this.hoverPick.id === i)));
+    this.drillLabels.forEach((l, i) => (l.visible = all || (this.hoverPick?.kind === 'drill' && this.hoverPick.id === i)));
+  }
+
+  /** Корневой объект здания под курсором (у него в userData.building — вид здания). */
+  pickBuildingRoot(clientX: number, clientY: number): THREE.Object3D | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, this.camera);
+    const hit = ray.intersectObjects(this.buildings, true)[0];
+    let o: THREE.Object3D | null = hit?.object ?? null;
+    while (o && !o.userData.building) o = o.parent;
+    return o;
+  }
+
   pickBuilding(clientX: number, clientY: number): BuildingKind | null {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
@@ -1186,7 +1239,7 @@ export class MineScene {
     // Тексты панелей обновляем реже, чем кадры.
     if (now - this.lastPanel > 300) {
       this.lastPanel = now;
-      for (const p of this.panels) (p.obj.element as HTMLElement).innerHTML = p.render();
+      for (const p of this.panels) if (p.obj.visible) (p.obj.element as HTMLElement).innerHTML = p.render();
       sim.excavators.forEach((ex, i) => {
         const q = ex.queue.length;
         const st =
