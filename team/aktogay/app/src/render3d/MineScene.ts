@@ -548,6 +548,8 @@ export class MineScene {
       const sp = sim.stockpile;
       const starving = sp.t <= 0.01;
       const hours = sp.t / (cfg.dumps.crusher.plantFeedTpm * 60);
+      if (sim.powerCutLeft > 0)
+        return `<b>ДРОБИЛКА ККД</b><br><span class="bad">✖ ОБЕСТОЧЕНА</span> · ещё ${Math.ceil(sim.powerCutLeft / 60)} мин<br>Приёмный бункер: <span class="${c.binT / c.binCapT > 0.9 ? 'bad' : 'warn'}">${fmtInt(c.binT)} т (${Math.round((c.binT / c.binCapT) * 100)}%)</span><br>Самосвалы продолжают возить`;
       return `<b>ДРОБИЛКА ККД</b><br>Приёмный бункер: <span class="v">${fmtInt(c.binT)} т (${pct}%)</span><br>Склад: <span class="${starving ? 'bad' : hours < 0.5 ? 'warn' : 'v'}">${fmtInt(sp.t)} т · ${hours.toFixed(1)} ч</span><br>Статус ОФ: ${
         starving ? '<span class="bad">ПРОСТОЙ</span>' : '<span class="ok">РАБОТА</span>'
       }<br>Очередь: <span class="v">${c.queue.length}</span><br>Cu на ОФ: ${
@@ -558,6 +560,8 @@ export class MineScene {
     }, this.crusher.root);
     panel(new THREE.Vector3(pp.x, plant.position.y + 240, pp.y), () => {
       const m = sim.stats.mined;
+      if (sim.powerCutLeft > 0) return `<b>ОБОГАТИТЕЛЬНАЯ ФАБРИКА</b><br><span class="bad">✖ ОБЕСТОЧЕНА</span> · ещё ${Math.ceil(sim.powerCutLeft / 60)} мин<br>Мельницы и флотация стоят`;
+      if (sim.tailings.status === 'alarm') return `<b>ОБОГАТИТЕЛЬНАЯ ФАБРИКА</b><br><span class="bad">✖ ОСТАНОВЛЕНА</span><br>Запас до гребня дамбы ${sim.tailings.freeboardM.toFixed(2)} м —<br>намыв хвостов приостановлен`;
       return `<b>ОБОГАТИТЕЛЬНАЯ ФАБРИКА</b><br>Руда (сульфид): <span class="v">${fmtInt(m.sulfide)} т</span><br>Простой ОФ: <span class="${
         c.starvedSec > 0 ? 'bad' : 'v'
       }">${(c.starvedSec / 60).toFixed(1)} мин</span>`;
@@ -566,7 +570,8 @@ export class MineScene {
     panel(new THREE.Vector3(leach.position.x, leach.position.y + 110, leach.position.z), () => {
       const L = sim.leach;
       const wet = L.cells.filter((cl) => cl.irrigated).length;
-      return `<b>КУЧНОЕ ВЫЩЕЛАЧИВАНИЕ</b><br>Оксид: <span class="v">${fmtInt(leachD.tonnes)} т</span><br>Полив: <span class="v">${wet} из ${L.irrigatingCount} карт</span>`;
+      const hold = L.holdLeft > 0 ? `<br><span class="bad">✖ ОРОШЕНИЕ ОСТАНОВЛЕНО</span> · ещё ${Math.ceil(L.holdLeft / 60)} мин` : '';
+      return `<b>КУЧНОЕ ВЫЩЕЛАЧИВАНИЕ</b><br>Оксид: <span class="v">${fmtInt(leachD.tonnes)} т</span><br>Полив: <span class="${wet ? 'v' : 'bad'}">${wet} из ${L.irrigatingCount} карт</span>${hold}`;
     }, leach);
     panel(new THREE.Vector3(ponds.position.x, ponds.position.y + 90, ponds.position.z), () => {
       const L = sim.leach;
@@ -579,10 +584,13 @@ export class MineScene {
     panel(new THREE.Vector3(cfg.sites.tsf.x, tsf.baseY + sim.tailings.crestM + 150, cfg.sites.tsf.y), () => {
       const t = sim.tailings;
       const tone = t.status === 'alarm' ? 'bad' : t.status === 'watch' ? 'warn' : 'v';
-      return `<b>ХВОСТОХРАНИЛИЩЕ</b><br>Пульпа: <span class="v">${fmtInt(t.pulpM3h)} м³/ч</span><br>Запас до гребня: <span class="${tone}">${t.freeboardM.toFixed(1)} м</span><br>Оборотная вода: <span class="v">${fmtInt(t.reclaimM3h)} м³/ч</span>`;
+      const storm = t.stormM3h > 0 ? `<br><span class="warn">☔ Приток ${fmtInt(t.stormM3h)} м³/ч</span>` : '';
+      const stop = t.status === 'alarm' ? '<br><span class="bad">✖ НАМЫВ ПРИОСТАНОВЛЕН</span>' : '';
+      return `<b>ХВОСТОХРАНИЛИЩЕ</b><br>Пульпа: <span class="v">${fmtInt(t.pulpM3h)} м³/ч</span><br>Запас до гребня: <span class="${tone}">${t.freeboardM.toFixed(2)} м</span>${storm}${stop}<br>Оборотная вода: <span class="v">${fmtInt(t.reclaimM3h)} м³/ч</span>`;
     }, tsf.group);
     panel(new THREE.Vector3(sxew.position.x, sxew.position.y + 150, sxew.position.z), () => {
       const L = sim.leach;
+      if (sim.powerCutLeft > 0) return `<b>ЗАВОД SX-EW</b><br><span class="bad">✖ ОБЕСТОЧЕН</span><br>Электролиз стоит, медь копится в электролите`;
       return `<b>ЗАВОД SX-EW</b><br>Катоды: <span class="v">${L.cathodeT.toFixed(1)} т</span><br>Ток серии: <span class="v">${L.ewKA.toFixed(1)} кА</span>`;
     }, sxew);
     const wasteDumps = sim.dumps.filter((x) => x.material === 'waste');
@@ -703,6 +711,7 @@ export class MineScene {
    * мачты освещения и окна цехов. Зимой смена начинается и кончается в темноте.
    */
   private syncDaylight(sim: Simulation): void {
+    // Освещение зависит и от сценария «отключение энергии», поэтому sim нужен целиком.
     const hour = SHIFT_START_HOUR + sim.now / 3600;
     const d = daylight(sim.weather.month, hour);
     this.dayK = d.dayK;
@@ -711,7 +720,8 @@ export class MineScene {
     this.sun.intensity = d.sunIntensity;
     this.hemi.intensity = d.hemiIntensity;
     this.skyNow.copy(d.sky);
-    setNightLights(d.lampsK);
+    // При отключении энергии свет на площадке гаснет — это видно сразу, особенно ночью.
+    setNightLights(sim.powerCutLeft > 0 ? 0 : d.lampsK);
     for (const g of this.mastGlows) (g.material as THREE.SpriteMaterial).opacity = 0.15 + 0.85 * d.lampsK;
   }
 
@@ -1241,7 +1251,8 @@ export class MineScene {
     const fillCol = frac < 0.2 ? '#ef4444' : frac < 0.45 ? '#f59e0b' : '#22c55e';
     this.crusher.fillMat.color.set(fillCol);
     this.crusher.fillMat.emissive.set(fillCol);
-    const starving = sim.stockpile.t <= 0.01;
+    const cut = sim.powerCutLeft > 0;
+    const starving = sim.stockpile.t <= 0.01 || cut;
     this.syncStockpile(now);
     this.syncConcentrate(sim, now);
     this.syncDaylight(sim);

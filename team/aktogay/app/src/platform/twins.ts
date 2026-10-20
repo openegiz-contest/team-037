@@ -530,6 +530,7 @@ export function serializeLeach(sim: Simulation): Features {
     cells: f(L.cells.map((c) => `${c.stage}:${Math.round(c.oreT)}:${r(c.cuT, 10)}:${r(c.daysLeached, 1000)}:${r(c.cuLeachedT, 100)}`).join(';')),
     irrigation_group: f(L.activeGroup(sim.now) + 1),
     cells_irrigated: f(L.cells.filter((c) => c.irrigated).length, 'cells'),
+    irrigation_hold: f(Math.round(L.holdLeft), 's'),
     cells_irrigating: f(L.irrigatingCount, 'cells'),
     placed_total: f(Math.round(L.placedT), 't'),
     pls_flow: f(Math.round(L.plsM3h), 'm3/h'),
@@ -565,6 +566,7 @@ export function serializeEnergy(sim: Simulation): Features {
     kwh_per_t_cu: f(Math.round(e.perTonneCu(sim)), 'kWh/t'),
     idle_kwh: f(Math.round(e.idleKwh), 'kWh'),
     cost_kzt: f(Math.round(e.costKzt(sim)), 'KZT'),
+    power_cut: f(Math.round(sim.powerCutLeft), 's'),
     areas_kwh: f(e.areas.map((a) => `${a.id}:${Math.round(a.kwh)}`).join(';')),
     plant_mw: f(by('plant'), 'MW'),
     crusher_mw: f(by('crusher'), 'MW'),
@@ -613,6 +615,8 @@ export function serializeTailings(sim: Simulation): Features {
     makeup_water: f(Math.round(t.makeupM3), 'm3'),
     water_in: f(Math.round(t.waterInM3), 'm3'),
     melt_total: f(Math.round(t.meltM3), 'm3'),
+    storm_inflow: f(Math.round(t.stormM3h), 'm3/h'),
+    emergency_total: f(Math.round(t.emergencyM3), 'm3'),
     status: f(t.status),
   };
 }
@@ -1056,8 +1060,10 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
         c.daysLeached = Number(days) || 0;
         c.cuLeachedT = Number(done) || 0;
       });
+      L.holdLeft = num(fs, 'irrigation_hold', L.holdLeft);
       const g = L.activeGroup(sim.now);
-      L.cells.forEach((c) => (c.irrigated = c.stage === 'irrigating' && L.groupOf(c) === g));
+      const wet = L.holdLeft === 0 && sim.weather.irrigationOn;
+      L.cells.forEach((c) => (c.irrigated = wet && c.stage === 'irrigating' && L.groupOf(c) === g));
       L.placedT = num(fs, 'placed_total', L.placedT);
       L.plsM3h = num(fs, 'pls_flow', L.plsM3h);
       L.plsGpl = num(fs, 'pls_cu', L.plsGpl);
@@ -1070,6 +1076,7 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
       en.totalKwh = num(ef, 'kwh_shift', en.totalKwh);
       en.peakMw = num(ef, 'peak_mw', en.peakMw);
       en.idleKwh = num(ef, 'idle_kwh', en.idleKwh);
+      sim.powerCutLeft = num(ef, 'power_cut', sim.powerCutLeft);
       for (const part of str(ef, 'areas_kwh').split(';')) {
         const [aid, kwh] = part.split(':');
         const area = en.areas.find((a) => a.id === aid);
@@ -1097,6 +1104,8 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
       t.reclaimM3 = num(tl, 'reclaim_total', t.reclaimM3);
       t.makeupM3 = num(tl, 'makeup_water', t.makeupM3);
       t.waterInM3 = num(tl, 'water_in', t.waterInM3);
+      t.stormM3h = num(tl, 'storm_inflow', t.stormM3h);
+      t.emergencyM3 = num(tl, 'emergency_total', t.emergencyM3);
     }
     const sx = things.get(id.sxew);
     if (sx) {
