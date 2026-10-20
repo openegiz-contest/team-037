@@ -13,6 +13,8 @@ import { gradeAt, MATERIAL_SHORT, pitPointOf, pitScaleAt, type Blast, type Simul
 import { BLOCK_PAD } from '../sim/drilling';
 import { TRAIN_WAGONS } from '../sim/concentrate';
 import { CREST_M } from '../sim/tailings';
+import { SHIFT_START_HOUR } from '../sim/weather';
+import { daylight } from './daylight';
 import { isLive, smoothTruck } from '../render/smooth';
 import type { Selection } from '../render/drawMine';
 import { fmtInt } from '../ui/format';
@@ -29,6 +31,7 @@ import {
   makeSolutionPonds,
   makeSxEw,
   makeLightMast,
+  setNightLights,
   makeDrillRig,
   glowSprite,
   type DrillModel,
@@ -74,8 +77,7 @@ export type LabelMode = 'all' | 'hover';
 export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew' | 'tsf' | 'conc';
 
 const BG = '#0a1526';
-/** Оттенки дымки: обычная, снежная и пыльная. */
-const BG_COLOR = new THREE.Color(BG);
+/** Оттенки погодной дымки: снежная и пыльная. */
 const SNOW_HAZE = new THREE.Color('#c3cdd6');
 const DUST_HAZE = new THREE.Color('#c2a579');
 
@@ -146,6 +148,8 @@ export class MineScene {
   /** Подписи: все сразу или только у объекта под курсором. */
   private labelMode: LabelMode = 'all';
   private hoverRoot: THREE.Object3D | null = null;
+  /** Насколько сейчас светло: 0 — ночь, 1 — день. */
+  private dayK = 1;
   private hoverPick: { kind: 'excavator' | 'drill'; id: number } | null = null;
   private readonly closures = new Map<string, THREE.Group>();
   private readonly blastViz = new Map<number, { grp: THREE.Group; zone: THREE.Mesh; lbl: CSS2DObject; boomAt: number | null; dust: THREE.Mesh; flash: THREE.Mesh }>();
@@ -231,8 +235,10 @@ export class MineScene {
       this.precip.visible = false;
       this.scene.add(this.precip);
     }
-    this.scene.add(new THREE.HemisphereLight('#d6e6ff', '#3b2c1f', 1.25));
+    this.hemi = new THREE.HemisphereLight('#d6e6ff', '#3b2c1f', 1.25);
+    this.scene.add(this.hemi);
     const sun = new THREE.DirectionalLight('#ffe2b8', 2.6);
+    this.sun = sun;
     sun.position.set(-2200, 3200, 1800);
     sun.castShadow = !light;
     sun.shadow.mapSize.set(2048, 2048);
@@ -386,6 +392,8 @@ export class MineScene {
       const mast = makeLightMast();
       mast.position.set(x, this.heightAt(x, y), y);
       this.scene.add(mast);
+      const glow = mast.children.find((c) => c instanceof THREE.Sprite) as THREE.Sprite | undefined;
+      if (glow) this.mastGlows.push(glow);
     }
 
     // Склад дроблёной руды — на месте реального конуса (config.sites.stockpile); конвейер с дробилки
@@ -692,6 +700,23 @@ export class MineScene {
   }
 
   /**
+   * Время суток: солнце идёт по небу для широты рудника и дня года, к вечеру зажигаются
+   * мачты освещения и окна цехов. Зимой смена начинается и кончается в темноте.
+   */
+  private syncDaylight(sim: Simulation): void {
+    const hour = SHIFT_START_HOUR + sim.now / 3600;
+    const d = daylight(sim.weather.month, hour);
+    this.dayK = d.dayK;
+    this.sun.position.copy(d.dir).multiplyScalar(4200);
+    this.sun.color.copy(d.sunColor);
+    this.sun.intensity = d.sunIntensity;
+    this.hemi.intensity = d.hemiIntensity;
+    this.skyNow.copy(d.sky);
+    setNightLights(d.lampsK);
+    for (const g of this.mastGlows) (g.material as THREE.SpriteMaterial).opacity = 0.15 + 0.85 * d.lampsK;
+  }
+
+  /**
    * Погода на сцене: дымка по дальности видимости и осадки вокруг камеры. Снег и пыль сносит
    * ветром, поэтому частицы падают наискосок.
    */
@@ -701,7 +726,10 @@ export class MineScene {
     const far = Math.max(1400, Math.min(14000, w.visibilityM * 0.8));
     fog.far += (far - fog.far) * 0.05;
     fog.near = fog.far * 0.38;
-    const tint = w.sky === 'dust' ? DUST_HAZE : w.sky === 'snow' || w.sky === 'blizzard' || w.sky === 'fog' ? SNOW_HAZE : BG_COLOR;
+    // Небо: цвет времени суток, в непогоду к нему подмешивается дымка (ночью она тоже темнеет).
+    const haze = w.sky === 'dust' ? DUST_HAZE : w.sky === 'snow' || w.sky === 'blizzard' || w.sky === 'fog' ? SNOW_HAZE : null;
+    const hazeK = w.sky === 'blizzard' || w.sky === 'fog' ? 0.8 : w.sky === 'snow' || w.sky === 'dust' ? 0.55 : 0;
+    const tint = haze ? this.skyNow.clone().lerp(haze.clone().multiplyScalar(0.25 + 0.75 * this.dayK), hazeK) : this.skyNow;
     (this.scene.background as THREE.Color).lerp(tint, 0.05);
     fog.color.copy(this.scene.background as THREE.Color);
 
@@ -933,6 +961,12 @@ export class MineScene {
   }
   private lastDrillLabel = 0;
 
+  private readonly sun: THREE.DirectionalLight;
+  private readonly hemi: THREE.HemisphereLight;
+  /** Свечение ламп мачт освещения — гаснет днём. */
+  private readonly mastGlows: THREE.Sprite[] = [];
+  /** Цвет неба по времени суток: к нему подмешивается погодная дымка. */
+  private readonly skyNow = new THREE.Color(BG);
   private precip!: THREE.Points;
   private precipMat!: THREE.PointsMaterial;
   private readonly precipBase: Float32Array;
@@ -1211,6 +1245,7 @@ export class MineScene {
     const starving = sim.stockpile.t <= 0.01;
     this.syncStockpile(now);
     this.syncConcentrate(sim, now);
+    this.syncDaylight(sim);
     this.syncWeather(sim, now);
     // Зеркало пруда хвостохранилища — по отметке пляжа и уровню воды из модели.
     this.tsfWater.position.y = this.tsfBaseY + sim.tailings.beachM + sim.tailings.pondM;

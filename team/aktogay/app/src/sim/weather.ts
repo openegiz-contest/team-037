@@ -61,8 +61,8 @@ export function seasonOf(month: number): Season {
   return 'autumn';
 }
 
-/** Смена начинается в 8 утра — от этого считается суточный ход температуры. */
-const SHIFT_START_HOUR = 8;
+/** Смена начинается в 8 утра — от этого считается суточный ход температуры и положение солнца. */
+export const SHIFT_START_HOUR = 8;
 /** Как долго держится одна погода, с. */
 const SPELL_MIN = 30 * 60;
 const SPELL_MAX = 75 * 60;

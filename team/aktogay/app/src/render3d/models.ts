@@ -77,6 +77,16 @@ function railing(x0: number, z0: number, x1: number, z1: number, y: number, h: n
 /** Камень (общая геометрия для россыпи, кузовов и конвейера). */
 export const ROCK_GEO = new THREE.DodecahedronGeometry(1, 0);
 
+/**
+ * Искусственное освещение: лампы мачт, окна цехов и остекление кабин. Днём гасим, к вечеру
+ * зажигаем — материалы общие, поэтому весь рудник переключается разом.
+ */
+export function setNightLights(k: number): void {
+  MAT.lamp.emissiveIntensity = 0.12 + 2.9 * k;
+  MAT.window.emissiveIntensity = 0.1 + 2.1 * k;
+  MAT.glass.emissiveIntensity = 0.12 + 0.5 * k;
+}
+
 /** Кольцо-подсветка на земле под объектом (цвет состояния), светится через bloom. */
 export function groundRing(r: number): THREE.Mesh {
   const m = new THREE.Mesh(
