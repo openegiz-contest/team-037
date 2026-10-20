@@ -20,9 +20,25 @@ export const KIND_LABEL: Record<string, string> = {
   orebody: 'Геология',
   'concentrate-store': 'Склад концентрата',
   'sxew-plant': 'Завод SX-EW',
+  'tailings-dam': 'Хвостохранилище',
 };
 
 export const FEATURE_LABEL: Record<string, string> = {
+  // хвостохранилище
+  stored_t: 'Накоплено хвостов в чаше',
+  fill_pct: 'Заполнение чаши',
+  tails_shift: 'Уложено хвостов за смену',
+  pulp_flow: 'Расход пульпы',
+  solids_tph: 'Твёрдого в пульпе',
+  beach: 'Отметка намытого пляжа',
+  pond_level: 'Уровень пруда оборотной воды',
+  freeboard: 'Запас до гребня дамбы',
+  seepage: 'Фильтрация в дренаж',
+  piezo: 'Насыщение тела дамбы (пьезометры)',
+  reclaim_flow: 'Оборотная вода на фабрику',
+  reclaim_total: 'Вернулось воды за смену',
+  makeup_water: 'Забрано свежей воды',
+  water_in: 'Воды пришло с пульпой',
   // кучное выщелачивание и SX-EW
   cells: 'Карты (стадия:руда:медь:сутки:извлечено)',
   irrigation_group: 'Поливается группа карт',

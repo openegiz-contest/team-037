@@ -262,7 +262,7 @@ export function buildMine(cfg: SimConfig): MineLayout {
   const parking = buildParking(g, garage.node);
 
   // Границы с запасом под площадки (их контуры рисуются дальше от карьера, чем узел дороги).
-  const extra = [cfg.sites.plant, cfg.sites.leach, cfg.sites.waste, ...cfg.sites.wasteExtra, cfg.sites.garage].flatMap((p) => {
+  const extra = [cfg.sites.plant, cfg.sites.leach, cfg.sites.waste, ...cfg.sites.wasteExtra, cfg.sites.garage, ...cfg.sites.tsfOutline.map(([x, y]) => ({ x, y }))].flatMap((p) => {
     const l = Math.hypot(p.x, p.y) || 1;
     return [p, { x: p.x + (p.x / l) * 420, y: p.y + (p.y / l) * 420 }];
   });

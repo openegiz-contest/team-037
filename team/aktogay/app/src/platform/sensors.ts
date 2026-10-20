@@ -329,6 +329,59 @@ export const LEACH_SENSORS: SensorSpec[] = [
   },
 ];
 
+export const TAILINGS_SENSORS: SensorSpec[] = [
+  {
+    id: 'pulp_line',
+    name: 'Плотномер и расходомер пульпопровода',
+    hardware: 'радиоизотопный плотномер + электромагнитный расходомер на напорном пульпопроводе',
+    location: 'насосная станция хвостов на фабрике',
+    measures: 'расход пульпы, м³/ч, и доля твёрдого в ней',
+    features: ['pulp_flow', 'solids_tph', 'tails_shift'],
+    periodS: 10,
+    purpose: 'сколько хвостов уходит в чашу и с какой плотностью',
+  },
+  {
+    id: 'piezo',
+    name: 'Пьезометры в теле дамбы',
+    hardware: 'струнные пьезометры в скважинах по створам дамбы',
+    location: 'ограждающая дамба, контрольные створы',
+    measures: 'поровое давление — насыщение тела дамбы, % от критического',
+    features: ['piezo'],
+    periodS: 600,
+    purpose: 'главный признак устойчивости: чем выше насыщение, тем опаснее',
+  },
+  {
+    id: 'pond_level',
+    name: 'Уровнемер пруда оборотной воды',
+    hardware: 'радарный уровнемер на водозаборной башне + рейки на откосе',
+    location: 'пруд отстоявшейся воды',
+    measures: 'уровень пруда и запас до гребня дамбы, м',
+    features: ['pond_level', 'freeboard', 'beach'],
+    periodS: 60,
+    purpose: 'запас до гребня — по нему решают, можно ли продолжать намыв',
+  },
+  {
+    id: 'seepage',
+    name: 'Замерный лоток фильтрации',
+    hardware: 'водослив с тонкой стенкой и уровнемер в дренажной канаве',
+    location: 'низовой откос дамбы, дренажный коллектор',
+    measures: 'расход профильтровавшейся воды, л/мин',
+    features: ['seepage'],
+    periodS: 600,
+    purpose: 'рост фильтрации — ранний признак проблем с дамбой',
+  },
+  {
+    id: 'reclaim',
+    name: 'Учёт оборотной воды',
+    hardware: 'расходомеры на насосной оборотного водоснабжения и на водоводе свежей воды',
+    location: 'насосная станция оборотной воды',
+    measures: 'сколько воды вернулось на фабрику и сколько добрали свежей, м³',
+    features: ['reclaim_flow', 'reclaim_total', 'makeup_water', 'water_in'],
+    periodS: 60,
+    purpose: 'водный баланс фабрики: оборотная вода вместо свежей',
+  },
+];
+
 export const SXEW_SENSORS: SensorSpec[] = [
   {
     id: 'rectifier',
@@ -592,6 +645,7 @@ export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   orebody: GEOLOGY_SENSORS,
   'concentrate-store': CONCENTRATE_SENSORS,
   'sxew-plant': SXEW_SENSORS,
+  'tailings-dam': TAILINGS_SENSORS,
 };
 
 /** Компактная запись для attributes.sensors двойника в Ditto. */
@@ -609,3 +663,4 @@ export const stockpileSensorAttributes = () => sensorAttributes(STOCKPILE_SENSOR
 export const geologySensorAttributes = () => sensorAttributes(GEOLOGY_SENSORS);
 export const concentrateSensorAttributes = () => sensorAttributes(CONCENTRATE_SENSORS);
 export const sxewSensorAttributes = () => sensorAttributes(SXEW_SENSORS);
+export const tailingsSensorAttributes = () => sensorAttributes(TAILINGS_SENSORS);

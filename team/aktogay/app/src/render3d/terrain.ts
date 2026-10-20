@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { pitPointOf, type SimConfig, type Simulation } from '../sim';
 import { ROCK_GEO } from './models';
+import { CREST_M } from '../sim/tailings';
 import { BERM, makeHeightAt, PIT_DEPTH, pitAt, pitsBounds, smoothstep } from '../geo/relief';
 
 export { makeHeightAt, PIT_DEPTH } from '../geo/relief';
@@ -48,21 +49,35 @@ export interface Pad {
   halfAcross: number;
 }
 
+/**
+ * Все отрезки дорог для рельефа и отрисовки: дороги графа маршрутов плюс служебные из конфига
+ * (по служебным самосвалы не ездят, но в рельеф они врезаны и на сцене видны).
+ */
+export function roadSegments(sim: Simulation): { ax: number; ay: number; bx: number; by: number; kind: string }[] {
+  const g = sim.layout.graph;
+  const out: { ax: number; ay: number; bx: number; by: number; kind: string }[] = [];
+  for (const e of g.edges) {
+    if (e.kind === 'lot' || e.kind === 'park') continue;
+    out.push({ ax: g.nodes[e.a].x, ay: g.nodes[e.a].y, bx: g.nodes[e.b].x, by: g.nodes[e.b].y, kind: e.kind });
+  }
+  for (const r of sim.cfg.serviceRoads ?? [])
+    for (let i = 0; i + 1 < r.pts.length; i++) out.push({ ax: r.pts[i][0], ay: r.pts[i][1], bx: r.pts[i + 1][0], by: r.pts[i + 1][1], kind: 'service' });
+  return out;
+}
+
 export function makeRoadHeightAt(
   sim: Simulation,
   base: (x: number, y: number) => number,
   pads: Pad[] = [],
 ): (x: number, y: number) => number {
-  const g = sim.layout.graph;
   type Seg = { ax: number; ay: number; vx: number; vy: number; l2: number; ha: number; hb: number; half: number };
   const grid = new Map<number, Seg[]>();
   const key = (i: number, j: number) => i * 100003 + j;
   // Ровные площадки (буровые блоки на рабочем уступе): высота — по центру площадки.
   const padList = pads.map((p) => ({ ...p, h: base(p.x, p.y), r: Math.hypot(p.halfAlong, p.halfAcross) + SHOULDER }));
-  for (const e of g.edges) {
-    if (e.kind === 'lot' || e.kind === 'park') continue;
-    const a = g.nodes[e.a];
-    const b = g.nodes[e.b];
+  for (const e of roadSegments(sim)) {
+    const a = { x: e.ax, y: e.ay };
+    const b = { x: e.bx, y: e.by };
     const half = roadWidth(e.kind) / 2;
     const seg: Seg = { ax: a.x, ay: a.y, vx: b.x - a.x, vy: b.y - a.y, l2: (b.x - a.x) ** 2 + (b.y - a.y) ** 2 || 1, ha: base(a.x, a.y), hb: base(b.x, b.y), half };
     const r = half + SHOULDER;
@@ -228,34 +243,147 @@ export function buildWater(cfg: SimConfig): THREE.Group {
 }
 
 /** Ширина дороги, м сцены: съезды шире (двустороннее движение карьерных самосвалов). */
+/**
+ * Хвостохранилище: ограждающая дамба по реальному контуру чаши (OpenStreetMap), намытый пляж
+ * хвостов и пруд оборотной воды. Низовой откос ложится на рельеф, гребень ровный — как у настоящей
+ * дамбы; отметки пляжа и пруда берутся из модели, поэтому зеркало воды живое.
+ */
+export function buildTailings(sim: Simulation, heightAt: (x: number, y: number) => number): { group: THREE.Group; water: THREE.Mesh; crest: THREE.Vector3[]; baseY: number } {
+  const out = sim.cfg.sites.tsfOutline;
+  const cx = out.reduce((a, p) => a + p[0], 0) / out.length;
+  const cy = out.reduce((a, p) => a + p[1], 0) / out.length;
+  const ringXY = (k: number) => out.map(([x, y]) => [cx + (x - cx) * k, cy + (y - cy) * k] as [number, number]);
+  const lift = (pts: [number, number][], y: number | null) => pts.map(([x, z]) => new THREE.Vector3(x, y ?? heightAt(x, z), z));
+
+  // Отметка подошвы: берём самую высокую точку рельефа внутри контура, чтобы намытый пляж
+  // накрыл естественные бугры в чаше, а дамба стояла выше всего, что внутри.
+  const samples: number[] = [heightAt(cx, cy)];
+  for (const k of [0.3, 0.55, 0.8, 1]) for (const [x, y] of ringXY(k)) samples.push(heightAt(x, y));
+  const baseY = Math.max(...samples);
+  const t = sim.tailings;
+  const crestY = baseY + CREST_M;
+  const beachY = baseY + t.beachM;
+  const waterY = beachY + t.pondM;
+
+  const toe = lift(ringXY(1.0), null);
+  const crestOut = lift(ringXY(0.962), crestY);
+  const crestIn = lift(ringXY(0.945), crestY);
+  const beachEdge = lift(ringXY(0.925), beachY);
+
+  const pos: number[] = [];
+  const col: number[] = [];
+  const idx: number[] = [];
+  const push = (v: THREE.Vector3, c: THREE.Color) => {
+    pos.push(v.x, v.y, v.z);
+    col.push(c.r, c.g, c.b);
+    return pos.length / 3 - 1;
+  };
+  const strip = (a: THREE.Vector3[], b: THREE.Vector3[], ca: THREE.Color, cb: THREE.Color) => {
+    const n = a.length;
+    const base = pos.length / 3;
+    for (let i = 0; i < n; i++) {
+      push(a[i], ca);
+      push(b[i], cb);
+    }
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      idx.push(base + i * 2, base + j * 2, base + i * 2 + 1, base + i * 2 + 1, base + j * 2, base + j * 2 + 1);
+    }
+  };
+  const fan = (ring: THREE.Vector3[], y: number, c: THREE.Color) => {
+    const centre = push(new THREE.Vector3(cx, y, cy), c);
+    const base = pos.length / 3;
+    for (const v of ring) push(v, c);
+    for (let i = 0; i < ring.length; i++) idx.push(centre, base + i, base + ((i + 1) % ring.length));
+  };
+
+  const cSlope = new THREE.Color('#8d7a62');
+  const cCrest = new THREE.Color('#b3a287');
+  const cInner = new THREE.Color('#9a8c77');
+  const cBeach = new THREE.Color('#c4b9a4');
+  strip(toe, crestOut, cSlope, cCrest); // низовой откос
+  strip(crestOut, crestIn, cCrest, cCrest); // гребень
+  strip(crestIn, beachEdge, cInner, cBeach); // верховой откос
+  fan(beachEdge, beachY, cBeach); // намытый пляж
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const dam = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }));
+  dam.castShadow = true;
+  dam.receiveShadow = true;
+  const group = new THREE.Group();
+  group.add(dam);
+
+  // Пруд отстоявшейся воды в низине чаши — зеркало живое: отметка от уровня пруда в модели.
+  const pondXY = ringXY(0.58);
+  // Плоскость строим в координатах (x, −z): после поворота на −90° она ложится лицом вверх.
+  const shape = new THREE.Shape(pondXY.map(([x, y]) => new THREE.Vector2(x, -y)));
+  const water = new THREE.Mesh(new THREE.ShapeGeometry(shape), new THREE.MeshStandardMaterial({ color: '#2d6f7d', roughness: 0.08, metalness: 0.35 }));
+  water.rotation.x = -Math.PI / 2;
+  water.position.y = waterY;
+  water.receiveShadow = true;
+  group.add(water);
+
+  // Распределительный пульпопровод по гребню и выпуски (спиготы) внутрь чаши.
+  const steel = new THREE.MeshStandardMaterial({ color: '#7f8893', metalness: 0.4, roughness: 0.5 });
+  const crestCurve = new THREE.CatmullRomCurve3(crestIn.map((v) => v.clone().setY(crestY + 3)), true);
+  group.add(new THREE.Mesh(new THREE.TubeGeometry(crestCurve, crestIn.length * 3, 1.9, 7, true), steel));
+  for (let i = 0; i < crestIn.length; i += 3) {
+    const a = crestIn[i];
+    const dir = new THREE.Vector3(cx - a.x, 0, cy - a.z).normalize();
+    const sp = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 16, 6), steel);
+    sp.position.set(a.x + dir.x * 10, crestY - 4, a.z + dir.z * 10);
+    sp.rotation.z = Math.PI / 2.6;
+    group.add(sp);
+  }
+
+  // Водозаборная башня оборотной воды у пруда и насосная на гребне рядом с ней.
+  const tw = pondXY[Math.floor(pondXY.length * 0.55)];
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(9, 11, Math.max(14, waterY - baseY + 16), 12), new THREE.MeshStandardMaterial({ color: '#b8b5ad', roughness: 0.85 }));
+  tower.position.set(tw[0], baseY + Math.max(14, waterY - baseY + 16) / 2, tw[1]);
+  tower.castShadow = true;
+  group.add(tower);
+  const pump = new THREE.Mesh(new THREE.BoxGeometry(46, 16, 30), new THREE.MeshStandardMaterial({ color: '#cfd2d6', roughness: 0.7 }));
+  const pumpAt = crestIn[Math.floor(crestIn.length * 0.55)];
+  pump.position.set(pumpAt.x, crestY + 8, pumpAt.z);
+  pump.castShadow = true;
+  group.add(pump);
+
+  return { group, water, crest: crestIn, baseY };
+}
+
 export function roadWidth(kind: string): number {
+  if (kind === 'service') return 36;
   return kind === 'ramp' ? 78 : kind === 'surface' || kind === 'rim' ? 70 : 62;
 }
 
 /** Ленты дорог по рёбрам графа, повторяющие рельеф. */
 export function buildRoads(sim: Simulation, heightAt: (x: number, y: number) => number): THREE.Mesh {
-  const g = sim.layout.graph;
   const pos: number[] = [];
   const col: number[] = [];
   const idx: number[] = [];
   const cRamp = new THREE.Color('#e3d0a6');
   const cRing = new THREE.Color('#cdb88f');
   const cSurf = new THREE.Color('#ddc79c');
-  for (const e of g.edges) {
-    if (e.kind === 'lot' || e.kind === 'park') continue;
-    const a = g.nodes[e.a];
-    const b = g.nodes[e.b];
+  const cServ = new THREE.Color('#c4b393');
+  for (const e of roadSegments(sim)) {
+    const a = { x: e.ax, y: e.ay };
+    const b = { x: e.bx, y: e.by };
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
     const width = roadWidth(e.kind);
-    const color = e.kind === 'ramp' ? cRamp : e.kind === 'surface' || e.kind === 'rim' ? cSurf : cRing;
-    const segs = Math.max(1, Math.ceil(e.len / 20));
-    const dx = (b.x - a.x) / e.len;
-    const dy = (b.y - a.y) / e.len;
+    const color = e.kind === 'ramp' ? cRamp : e.kind === 'service' ? cServ : e.kind === 'surface' || e.kind === 'rim' ? cSurf : cRing;
+    const segs = Math.max(1, Math.ceil(len / 20));
+    const dx = (b.x - a.x) / len;
+    const dy = (b.y - a.y) / len;
     const nx = -dy * (width / 2);
     const ny = dx * (width / 2);
     const base = pos.length / 3;
     for (let i = 0; i <= segs; i++) {
       const t = i / segs;
-      const ext = (i === 0 ? -width / 2 : i === segs ? width / 2 : 0) / e.len;
+      const ext = (i === 0 ? -width / 2 : i === segs ? width / 2 : 0) / len;
       const x = a.x + (b.x - a.x) * (t + ext);
       const y = a.y + (b.y - a.y) * (t + ext);
       const h = heightAt(x, y) + 2.2;

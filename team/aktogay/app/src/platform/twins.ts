@@ -14,12 +14,13 @@ import type { Kpis } from '../sim/kpi';
 import type { Simulation } from '../sim/engine';
 import { MATERIALS, TRUCK_STATES, type Blast, type Destination, type FailureType, type Material, type StrategyName, type TruckState } from '../sim/types';
 import { gradeAt } from '../sim/ore';
+import { CAPACITY_MT, CREST_M, FREEBOARD_MIN_M, POND_AREA_M2, RECYCLE_PCT, SOLIDS_PCT } from '../sim/tailings';
 import { CELL_CAP_T, EW_CELLS, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, LEACH_DAYS, OXIDE_GRADE_PCT, REC_MAX, SX_EFFICIENCY, type CellStage } from '../sim/leach';
 import { CONC_GRADE, TRAIN_WAGONS, WAGON_LOAD_SEC, WAGON_T } from '../sim/concentrate';
 import { BENCH_M, BLOCK_M, blockSummary, buildOreModel, CUTOFF, DENSITY, holeAssays, pitResources, type OreModel } from '../geo/orebody';
 import { PIT_DEPTH } from '../geo/relief';
 import { UNIT_DEFS, type UnitState } from '../sim/equipment';
-import { sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
+import { tailingsSensorAttributes, sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -45,6 +46,7 @@ export const thingIds = (v: StrategyName) => {
     geology: `${ns}:geology`,
     concentrate: `${ns}:concentrate`,
     sxew: `${ns}:sxew`,
+    tailings: `${ns}:tailings`,
     unit: (key: string) => `${ns}:${key}`,
     drill: (i: number) => `${ns}:drill-${i + 1}`,
   };
@@ -189,6 +191,24 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
       sensors: leachSensorAttributes(),
     },
     features: serializeLeach(sim),
+  };
+  out[id.tailings] = {
+    policyId: POLICY,
+    attributes: {
+      name: 'Хвостохранилище',
+      kind: 'tailings-dam',
+      _isType: false,
+      _parents: parent,
+      capacity_mt: CAPACITY_MT,
+      crest_m: CREST_M,
+      freeboard_min_m: FREEBOARD_MIN_M,
+      solids_pct: SOLIDS_PCT,
+      recycle_pct: RECYCLE_PCT,
+      fed_from: id.plant,
+      note: 'ёмкость и отметки — оценки по контуру чаши со снимка; фильтрационный расчёт не ведётся',
+      sensors: tailingsSensorAttributes(),
+    },
+    features: serializeTailings(sim),
   };
   out[id.sxew] = {
     policyId: POLICY,
@@ -466,6 +486,29 @@ export function serializeLeach(sim: Simulation): Features {
   };
 }
 
+/** Хвостохранилище: пульпа, чаша, пруд оборотной воды и контроль дамбы. */
+export function serializeTailings(sim: Simulation): Features {
+  const t = sim.tailings;
+  const r = (x: number, k = 1) => Math.round(x * k) / k;
+  return {
+    stored_t: f(Math.round(t.storedT), 't'),
+    fill_pct: f(r(t.fillPct, 10), '%'),
+    tails_shift: f(Math.round(t.tailsT), 't'),
+    pulp_flow: f(Math.round(t.pulpM3h), 'm3/h'),
+    solids_tph: f(Math.round(t.solidsTph), 't/h'),
+    beach: f(r(t.beachM, 10), 'm'),
+    pond_level: f(r(t.pondM, 100), 'm'),
+    freeboard: f(r(t.freeboardM, 10), 'm'),
+    seepage: f(Math.round(t.seepageLpm), 'l/min'),
+    piezo: f(Math.round(t.piezoPct), '%'),
+    reclaim_flow: f(Math.round(t.reclaimM3h), 'm3/h'),
+    reclaim_total: f(Math.round(t.reclaimM3), 'm3'),
+    makeup_water: f(Math.round(t.makeupM3), 'm3'),
+    water_in: f(Math.round(t.waterInM3), 'm3'),
+    status: f(t.status),
+  };
+}
+
 /** Завод SX-EW. */
 export function serializeSxew(sim: Simulation): Features {
   const L = sim.leach;
@@ -655,6 +698,7 @@ export function serializeAll(sim: Simulation, v: StrategyName, k: Kpis): Record<
   out[id.plant] = serializePlant(sim);
   out[id.leach] = serializeLeach(sim);
   out[id.sxew] = serializeSxew(sim);
+  out[id.tailings] = serializeTailings(sim);
   out[id.waste] = serializeWaste(sim);
   out[id.garage] = serializeGarage(sim);
   out[id.roads] = serializeRoads(sim);
@@ -907,6 +951,19 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
       L.plsGpl = num(fs, 'pls_cu', L.plsGpl);
       L.cuLeachedT = num(fs, 'cu_leached_total', L.cuLeachedT);
       L.syncedOxideT = d.tonnes;
+    }
+    const tl = things.get(id.tailings);
+    if (tl) {
+      const t = sim.tailings;
+      t.storedT = num(tl, 'stored_t', t.storedT);
+      t.tailsT = num(tl, 'tails_shift', t.tailsT);
+      t.pulpM3h = num(tl, 'pulp_flow', t.pulpM3h);
+      t.solidsTph = num(tl, 'solids_tph', t.solidsTph);
+      t.pondV = num(tl, 'pond_level', t.pondM) * POND_AREA_M2;
+      t.reclaimM3h = num(tl, 'reclaim_flow', t.reclaimM3h);
+      t.reclaimM3 = num(tl, 'reclaim_total', t.reclaimM3);
+      t.makeupM3 = num(tl, 'makeup_water', t.makeupM3);
+      t.waterInM3 = num(tl, 'water_in', t.waterInM3);
     }
     const sx = things.get(id.sxew);
     if (sx) {

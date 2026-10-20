@@ -11,6 +11,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { gradeAt, MATERIAL_SHORT, pitPointOf, pitScaleAt, type Blast, type Simulation, type TruckState } from '../sim';
 import { BLOCK_PAD } from '../sim/drilling';
+import { CREST_M } from '../sim/tailings';
 import { isLive, smoothTruck } from '../render/smooth';
 import type { Selection } from '../render/drawMine';
 import { fmtInt } from '../ui/format';
@@ -35,7 +36,7 @@ import {
   type ExcavatorModel,
   type TruckModel,
 } from './models';
-import { blockBounds, buildRoads, buildTerrain, buildWater, makeHeightAt, makeRoadHeightAt, roadWidth, scatterRocks, type Block } from './terrain';
+import { blockBounds, buildRoads, buildTailings, buildTerrain, buildWater, makeHeightAt, makeRoadHeightAt, roadWidth, scatterRocks, type Block } from './terrain';
 
 export type CameraPreset = 'overview' | 'crusher' | 'bottom' | 'side';
 /** Здания, у которых есть «внутренний двойник» (мнемосхема). */
@@ -65,7 +66,7 @@ const LANE_OFFSET = 15;
 /** Что можно найти и к чему подлететь камерой. */
 export type FocusTarget = { kind: 'truck' | 'excavator' | 'drill'; id: number } | { kind: 'building'; id: BuildingKind };
 
-export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew';
+export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew' | 'tsf';
 
 const BG = '#0a1526';
 
@@ -300,6 +301,19 @@ export class MineScene {
     this.addPipe(cfg.sites.ponds, cfg.sites.sxew, '#2f9e8f', 7);
     this.addPipe(cfg.sites.sxew, cfg.sites.leach, '#4a86a8', 13);
 
+    // Хвостохранилище: хвосты флотации идут пульпопроводом в чашу, осветлённая вода — обратно
+    // на фабрику. Обе нитки на общей эстакаде, одна над другой.
+    const tsf = buildTailings(sim, this.heightAt);
+    tsf.group.userData = { building: 'tsf' };
+    this.scene.add(tsf.group);
+    this.buildings.push(tsf.group);
+    this.tsfWater = tsf.water;
+    this.tsfBaseY = tsf.baseY;
+    const inlet = tsf.crest.reduce((best, v) => (Math.hypot(v.x - pp.x, v.z - pp.y) < Math.hypot(best.x - pp.x, best.z - pp.y) ? v : best), tsf.crest[0]);
+    const pulpRoute = [{ x: pp.x, y: pp.y }, ...cfg.sites.pulpVia, { x: inlet.x, y: inlet.z }];
+    this.addPipePath(pulpRoute, '#8a7f70', 6);
+    this.addPipePath(pulpRoute, '#3f7f9a', 13);
+
     // Россыпь камней (в стороне от дорог и площадок) и мачты освещения по бровке.
     const avoid = [
       { x: this.crusherPos.x, y: this.crusherPos.z, r: 180 },
@@ -307,6 +321,7 @@ export class MineScene {
       { x: leach.position.x, y: leach.position.z, r: 320 },
       { x: cfg.sites.ponds.x, y: cfg.sites.ponds.y, r: 330 },
       { x: cfg.sites.sxew.x, y: cfg.sites.sxew.y, r: 330 },
+      { x: cfg.sites.tsf.x, y: cfg.sites.tsf.y, r: 1700 },
       { x: dump.position.x, y: dump.position.z, r: 320 },
       { x: garage.position.x, y: garage.position.z, r: 170 },
       { x: sim.parkingSlot(2 * sim.parking.cols + 2).x, y: sim.parkingSlot(2 * sim.parking.cols + 2).y, r: 460 },
@@ -497,6 +512,11 @@ export class MineScene {
       const L = sim.leach;
       return `<b>ПРУДЫ РАСТВОРОВ</b><br>PLS: <span class="v">${fmtInt(L.plsM3h)} м³/ч</span><br>Медь: <span class="v">${L.plsGpl.toFixed(2)} г/л</span>`;
     });
+    panel(new THREE.Vector3(cfg.sites.tsf.x, tsf.baseY + CREST_M + 150, cfg.sites.tsf.y), () => {
+      const t = sim.tailings;
+      const tone = t.status === 'alarm' ? 'bad' : t.status === 'watch' ? 'warn' : 'v';
+      return `<b>ХВОСТОХРАНИЛИЩЕ</b><br>Пульпа: <span class="v">${fmtInt(t.pulpM3h)} м³/ч</span><br>Запас до гребня: <span class="${tone}">${t.freeboardM.toFixed(1)} м</span><br>Оборотная вода: <span class="v">${fmtInt(t.reclaimM3h)} м³/ч</span>`;
+    });
     panel(new THREE.Vector3(sxew.position.x, sxew.position.y + 150, sxew.position.z), () => {
       const L = sim.leach;
       return `<b>ЗАВОД SX-EW</b><br>Катоды: <span class="v">${L.cathodeT.toFixed(1)} т</span><br>Ток серии: <span class="v">${L.ewKA.toFixed(1)} кА</span>`;
@@ -614,20 +634,25 @@ export class MineScene {
     };
   }
 
-  /** Труба раствора между площадками: идёт по рельефу на опорах. */
-  private addPipe(a: { x: number; y: number }, b: { x: number; y: number }, color: string, over: number): void {
+  /** Труба между площадками: идёт по ломаной трассы и по рельефу, на опорах. */
+  private addPipePath(route: { x: number; y: number }[], color: string, over: number): void {
     const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.3 });
-    const n = Math.max(4, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / 70));
-    const pts = Array.from({ length: n + 1 }, (_, i) => {
-      const t = i / n;
-      const x = a.x + (b.x - a.x) * t;
-      const z = a.y + (b.y - a.y) * t;
-      return new THREE.Vector3(x, this.heightAt(x, z) + over, z);
-    });
-    const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), n * 2, 2.6, 8, false), mat);
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i + 1 < route.length; i++) {
+      const a = route[i];
+      const b = route[i + 1];
+      const n = Math.max(2, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / 70));
+      for (let k = i === 0 ? 0 : 1; k <= n; k++) {
+        const t = k / n;
+        const x = a.x + (b.x - a.x) * t;
+        const z = a.y + (b.y - a.y) * t;
+        pts.push(new THREE.Vector3(x, this.heightAt(x, z) + over, z));
+      }
+    }
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length * 2, 2.6, 8, false), mat);
     tube.castShadow = true;
     this.scene.add(tube);
-    for (let i = 1; i < n; i++) {
+    for (let i = 1; i < pts.length - 1; i++) {
       const q = pts[i];
       const g = this.heightAt(q.x, q.z);
       const h = q.y - g;
@@ -636,6 +661,10 @@ export class MineScene {
       post.position.set(q.x, g + h / 2, q.z);
       this.scene.add(post);
     }
+  }
+
+  private addPipe(a: { x: number; y: number }, b: { x: number; y: number }, color: string, over: number): void {
+    this.addPipePath([a, b], color, over);
   }
 
   /** Где сейчас объект на сцене и какого он размера (для подлёта камеры). */
@@ -786,6 +815,8 @@ export class MineScene {
   }
   private lastDrillLabel = 0;
 
+  private tsfWater!: THREE.Mesh;
+  private tsfBaseY = 0;
   private stockpileAt = new THREE.Vector3();
   private stockpileCone!: THREE.Mesh;
   private stockpileDust!: THREE.Sprite;
@@ -1008,6 +1039,8 @@ export class MineScene {
     this.crusher.fillMat.emissive.set(fillCol);
     const starving = sim.stockpile.t <= 0.01;
     this.syncStockpile(now);
+    // Зеркало пруда хвостохранилища — по отметке пляжа и уровню воды из модели.
+    this.tsfWater.position.y = this.tsfBaseY + sim.tailings.beachM + sim.tailings.pondM;
     this.conveyorMat.emissive.set(starving ? (blink ? '#7f1d1d' : '#000000') : '#000000');
     this.conveyorMat.color.set(starving ? '#7f1d1d' : '#6b7280');
     const crushing = sim.stockpile.crushing;

@@ -14,6 +14,7 @@ import { emptyDriverStats, FATIGUE_ALERT, makeDriver } from './drivers';
 import { PlantEquipment } from './equipment';
 import { ConcentrateYard } from './concentrate';
 import { HeapLeach } from './leach';
+import { TailingsDam } from './tailings';
 import { DrillOps } from './drilling';
 import {
   MATERIALS,
@@ -108,6 +109,8 @@ export class Simulation {
   readonly concentrate = new ConcentrateYard();
   /** Кучное выщелачивание и завод SX-EW. */
   readonly leach = new HeapLeach();
+  /** Хвостохранилище: пульпа с фабрики, пруд оборотной воды, контроль дамбы. */
+  readonly tailings = new TailingsDam();
   /** ГПСЧ событий вождения (резкие торможения) — по потоку на самосвал. */
   private readonly driverRng: Rng[] = [];
   /** Отдельный поток для усталости водителей: модуль диагностический и не сдвигает остальную модель. */
@@ -704,6 +707,7 @@ export class Simulation {
     this.feedPlant(dt);
     this.concentrate.update(this, dt);
     this.leach.update(this, dt);
+    this.tailings.update(this, dt);
     this.buildLaneOccupancy();
     for (const t of this.trucks) this.updateTruck(t, dt);
     for (const ex of this.excavators) this.updateExcavator(ex, dt);

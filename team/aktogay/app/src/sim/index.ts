@@ -9,3 +9,4 @@ export { createStrategy, SmartStrategy, FixedStrategy } from './dispatch';
 export * from './drivers';
 export * from './concentrate';
 export * from './leach';
+export * from './tailings';

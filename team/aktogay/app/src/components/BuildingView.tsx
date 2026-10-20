@@ -9,6 +9,7 @@ import { webglAvailable } from '../render3d/quality';
 import { SENSORS_BY_KIND } from '../platform/sensors';
 import type { BuildingKind } from '../render3d/MineScene';
 import { TRUCK_STATE_LABEL, type Simulation } from '../sim';
+import { CAPACITY_MT, CREST_M, FREEBOARD_MIN_M, SOLIDS_PCT } from '../sim/tailings';
 import { CELL_CAP_T, EW_CELLS, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, SX_EFFICIENCY, type CellStage } from '../sim/leach';
 import { fmtInt } from '../ui/format';
 import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
@@ -24,8 +25,9 @@ const TITLE: Record<BuildingKind, string> = {
   waste: 'Отвал вскрыши',
   stockpile: 'Склад дроблёной руды',
   sxew: 'Завод SX-EW и пруды растворов',
+  tsf: 'Хвостохранилище: дамба, пруд и оборотная вода',
 };
-const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile', sxew: 'sxew-plant' };
+const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile', sxew: 'sxew-plant', tsf: 'tailings-dam' };
 
 // Цвета схемы (тёмный «экран»).
 const C = {
@@ -88,6 +90,7 @@ export function BuildingView({ sim, kind, onClose, onTruck, light = false }: Pro
         {(kind === 'leach' || kind === 'waste') && <Dump sim={sim} kind={kind} onTruck={onTruck} />}
         {kind === 'stockpile' && <Stockpile sim={sim} />}
         {kind === 'sxew' && <SxEw sim={sim} />}
+        {kind === 'tsf' && <Tailings sim={sim} />}
         {(kind === 'crusher' || kind === 'plant' || kind === 'garage') && <UnitStrip sim={sim} building={kind} />}
         {sensors.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -768,6 +771,121 @@ function SxEw({ sim }: { sim: Simulation }) {
       </Stats>
       <div className="mt-2 text-[11.5px] text-ink-3">
         Завод питается раствором с площадки выщелачивания — самосвалы сюда не ездят. Параметры (извлечение на экстракции, число ванн) — оценки по открытым данным.
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────── хвостохранилище ─────────────────────────────
+
+/**
+ * Разрез чаши: ограждающая дамба, намытый пляж, пруд оборотной воды и запас до гребня.
+ * Всё живое — из двойника `tailings`; фильтрационный расчёт в модели не ведётся.
+ */
+function Tailings({ sim }: { sim: Simulation }) {
+  const t = sim.tailings;
+  const G = 330; // отметка естественного рельефа на схеме
+  const PX = 5.6; // пикселей на метр по высоте
+  const yOf = (m: number) => G - m * PX;
+  const crest = yOf(CREST_M);
+  const beach = yOf(t.beachM);
+  const pond = yOf(t.beachM + t.pondM);
+  // Внутренний откос дамбы: от гребня (430) к подошве (560) — на нём лежит урез воды.
+  const slopeX = (y: number) => 430 + (130 * (y - crest)) / (G - crest);
+  const tone = t.status === 'alarm' ? C.bad : t.status === 'watch' ? C.warn : C.ok;
+  const statusRu = t.status === 'alarm' ? 'запас до гребня ниже нормы' : t.status === 'watch' ? 'под наблюдением' : 'в норме';
+  return (
+    <div>
+      <svg viewBox="0 0 1000 400" className="w-full">
+        <defs>
+          <marker id="tsfArr" viewBox="0 0 10 10" refX={8} refY={5} markerWidth={6} markerHeight={6} orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill={C.pipe} />
+          </marker>
+          <marker id="tsfArrW" viewBox="0 0 10 10" refX={8} refY={5} markerWidth={6} markerHeight={6} orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill="#4fb3c4" />
+          </marker>
+        </defs>
+
+        {/* подача пульпы с фабрики */}
+        <g transform="translate(14 8)">
+          <rect width={250} height={66} rx={8} fill={C.box} stroke={C.line} />
+          <text x={12} y={21} fontSize={12} fill={C.dim}>С фабрики по пульпопроводу</text>
+          <text x={12} y={44} fontSize={16} fontWeight={800} fill={C.text} fontFamily="var(--font-mono)">{fmtInt(t.pulpM3h)} м³/ч</text>
+          <text x={12} y={60} fontSize={11.5} fill={C.dim}>{fmtInt(t.solidsTph)} т/ч твёрдого · {SOLIDS_PCT} % в пульпе</text>
+        </g>
+        <path d={`M264 41 L300 41 L300 ${crest - 13}`} fill="none" stroke={C.pipe} strokeWidth={3} markerEnd="url(#tsfArr)" />
+
+        {/* заполнение чаши */}
+        <g transform="translate(700 8)">
+          <rect width={286} height={66} rx={8} fill={C.box} stroke={C.line} />
+          <text x={12} y={21} fontSize={12} fill={C.dim}>Заполнение чаши</text>
+          <rect x={12} y={30} width={262} height={13} rx={6.5} fill={C.boxHi} />
+          <rect x={12} y={30} width={Math.max(4, (262 * t.fillPct) / 100)} height={13} rx={6.5} fill="#a16207" />
+          <text x={12} y={59} fontSize={11.5} fill={C.text}>
+            {t.fillPct.toFixed(1)} % · {Math.round(t.storedT / 1e6)} из {CAPACITY_MT} млн т
+          </text>
+        </g>
+
+        {/* естественный рельеф, тело дамбы, пляж и пруд */}
+        <line x1={20} y1={G} x2={980} y2={G} stroke={C.line} strokeWidth={2} />
+        <path d={`M120 ${G} L300 ${crest} L430 ${crest} L560 ${G} Z`} fill="#8d7a62" fillOpacity={0.55} stroke="#b3a287" strokeWidth={1.5} />
+        <path d={`M560 ${G} L700 ${beach} L980 ${beach - 46} L980 ${G} Z`} fill="#c4b9a4" fillOpacity={0.5} stroke="#c4b9a4" />
+        <path d={`M${slopeX(pond)} ${pond} L700 ${pond} L700 ${beach} L560 ${G} Z`} fill="#2d6f7d" fillOpacity={0.8} stroke="#4fb3c4" />
+
+        {/* отметки */}
+        <text x={400} y={crest - 12} textAnchor="middle" fontSize={11.5} fill={C.dim}>гребень дамбы · {CREST_M} м</text>
+        <text x={592} y={pond - 12} fontSize={12} fill="#7fdbe8">пруд · {t.pondM.toFixed(2)} м</text>
+        <text x={870} y={beach + 48} textAnchor="middle" fontSize={12} fill="#4a4232">намытые хвосты · пляж {t.beachM.toFixed(1)} м</text>
+
+        {/* запас до гребня — главный показатель */}
+        <line x1={470} y1={crest} x2={980} y2={crest} stroke={C.warn} strokeDasharray="7 5" />
+        <line x1={745} y1={crest} x2={745} y2={pond} stroke={tone} strokeWidth={2} />
+        <path d={`M739 ${crest + 7} L745 ${crest} L751 ${crest + 7}`} fill="none" stroke={tone} strokeWidth={2} />
+        <path d={`M739 ${pond - 7} L745 ${pond} L751 ${pond - 7}`} fill="none" stroke={tone} strokeWidth={2} />
+        <text x={757} y={(crest + pond) / 2} fontSize={13} fontWeight={700} fill={tone}>запас до гребня {t.freeboardM.toFixed(1)} м</text>
+        <text x={757} y={(crest + pond) / 2 + 17} fontSize={11} fill={C.dim}>норма — не меньше {FREEBOARD_MIN_M} м</text>
+
+        {/* выпуски пульпы по гребню */}
+        {[0, 1, 2].map((i) => (
+          <g key={i} transform={`translate(${344 + i * 30} ${crest})`}>
+            <rect x={-3} y={-9} width={6} height={11} fill="#7f8893" />
+            <path d={`M0 2 L${7 + i} 17`} stroke="#9aa1a9" strokeWidth={1.5} />
+          </g>
+        ))}
+
+        {/* пьезометры в теле дамбы */}
+        {[0, 1, 2].map((i) => (
+          <g key={i} transform={`translate(${285 + i * 58} ${crest + 26 + i * 14})`}>
+            <line x1={0} y1={-16} x2={0} y2={24} stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="3 3" />
+            <circle cx={0} cy={24} r={4} fill="#f59e0b" />
+          </g>
+        ))}
+        <text x={250} y={G - 12} fontSize={11} fill="#f59e0b">пьезометры: насыщение {Math.round(t.piezoPct)} %</text>
+
+        {/* дренаж у низовой подошвы */}
+        <g transform={`translate(22 ${G - 86})`}>
+          <rect width={74} height={34} rx={5} fill={C.box} stroke={C.line} />
+          <text x={37} y={15} textAnchor="middle" fontSize={10.5} fill={C.dim}>замерный лоток</text>
+          <text x={37} y={29} textAnchor="middle" fontSize={12} fontWeight={700} fill={C.text}>{Math.round(t.seepageLpm)} л/мин</text>
+          <text x={37} y={48} textAnchor="middle" fontSize={10.5} fill={C.dim}>фильтрация в дренаж</text>
+        </g>
+
+        {/* водозаборная башня и оборотная вода на фабрику */}
+        <rect x={694} y={pond - 42} width={13} height={G - pond + 42} fill="#b8b5ad" />
+        <path d={`M700 ${pond - 42} L700 118 L330 118`} fill="none" stroke="#4fb3c4" strokeWidth={3} strokeDasharray="8 5" markerEnd="url(#tsfArrW)" />
+        <text x={515} y={110} textAnchor="middle" fontSize={12} fill="#4fb3c4">оборотная вода на фабрику · {fmtInt(t.reclaimM3h)} м³/ч</text>
+        <text x={700} y={G + 17} textAnchor="middle" fontSize={11} fill={C.dim}>водозаборная башня</text>
+        <text x={975} y={G + 17} textAnchor="end" fontSize={11} fill={C.dim}>естественный рельеф</text>
+      </svg>
+      <Stats>
+        <Stat label="Уложено хвостов за смену" value={`${fmtInt(t.tailsT)} т`} />
+        <Stat label="Воды пришло с пульпой" value={`${fmtInt(t.waterInM3)} м³`} />
+        <Stat label="Вернулось на фабрику" value={`${fmtInt(t.reclaimM3)} м³`} tone={C.ok} />
+        <Stat label="Забрано свежей воды" value={`${fmtInt(t.makeupM3)} м³`} tone={C.warn} />
+        <Stat label="Состояние дамбы" value={statusRu} tone={tone} />
+      </Stats>
+      <div className="mt-2 text-[11.5px] text-ink-3">
+        Контур чаши — настоящий (OpenStreetMap), ёмкость и отметки — оценки. Фильтрационный расчёт и устойчивость откосов в модели не считаются: показаны те величины, которые на реальной дамбе снимают приборами.
       </div>
     </div>
   );

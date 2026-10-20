@@ -84,7 +84,7 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
   // Реальные места объектов (координаты модели; пересчёт со спутникового снимка и OpenStreetMap,
   // см. src/geo/geoRef.ts). Объекты, назначение которых на снимке не подписано, стоят условно.
   const pl2 = { x: -33, y: 3871 }; // вторая фабрика — корпус западного фабричного комплекса (OSM)
-  const tsf = { x: 1850, y: 4560 }; // хвостохранилище к югу от фабрик
+  const tsf = S.tsf; // хвостохранилище к юго-востоку от фабрик (контур — OSM)
   const sx = S.sxew; // корпуса у карт выщелачивания — завод SX-EW
   const ponds = S.ponds;
   const conc = { x: 420, y: 3200 }; // склад концентрата у ж/д путей между фабриками
@@ -333,20 +333,20 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       id: 'tsf',
       name: 'Хвостохранилище',
       layer: 'waste',
-      shape: {
-        kind: 'poly',
-        pts: [
-          [tsf.x - 1300, tsf.y - 500],
-          [tsf.x + 600, tsf.y - 900],
-          [tsf.x + 1300, tsf.y + 100],
-          [tsf.x + 700, tsf.y + 1000],
-          [tsf.x - 1100, tsf.y + 800],
-        ],
-      },
+      shape: { kind: 'poly', pts: S.tsfOutline.map(([x, y]) => [x, y] as [number, number]) },
       fill: '#3f4a52',
-      live: false,
-      about: 'Отходы флотации (хвосты) по пульпопроводу уходят в хвостохранилище; осветлённая вода возвращается на фабрики.',
-      facts: ['ограждающая дамба, пруд-отстойник, оборотное водоснабжение'],
+      live: true,
+      about: 'Отходы флотации (хвосты) по пульпопроводу уходят в чашу за ограждающей дамбой: твёрдое намывает пляж, осветлённая вода собирается в пруду и возвращается на фабрику. За дамбой следят пьезометрами и замеряют фильтрацию.',
+      facts: ['контур чаши — по объекту tailings_pond в OpenStreetMap', 'ёмкость и отметки — оценки'],
+      metrics: (s2) => [
+        ['Пульпа с фабрики', `${fmt(s2.tailings.pulpM3h)} м³/ч`],
+        ['Уложено за смену', `${fmt(s2.tailings.tailsT)} т`],
+        ['Заполнение чаши', `${s2.tailings.fillPct.toFixed(1)} %`],
+        ['Запас до гребня', `${s2.tailings.freeboardM.toFixed(1)} м`],
+        ['Оборотная вода', `${fmt(s2.tailings.reclaimM3h)} м³/ч`],
+      ],
+      building: 'tsf',
+      twin: 'tailings',
       label: 'Хвостохранилище',
     },
     // ── инфраструктура ──
@@ -482,13 +482,15 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
   ];
 
   const lines: SiteLine[] = [
+    // Служебные дороги промплощадки и объезд хвостохранилища (OSM) — самосвалы по ним не ездят.
+    ...sim.cfg.serviceRoads.map((r, i) => ({ id: `svc${i}`, name: r.name, layer: 'transport' as const, kind: 'road' as const, pts: r.pts.map(([x, y]) => [x, y] as [number, number]) })),
     { id: 'conv1', name: 'Конвейер дробилка → склад', layer: 'process', kind: 'conveyor', pts: [[cr.x, cr.y], ...via, [sp.x, sp.y]] },
     { id: 'conv2', name: 'Конвейер склад → ОФ-1', layer: 'process', kind: 'conveyor', pts: [[sp.x, sp.y], ...via2, [pl.x, pl.y]] },
     { id: 'conv3', name: 'Конвейер ККД-2 → склад ОФ-2', layer: 'process', kind: 'conveyor', pts: [[cr2.x, cr2.y], [sp2.x, sp2.y]] },
     { id: 'conv4', name: 'Конвейер склад → ОФ-2', layer: 'process', kind: 'conveyor', pts: [[sp2.x, sp2.y], [-111, 3419], [pl2.x, pl2.y]] },
-    { id: 'tail1', name: 'Хвосты ОФ-1 → хвостохранилище', layer: 'waste', kind: 'pipe', pts: [[pl.x, pl.y], [tsf.x - 600, tsf.y - 700]] },
+    { id: 'tail1', name: 'Хвосты ОФ-1 → хвостохранилище (пульпопровод)', layer: 'waste', kind: 'pipe', pts: [[pl.x, pl.y], ...S.pulpVia.map((q) => [q.x, q.y] as [number, number]), [2006, 3377]] },
     { id: 'tail2', name: 'Хвосты ОФ-2 → хвостохранилище', layer: 'waste', kind: 'pipe', pts: [[pl2.x, pl2.y], [tsf.x - 1100, tsf.y - 200]] },
-    { id: 'ret', name: 'Оборотная вода → фабрики', layer: 'utility', kind: 'water', pts: [[tsf.x - 400, tsf.y - 600], [water.x, water.y]] },
+    { id: 'ret', name: 'Оборотная вода → фабрики', layer: 'utility', kind: 'water', pts: [[2006, 3377], ...[...S.pulpVia].reverse().map((q) => [q.x, q.y] as [number, number]), [water.x, water.y]] },
     { id: 'w1', name: 'Водовод → ОФ-1', layer: 'utility', kind: 'water', pts: [[water.x, water.y], [pl.x, pl.y]] },
     { id: 'w2', name: 'Водовод → ОФ-2', layer: 'utility', kind: 'water', pts: [[water.x, water.y], [pl2.x, pl2.y]] },
     { id: 'pls', name: 'PLS: площадка → пруды → SX-EW', layer: 'process', kind: 'solution', pts: [[S.leach.x, S.leach.y + 150], [ponds.x, ponds.y], [sx.x, sx.y]] },
