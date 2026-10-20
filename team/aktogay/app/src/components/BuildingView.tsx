@@ -9,7 +9,7 @@ import { webglAvailable } from '../render3d/quality';
 import { SENSORS_BY_KIND } from '../platform/sensors';
 import type { BuildingKind } from '../render3d/MineScene';
 import { TRUCK_STATE_LABEL, type Simulation } from '../sim';
-import { CELL_CAP_T, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, type CellStage } from '../sim/leach';
+import { CELL_CAP_T, EW_CELLS, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, SX_EFFICIENCY, type CellStage } from '../sim/leach';
 import { fmtInt } from '../ui/format';
 import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
 import { thingIds } from '../platform/twins';
@@ -23,8 +23,9 @@ const TITLE: Record<BuildingKind, string> = {
   leach: 'Площадка кучного выщелачивания',
   waste: 'Отвал вскрыши',
   stockpile: 'Склад дроблёной руды',
+  sxew: 'Завод SX-EW и пруды растворов',
 };
-const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile' };
+const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile', sxew: 'sxew-plant' };
 
 // Цвета схемы (тёмный «экран»).
 const C = {
@@ -86,6 +87,7 @@ export function BuildingView({ sim, kind, onClose, onTruck, light = false }: Pro
         {!show3d && kind === 'garage' && <Garage sim={sim} onTruck={onTruck} />}
         {(kind === 'leach' || kind === 'waste') && <Dump sim={sim} kind={kind} onTruck={onTruck} />}
         {kind === 'stockpile' && <Stockpile sim={sim} />}
+        {kind === 'sxew' && <SxEw sim={sim} />}
         {(kind === 'crusher' || kind === 'plant' || kind === 'garage') && <UnitStrip sim={sim} building={kind} />}
         {sensors.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -657,6 +659,116 @@ function Dump({ sim, kind, onTruck }: { sim: Simulation; kind: 'leach' | 'waste'
         </div>
       )}
       {kind === 'leach' && <LeachCells sim={sim} />}
+    </div>
+  );
+}
+
+// ───────────────────────────── завод SX-EW ─────────────────────────────
+
+/**
+ * Оксидная ветка после площадки: продуктивный раствор → экстракция (SX) → электролиз (EW) → катоды.
+ * Живые величины — из двойников `heap-leach` и `sxew`; концентрация электролита в модели не считается.
+ */
+function SxEw({ sim }: { sim: Simulation }) {
+  const L = sim.leach;
+  const on = L.plsM3h > 0;
+  const cells = 16; // ванн на схеме; в серии их EW_CELLS
+  return (
+    <div>
+      <svg viewBox="0 0 1000 420" className="w-full">
+        <defs>
+          <marker id="sxArr" viewBox="0 0 10 10" refX={8} refY={5} markerWidth={6} markerHeight={6} orient="auto">
+            <path d="M0 0 L10 5 L0 10 z" fill={C.pipe} />
+          </marker>
+        </defs>
+
+        {/* пруд продуктивного раствора */}
+        <g transform="translate(14 40)">
+          <rect width={190} height={130} rx={8} fill={C.box} stroke="#1f8f72" strokeWidth={1.5} />
+          <rect x={14} y={54} width={162} height={58} rx={5} fill="#1f8f72" fillOpacity={0.5} />
+          <text x={95} y={24} textAnchor="middle" fontSize={12.5} fontWeight={700} fill={C.text}>Пруд PLS</text>
+          <text x={95} y={44} textAnchor="middle" fontSize={11} fill={C.dim}>продуктивный раствор с карт</text>
+          <text x={95} y={82} textAnchor="middle" fontSize={17} fontWeight={800} fill={C.text} fontFamily="var(--font-mono)">{fmtInt(L.plsM3h)} м³/ч</text>
+          <text x={95} y={102} textAnchor="middle" fontSize={13} fill="#67e8f9">{L.plsGpl.toFixed(2)} г/л Cu</text>
+        </g>
+        <line x1={204} y1={105} x2={252} y2={105} stroke={C.pipe} strokeWidth={3} markerEnd="url(#sxArr)" />
+
+        {/* экстракция */}
+        <g transform="translate(256 20)">
+          <rect width={330} height={190} rx={8} fill={C.box} stroke="#c9933f" strokeWidth={1.5} />
+          <text x={165} y={24} textAnchor="middle" fontSize={12.5} fontWeight={700} fill={C.text}>Экстракция (SX) · миксер-отстойники</text>
+          {/* две стадии */}
+          <g transform="translate(16 40)">
+            <rect width={140} height={62} rx={6} fill={C.boxHi} stroke={C.line} />
+            <text x={70} y={20} textAnchor="middle" fontSize={11} fill={C.dim}>стадия 1</text>
+            <text x={70} y={38} textAnchor="middle" fontSize={11.5} fill={C.text}>органика забирает</text>
+            <text x={70} y={53} textAnchor="middle" fontSize={11.5} fill={C.text}>медь из раствора</text>
+          </g>
+          <g transform="translate(174 40)">
+            <rect width={140} height={62} rx={6} fill={C.boxHi} stroke={C.line} />
+            <text x={70} y={20} textAnchor="middle" fontSize={11} fill={C.dim}>стадия 2</text>
+            <text x={70} y={38} textAnchor="middle" fontSize={11.5} fill={C.text}>кислота снимает</text>
+            <text x={70} y={53} textAnchor="middle" fontSize={11.5} fill={C.text}>медь с органики</text>
+          </g>
+          {/* замкнутый контур органики */}
+          <path d="M156 60 L174 60" stroke="#c9933f" strokeWidth={3} markerEnd="url(#sxArr)" />
+          <path d="M244 112 L244 130 L86 130 L86 112" fill="none" stroke="#c9933f" strokeWidth={2.5} strokeDasharray="6 5" />
+          <text x={165} y={146} textAnchor="middle" fontSize={11} fill="#c9933f">органика возвращается по кругу</text>
+          <text x={165} y={170} textAnchor="middle" fontSize={11.5} fill={C.dim}>
+            извлечение меди из раствора {Math.round(SX_EFFICIENCY * 100)} %
+          </text>
+        </g>
+        <line x1={588} y1={105} x2={636} y2={105} stroke={C.pipe} strokeWidth={3} markerEnd="url(#sxArr)" />
+        <text x={602} y={97} textAnchor="middle" fontSize={10} fill={C.dim}>электролит</text>
+
+        {/* электролиз */}
+        <g transform="translate(640 20)">
+          <rect width={346} height={190} rx={8} fill={C.box} stroke="#b45309" strokeWidth={1.5} />
+          <text x={173} y={24} textAnchor="middle" fontSize={12.5} fontWeight={700} fill={C.text}>Электролиз (EW) · ванны</text>
+          {Array.from({ length: cells }, (_, i) => (
+            <g key={i} transform={`translate(${16 + i * 20} 40)`}>
+              <rect width={15} height={64} rx={2} fill={C.boxHi} stroke={C.line} />
+              <rect x={3} y={6} width={9} height={52} rx={1} fill={on ? '#c2763a' : C.line} fillOpacity={on ? 0.9 : 0.4} />
+            </g>
+          ))}
+          <text x={173} y={126} textAnchor="middle" fontSize={11} fill={C.dim}>на схеме {cells} ванн из {EW_CELLS} в серии</text>
+          <text x={173} y={152} textAnchor="middle" fontSize={16} fontWeight={800} fill="#f59e0b" fontFamily="var(--font-mono)">
+            {L.ewKA.toFixed(1)} кА
+          </text>
+          <text x={173} y={172} textAnchor="middle" fontSize={11.5} fill={C.dim}>ток серии — по нему и растёт медь на катодах</text>
+        </g>
+
+        {/* рафинат обратно и выход катодов */}
+        <path d="M421 210 L421 250 L107 250 L107 174" fill="none" stroke="#4a86a8" strokeWidth={3} strokeDasharray="7 5" markerEnd="url(#sxArr)" />
+        <text x={264} y={244} textAnchor="middle" fontSize={11.5} fill="#4a86a8">рафинат — обратно на орошение карт</text>
+
+        <g transform="translate(640 280)">
+          <rect width={346} height={118} rx={8} fill={C.boxHi} stroke="#c2763a" strokeWidth={1.5} />
+          <text x={173} y={26} textAnchor="middle" fontSize={12} fill={C.dim}>Катодная медь 99,99 %</text>
+          <text x={173} y={64} textAnchor="middle" fontSize={26} fontWeight={800} fill="#f59e0b" fontFamily="var(--font-mono)">
+            {L.cathodeT.toFixed(1)} т
+          </text>
+          <text x={173} y={88} textAnchor="middle" fontSize={12} fill={C.dim}>за смену · темп {fmtInt(L.cathodeTpd)} т/сут</text>
+          <text x={173} y={107} textAnchor="middle" fontSize={11.5} fill={C.text}>готовый металл, без медеплавильного завода</text>
+        </g>
+        <g transform="translate(14 280)">
+          <rect width={600} height={118} rx={8} fill={C.box} stroke={C.line} />
+          <text x={16} y={26} fontSize={12} fill={C.dim}>Как это работает</text>
+          <text x={16} y={50} fontSize={12} fill={C.text}>Раствор с карт слабый. Органика собирает из него только медь и отдаёт её</text>
+          <text x={16} y={70} fontSize={12} fill={C.text}>в крепкий электролит — раствор очищается и концентрируется. Дальше ток</text>
+          <text x={16} y={90} fontSize={12} fill={C.text}>осаждает медь на катодах ровным слоем; листы снимают раз в несколько суток.</text>
+          <text x={16} y={110} fontSize={11.5} fill={C.dim}>Концентрация электролита и состав органики в модели не считаются.</text>
+        </g>
+      </svg>
+      <Stats>
+        <Stat label="Медь перешла в раствор" value={`${L.cuLeachedT.toFixed(1)} т`} />
+        <Stat label="Катодная медь за смену" value={`${L.cathodeT.toFixed(1)} т`} tone={C.ok} />
+        <Stat label="Ток серии электролиза" value={`${L.ewKA.toFixed(1)} кА`} />
+        <Stat label="Серной кислоты за смену" value={`${fmtInt(L.acidT)} т`} />
+      </Stats>
+      <div className="mt-2 text-[11.5px] text-ink-3">
+        Завод питается раствором с площадки выщелачивания — самосвалы сюда не ездят. Параметры (извлечение на экстракции, число ванн) — оценки по открытым данным.
+      </div>
     </div>
   );
 }

@@ -19,6 +19,7 @@ const BUILDINGS: { id: Extract<FocusTarget, { kind: 'building' }>['id']; title: 
   { id: 'stockpile', title: 'Склад дроблёной руды', words: 'склад штабель конус stockpile' },
   { id: 'plant', title: 'Обогатительная фабрика', words: 'фабрика оф обогатительная мельница plant' },
   { id: 'leach', title: 'Кучное выщелачивание', words: 'выщелачивание оксид кучное leach' },
+  { id: 'sxew', title: 'Завод SX-EW и пруды', words: 'sxew sx ew завод катод катодная медь электролиз экстракция пруды раствор pls рафинат' },
   { id: 'waste', title: 'Отвал вскрыши', words: 'отвал вскрыша waste' },
   { id: 'garage', title: 'Гараж, АЗС и стоянка', words: 'гараж азс стоянка ремонт заправка garage' },
 ];

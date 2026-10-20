@@ -55,7 +55,7 @@ const KEY_METRICS: Record<string, string[]> = {
 };
 
 /** Тип двойника → «внутренний двойник» здания (мнемосхема на карте). */
-const INSIDE: Record<string, BuildingKind> = { stockpile: 'stockpile', crusher: 'crusher', concentrator: 'plant', garage: 'garage', 'heap-leach': 'leach', 'waste-dump': 'waste' };
+const INSIDE: Record<string, BuildingKind> = { stockpile: 'stockpile', crusher: 'crusher', concentrator: 'plant', garage: 'garage', 'heap-leach': 'leach', 'waste-dump': 'waste', 'sxew-plant': 'sxew' };
 
 const GROUPS: { title: string; kinds: string[] }[] = [
   { title: 'Карьер', kinds: ['open-pit'] },

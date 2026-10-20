@@ -429,19 +429,74 @@ export function makeWasteDump(): THREE.Group {
   return root;
 }
 
-/** Площадка кучного выщелачивания и пруды растворов. */
+/** Площадка кучного выщелачивания: штабель оксидной руды с сетью капельного орошения. */
 export function makeLeachPad(): THREE.Group {
   const root = new THREE.Group();
   root.add(box(520, 22, 230, std('#a89a6c', { roughness: 1 }), 0, 11, 0));
   root.add(box(460, 14, 180, std('#7fa07a', { roughness: 1 }), 0, 29, 0));
   for (let i = -3; i <= 3; i++) root.add(box(440, 0.8, 4, std('#bfe8dc'), 0, 36.5, i * 24));
-  for (const x of [-170, 170]) {
-    root.add(box(136, 6, 86, MAT.concreteDark, x, 1, 175));
-    const pond = new THREE.Mesh(new THREE.PlaneGeometry(126, 76), std('#2f8f94', { roughness: 0.1, metalness: 0.3 }));
-    pond.rotation.x = -Math.PI / 2;
-    pond.position.set(x, 4.2, 175);
-    root.add(pond);
+  return root;
+}
+
+/**
+ * Пруды растворов: чаши с плёнкой и насосные. Продуктивный раствор (PLS) с площадки — зеленоватый
+ * от меди, рафинат после экстракции — светлее: медь из него уже забрали.
+ */
+export function makeSolutionPonds(): THREE.Group {
+  const root = new THREE.Group();
+  const liner = std('#2b3a42', { roughness: 0.9 });
+  const basins = [
+    { x: -200, w: 240, d: 160, color: '#1f8f72' },
+    { x: 60, w: 200, d: 140, color: '#2f8f94' },
+    { x: 280, w: 210, d: 150, color: '#4a86a8' },
+  ];
+  for (const b of basins) {
+    root.add(box(b.w + 26, 11, b.d + 26, liner, b.x, 5.5, 0));
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(b.w, b.d), std(b.color, { roughness: 0.08, metalness: 0.35 }));
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(b.x, 11.4, 0);
+    root.add(water);
   }
+  // Насосные станции между чашами.
+  for (const x of [-65, 180]) {
+    root.add(box(36, 18, 28, MAT.wall, x, 9, 108));
+    root.add(box(38, 3, 30, std('#2f6f8f'), x, 19.5, 108));
+  }
+  return root;
+}
+
+/**
+ * Завод SX-EW: ряды миксер-отстойников экстракции (в них янтарная органика), баки электролита,
+ * цех электролиза и площадка готовых катодов.
+ */
+export function makeSxEw(): THREE.Group {
+  const root = new THREE.Group();
+  root.add(box(540, 4, 330, MAT.concreteDark, 0, 2, 0));
+  // Экстракция: два ряда миксер-отстойников с мешалками.
+  for (const z of [-92, -20]) {
+    root.add(box(300, 20, 48, std('#6f7a84', { roughness: 0.7 }), -100, 14, z));
+    const org = new THREE.Mesh(new THREE.PlaneGeometry(288, 40), std('#c9933f', { roughness: 0.25 }));
+    org.rotation.x = -Math.PI / 2;
+    org.position.set(-100, 24.4, z);
+    root.add(org);
+    for (let i = 0; i < 4; i++) {
+      const mix = cyl(9, 9, 26, MAT.steel, 12);
+      mix.position.set(-220 + i * 80, 34, z);
+      root.add(mix);
+      root.add(box(4.5, 13, 4.5, MAT.darker, -220 + i * 80, 50, z));
+    }
+  }
+  // Баки органики и электролита.
+  for (let i = 0; i < 3; i++) {
+    const t = cyl(23, 23, 48, MAT.wall, 20);
+    t.position.set(-215 + i * 60, 28, 112);
+    root.add(t);
+  }
+  // Цех электролиза и площадка катодов.
+  const hall = shed(200, 48, 130);
+  hall.position.set(155, 4, -30);
+  root.add(hall);
+  for (let i = 0; i < 4; i++) root.add(box(28, 10, 48, std('#c2763a', { metalness: 0.55, roughness: 0.4 }), 90 + i * 38, 9, 118));
   return root;
 }
 

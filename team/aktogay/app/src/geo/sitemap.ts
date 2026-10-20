@@ -85,8 +85,8 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
   // см. src/geo/geoRef.ts). Объекты, назначение которых на снимке не подписано, стоят условно.
   const pl2 = { x: -33, y: 3871 }; // вторая фабрика — корпус западного фабричного комплекса (OSM)
   const tsf = { x: 1850, y: 4560 }; // хвостохранилище к югу от фабрик
-  const sx = { x: 1825, y: 1510 }; // корпуса у карт выщелачивания — завод SX-EW
-  const ponds = { x: 2250, y: 950 };
+  const sx = S.sxew; // корпуса у карт выщелачивания — завод SX-EW
+  const ponds = S.ponds;
   const conc = { x: 420, y: 3200 }; // склад концентрата у ж/д путей между фабриками
   const sub = { x: 550, y: 2545 }; // подстанция фабрики №1 (OSM: power=substation)
   const sub2 = { x: -335, y: 3710 }; // подстанция фабрики №2 (OSM)
@@ -259,6 +259,7 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
         ['Расход PLS', `${fmt(s.leach.plsM3h)} м³/ч`],
         ['Медь в PLS', `${s.leach.plsGpl.toFixed(2)} г/л`],
       ],
+      building: 'sxew',
       twin: 'heap-leach',
       label: 'Пруды PLS',
     },
@@ -276,6 +277,7 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
         ['Темп', `${fmt(s.leach.cathodeTpd)} т/сут`],
         ['Ток серии', `${s.leach.ewKA.toFixed(1)} кА`],
       ],
+      building: 'sxew',
       twin: 'sxew',
       label: 'Завод SX-EW',
     },

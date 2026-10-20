@@ -22,6 +22,8 @@ import {
   makeExcavator,
   makeGarage,
   makeLeachPad,
+  makeSolutionPonds,
+  makeSxEw,
   makeLightMast,
   makeDrillRig,
   glowSprite,
@@ -63,7 +65,7 @@ const LANE_OFFSET = 15;
 /** Что можно найти и к чему подлететь камерой. */
 export type FocusTarget = { kind: 'truck' | 'excavator' | 'drill'; id: number } | { kind: 'building'; id: BuildingKind };
 
-export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile';
+export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew';
 
 const BG = '#0a1526';
 
@@ -278,11 +280,33 @@ export class MineScene {
     plant.userData = { building: 'plant' };
     this.buildings.push(plant);
 
+    // Оксидная ветка после площадки выщелачивания: пруды растворов и завод SX-EW.
+    // К ним ничего не ездит — раствор идёт по трубам, поэтому в графе дорог их нет.
+    const faceLeach = (p: { x: number; y: number }) => -Math.atan2(cfg.sites.leach.y - p.y, cfg.sites.leach.x - p.x);
+    const ponds = makeSolutionPonds();
+    ponds.position.set(cfg.sites.ponds.x, this.heightAt(cfg.sites.ponds.x, cfg.sites.ponds.y) - 2, cfg.sites.ponds.y);
+    ponds.rotation.y = faceLeach(cfg.sites.ponds);
+    ponds.userData = { building: 'sxew' };
+    this.scene.add(ponds);
+    this.buildings.push(ponds);
+    const sxew = makeSxEw();
+    sxew.position.set(cfg.sites.sxew.x, this.heightAt(cfg.sites.sxew.x, cfg.sites.sxew.y) - 2, cfg.sites.sxew.y);
+    sxew.rotation.y = faceLeach(cfg.sites.sxew);
+    sxew.userData = { building: 'sxew' };
+    this.scene.add(sxew);
+    this.buildings.push(sxew);
+    // Трубы: продуктивный раствор с карт в пруд и на завод, рафинат — обратно на орошение.
+    this.addPipe(cfg.sites.leach, cfg.sites.ponds, '#2f9e8f', 7);
+    this.addPipe(cfg.sites.ponds, cfg.sites.sxew, '#2f9e8f', 7);
+    this.addPipe(cfg.sites.sxew, cfg.sites.leach, '#4a86a8', 13);
+
     // Россыпь камней (в стороне от дорог и площадок) и мачты освещения по бровке.
     const avoid = [
       { x: this.crusherPos.x, y: this.crusherPos.z, r: 180 },
       { x: pp.x, y: pp.y, r: 280 },
       { x: leach.position.x, y: leach.position.z, r: 320 },
+      { x: cfg.sites.ponds.x, y: cfg.sites.ponds.y, r: 330 },
+      { x: cfg.sites.sxew.x, y: cfg.sites.sxew.y, r: 330 },
       { x: dump.position.x, y: dump.position.z, r: 320 },
       { x: garage.position.x, y: garage.position.z, r: 170 },
       { x: sim.parkingSlot(2 * sim.parking.cols + 2).x, y: sim.parkingSlot(2 * sim.parking.cols + 2).y, r: 460 },
@@ -464,7 +488,19 @@ export class MineScene {
       }">${(c.starvedSec / 60).toFixed(1)} мин</span>`;
     });
     const leachD = sim.dumps[1];
-    panel(new THREE.Vector3(leach.position.x, leach.position.y + 110, leach.position.z), () => `<b>КУЧНОЕ ВЫЩЕЛАЧИВАНИЕ</b><br>Оксид: <span class="v">${fmtInt(leachD.tonnes)} т</span>`);
+    panel(new THREE.Vector3(leach.position.x, leach.position.y + 110, leach.position.z), () => {
+      const L = sim.leach;
+      const wet = L.cells.filter((cl) => cl.irrigated).length;
+      return `<b>КУЧНОЕ ВЫЩЕЛАЧИВАНИЕ</b><br>Оксид: <span class="v">${fmtInt(leachD.tonnes)} т</span><br>Полив: <span class="v">${wet} из ${L.irrigatingCount} карт</span>`;
+    });
+    panel(new THREE.Vector3(ponds.position.x, ponds.position.y + 90, ponds.position.z), () => {
+      const L = sim.leach;
+      return `<b>ПРУДЫ РАСТВОРОВ</b><br>PLS: <span class="v">${fmtInt(L.plsM3h)} м³/ч</span><br>Медь: <span class="v">${L.plsGpl.toFixed(2)} г/л</span>`;
+    });
+    panel(new THREE.Vector3(sxew.position.x, sxew.position.y + 150, sxew.position.z), () => {
+      const L = sim.leach;
+      return `<b>ЗАВОД SX-EW</b><br>Катоды: <span class="v">${L.cathodeT.toFixed(1)} т</span><br>Ток серии: <span class="v">${L.ewKA.toFixed(1)} кА</span>`;
+    });
     const wasteDumps = sim.dumps.filter((x) => x.material === 'waste');
     [dump, ...extraDumps].forEach((m, i) => {
       const wd = wasteDumps[i];
@@ -576,6 +612,30 @@ export class MineScene {
       start: performance.now(),
       dur: 1300,
     };
+  }
+
+  /** Труба раствора между площадками: идёт по рельефу на опорах. */
+  private addPipe(a: { x: number; y: number }, b: { x: number; y: number }, color: string, over: number): void {
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.3 });
+    const n = Math.max(4, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / 70));
+    const pts = Array.from({ length: n + 1 }, (_, i) => {
+      const t = i / n;
+      const x = a.x + (b.x - a.x) * t;
+      const z = a.y + (b.y - a.y) * t;
+      return new THREE.Vector3(x, this.heightAt(x, z) + over, z);
+    });
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), n * 2, 2.6, 8, false), mat);
+    tube.castShadow = true;
+    this.scene.add(tube);
+    for (let i = 1; i < n; i++) {
+      const q = pts[i];
+      const g = this.heightAt(q.x, q.z);
+      const h = q.y - g;
+      if (h < 3) continue;
+      const post = new THREE.Mesh(new THREE.BoxGeometry(3, h, 3), mat);
+      post.position.set(q.x, g + h / 2, q.z);
+      this.scene.add(post);
+    }
   }
 
   /** Где сейчас объект на сцене и какого он размера (для подлёта камеры). */
