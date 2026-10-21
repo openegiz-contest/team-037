@@ -14,6 +14,7 @@ import type { Kpis } from '../sim/kpi';
 import type { Simulation } from '../sim/engine';
 import { MATERIALS, TRUCK_STATES, type Blast, type Destination, type FailureType, type Material, type StrategyName, type TruckState } from '../sim/types';
 import { gradeAt } from '../sim/ore';
+import { CHAIN2_FEED_TPH } from '../sim/chain2';
 import { EW_CELL_VOLTS } from '../sim/energy';
 import { costBreakdown, GROUP_RU, type CostGroup } from '../sim/cost';
 import { BLAST_WIND_MS, LEACH_FROST_C, MONTH_RU, SEASON_RU, SKY, type Sky } from '../sim/weather';
@@ -23,7 +24,7 @@ import { CONC_GRADE, TRAIN_WAGONS, WAGON_LOAD_SEC, WAGON_T } from '../sim/concen
 import { BENCH_M, BLOCK_M, blockSummary, buildOreModel, CUTOFF, DENSITY, holeAssays, pitResources, type OreModel } from '../geo/orebody';
 import { PIT_DEPTH } from '../geo/relief';
 import { UNIT_DEFS, type UnitState } from '../sim/equipment';
-import { energySensorAttributes, weatherSensorAttributes, tailingsSensorAttributes, sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
+import { substationSensorAttributes, energySensorAttributes, weatherSensorAttributes, tailingsSensorAttributes, sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -53,6 +54,12 @@ export const thingIds = (v: StrategyName) => {
     weather: `${ns}:weather`,
     energy: `${ns}:energy`,
     cost: `${ns}:cost`,
+    crusher2: `${ns}:crusher-2`,
+    stockpile2: `${ns}:stockpile-2`,
+    plant2: `${ns}:plant-2`,
+    sub: `${ns}:substation-1`,
+    sub2: `${ns}:substation-2`,
+    unit2: (key: string) => `${ns}:${key}-2`,
     unit: (key: string) => `${ns}:${key}`,
     drill: (i: number) => `${ns}:drill-${i + 1}`,
   };
@@ -198,6 +205,51 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
     },
     features: serializeLeach(sim),
   };
+  // Вторая цепочка комбината: ККД-2 → склад ОФ-2 → ОФ-2. Подвоз руды условный (остальной парк).
+  const c2 = sim.chain2;
+  const c2note = 'вторая цепочка комбината; подвоз руды условный — его везёт остальной парк, которого в модели нет';
+  out[id.crusher2] = {
+    policyId: POLICY,
+    attributes: { name: 'Первичная дробилка ККД-2', kind: 'crusher-2', _isType: false, _parents: parent, bin_capacity_t: cfg.dumps.crusher.binCapT, crusher_tpm: cfg.dumps.crusher.crusherTpm, supply_tph: CHAIN2_FEED_TPH, feeds: id.stockpile2, note: c2note, sensors: crusherSensorAttributes() },
+    features: serializeCrusher2(sim),
+  };
+  out[id.stockpile2] = {
+    policyId: POLICY,
+    attributes: { name: 'Склад дроблёной руды ОФ-2', kind: 'stockpile-2', _isType: false, _parents: parent, live_capacity_t: cfg.dumps.crusher.stockpileCapT, feeds: id.plant2, note: c2note, sensors: stockpileSensorAttributes() },
+    features: serializeStockpile(c2.view),
+  };
+  out[id.plant2] = {
+    policyId: POLICY,
+    attributes: { name: 'Обогатительная фабрика №2', kind: 'concentrator-2', _isType: false, _parents: parent, feed_tpm: cfg.dumps.crusher.plantFeedTpm, target_grade_pct: cfg.grade.targetPct, note: c2note, sensors: plantSensorAttributes() },
+    features: serializePlant(c2.view),
+  };
+  for (const u of c2.equipment.units) {
+    out[id.unit2(u.def.key)] = {
+      policyId: POLICY,
+      attributes: {
+        name: `${u.def.name} (${u.def.building === 'crusher' ? 'ККД-2' : 'ОФ-2'})`,
+        kind: 'unit',
+        _isType: false,
+        _parents: u.def.building === 'crusher' ? id.crusher2 : id.plant2,
+        building: u.def.building === 'crusher' ? 'crusher2' : 'plant2',
+        key_features: u.def.keyFeatures,
+        sensors: u.def.sensors,
+        ...(u.def.bearingC ? { bearing_alarm_c: u.def.alarmC } : {}),
+      },
+      features: serializeUnit(c2.view, u.def.key),
+    };
+  }
+  const subDefs: [string, string, string][] = [
+    [id.sub, 'Подстанция ОФ-1', 'питает ОФ-1, первую дробилку, завод SX-EW, насосные и карьер'],
+    [id.sub2, 'Подстанция ОФ-2', 'питает ОФ-2 и ККД-2'],
+  ];
+  subDefs.forEach(([sid, name, feeds], i) => {
+    out[sid] = {
+      policyId: POLICY,
+      attributes: { name, kind: 'substation', _isType: false, _parents: parent, voltage_kv: 110, feeder_kv: 35, rated_mw: i === 0 ? 90 : 75, feeds, note: 'место и схема питания условные; нагрузка — из энергоучёта', sensors: substationSensorAttributes() },
+      features: serializeSubstation(sim, i === 0 ? 'sub' : 'sub2'),
+    };
+  });
   out[id.cost] = {
     policyId: POLICY,
     attributes: {
@@ -554,6 +606,34 @@ export function serializeCost(sim: Simulation): Features {
   return out;
 }
 
+/** ККД-2: те же признаки, что у первой дробилки, плюс условный подвоз. */
+export function serializeCrusher2(sim: Simulation): Features {
+  const c2 = sim.chain2;
+  return {
+    ...serializeCrusher(c2.view),
+    supply_tph: f(Math.round(c2.inflowTph), 't/h'),
+    backed_up: f(Math.round(c2.backedUpSec), 's'),
+  };
+}
+
+/** Подстанция: нагрузка, температура трансформатора, выключатель. */
+export function serializeSubstation(sim: Simulation, which: 'sub' | 'sub2'): Features {
+  const e = sim.energy;
+  const load = e.substationMw[which];
+  const kwh = which === 'sub' ? e.segmentKwh : e.areas.filter((a) => a.outside).reduce((s, a) => s + a.kwh, 0);
+  const cut = sim.powerCutLeft > 0;
+  return {
+    state: f(cut ? 'no_power' : 'ok'),
+    load_mw: f(Math.round(load * 10) / 10, 'MW'),
+    share_pct: f(Math.round((load / Math.max(1e-6, e.totalMw)) * 100), '%'),
+    energy_kwh: f(Math.round(kwh), 'kWh'),
+    voltage_kv: f(cut ? 0 : 110, 'kV'),
+    // Масло греется от нагрузки и от погоды; при обесточивании остывает до окружающей.
+    trafo_temp: f(Math.round(e.trafoTempC(sim, which) * 10) / 10, 'C'),
+    breaker: f(cut ? 'open' : 'closed'),
+  };
+}
+
 /** Энергоучёт по участкам. */
 export function serializeEnergy(sim: Simulation): Features {
   const e = sim.energy;
@@ -568,6 +648,10 @@ export function serializeEnergy(sim: Simulation): Features {
     cost_kzt: f(Math.round(e.costKzt(sim)), 'KZT'),
     power_cut: f(Math.round(sim.powerCutLeft), 's'),
     areas_kwh: f(e.areas.map((a) => `${a.id}:${Math.round(a.kwh)}`).join(';')),
+    segment_mw: f(Math.round(e.segmentMw * 10) / 10, 'MW'),
+    segment_kwh: f(Math.round(e.segmentKwh), 'kWh'),
+    plant2_mw: f(by('plant2'), 'MW'),
+    crusher2_mw: f(by('crusher2'), 'MW'),
     plant_mw: f(by('plant'), 'MW'),
     crusher_mw: f(by('crusher'), 'MW'),
     sxew_mw: f(by('sxew'), 'MW'),
@@ -814,6 +898,12 @@ export function serializeAll(sim: Simulation, v: StrategyName, k: Kpis): Record<
   out[id.weather] = serializeWeather(sim);
   out[id.energy] = serializeEnergy(sim);
   out[id.cost] = serializeCost(sim);
+  out[id.crusher2] = serializeCrusher2(sim);
+  out[id.stockpile2] = serializeStockpile(sim.chain2.view);
+  out[id.plant2] = serializePlant(sim.chain2.view);
+  for (const u of sim.chain2.equipment.units) out[id.unit2(u.def.key)] = serializeUnit(sim.chain2.view, u.def.key);
+  out[id.sub] = serializeSubstation(sim, 'sub');
+  out[id.sub2] = serializeSubstation(sim, 'sub2');
   out[id.waste] = serializeWaste(sim);
   out[id.garage] = serializeGarage(sim);
   out[id.roads] = serializeRoads(sim);
@@ -1074,6 +1164,10 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     if (ef) {
       const en = sim.energy;
       en.totalKwh = num(ef, 'kwh_shift', en.totalKwh);
+      en.segmentKwh = num(ef, 'segment_kwh', en.segmentKwh);
+      // Мгновенные мощности по участкам: без них схема подстанции и панели на стенде показывали бы нули.
+      const mwKey: Record<string, string> = { plant: 'plant_mw', crusher: 'crusher_mw', sxew: 'sxew_mw', tailings: 'tailings_mw', leach: 'leach_mw', pit: 'pit_mw', aux: 'aux_mw', plant2: 'plant2_mw', crusher2: 'crusher2_mw' };
+      for (const area of en.areas) area.mw = num(ef, mwKey[area.id], area.mw);
       en.peakMw = num(ef, 'peak_mw', en.peakMw);
       en.idleKwh = num(ef, 'idle_kwh', en.idleKwh);
       sim.powerCutLeft = num(ef, 'power_cut', sim.powerCutLeft);
@@ -1081,6 +1175,46 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
         const [aid, kwh] = part.split(':');
         const area = en.areas.find((a) => a.id === aid);
         if (area) area.kwh = Number(kwh) || 0;
+      }
+    }
+    // Вторая цепочка: бункер, склад, статистика фабрики и агрегаты.
+    {
+      const c2 = sim.chain2;
+      const cf = things.get(id.crusher2);
+      if (cf) {
+        c2.dump.binT = num(cf, 'bin', c2.dump.binT);
+        c2.dump.binCuT = num(cf, 'bin_cu', c2.dump.binCuT);
+        c2.dump.starvedSec = num(cf, 'starved', c2.dump.starvedSec);
+        c2.dump.tonnes = num(cf, 'tonnes_total', c2.dump.tonnes);
+        c2.inflowTph = num(cf, 'supply_tph', c2.inflowTph);
+        c2.backedUpSec = num(cf, 'backed_up', c2.backedUpSec);
+      }
+      const sf = things.get(id.stockpile2);
+      if (sf) {
+        c2.stockpile.t = num(sf, 'level', c2.stockpile.t);
+        c2.stockpile.cuT = num(sf, 'cu', c2.stockpile.cuT);
+        c2.stockpile.inflowT = num(sf, 'inflow_total', c2.stockpile.inflowT);
+        c2.stockpile.lastIn = num(sf, 'inflow') / 3600;
+        c2.stockpile.crushing = c2.stockpile.lastIn > 0;
+      }
+      const pf2 = things.get(id.plant2);
+      if (pf2) {
+        c2.stats.plantFeedT = num(pf2, 'feed_total');
+        c2.stats.cuFeedT = num(pf2, 'cu_feed');
+        c2.stats.cuConcT = num(pf2, 'cu_concentrate');
+        c2.stats.cuLossT = num(pf2, 'cu_loss');
+        c2.stats.feedSec = num(pf2, 'feed_time');
+        c2.stats.feedInBandSec = num(pf2, 'feed_in_band_time');
+      }
+      for (const u of c2.equipment.units) {
+        const fs = things.get(id.unit2(u.def.key));
+        if (!fs) continue;
+        for (const k of Object.keys(fs)) {
+          const raw = (fs[k] as { properties?: { value?: unknown } } | undefined)?.properties?.value;
+          if (typeof raw === 'number' || typeof raw === 'string') u.v[k] = raw;
+        }
+        u.state = String(u.v.state ?? u.state) as UnitState;
+        u.alarm = Number(u.v.alarm ?? 0) === 1;
       }
     }
     const wf = things.get(id.weather);

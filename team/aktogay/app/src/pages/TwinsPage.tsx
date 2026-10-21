@@ -44,6 +44,10 @@ const KEY_METRICS: Record<string, string[]> = {
   orebody: ['assays_total', 'assays_ore', 'last_assay_cu', 'last_assay_block'],
   'concentrate-store': ['stock', 'wagons_loaded', 'trains_shift', 'shipped_total'],
   crusher: ['state', 'bin', 'bin_grade', 'starved'],
+  'crusher-2': ['state', 'bin', 'supply_tph', 'bin_grade', 'starved'],
+  'stockpile-2': ['state', 'level', 'hours_left', 'fill', 'dust'],
+  'concentrator-2': ['state', 'feed_rate', 'feed_grade', 'cu_concentrate'],
+  substation: ['state', 'load_mw', 'share_pct', 'trafo_temp', 'breaker'],
   concentrator: ['state', 'feed_rate', 'feed_grade', 'cu_concentrate'],
   'heap-leach': ['tonnes_total', 'queue', 'cells_irrigated', 'pls_flow', 'pls_cu', 'cu_leached_total'],
   'sxew-plant': ['cathode_total', 'cathode_tpd', 'ew_current', 'acid_total'],
@@ -59,7 +63,7 @@ const KEY_METRICS: Record<string, string[]> = {
 };
 
 /** Тип двойника → «внутренний двойник» здания (мнемосхема на карте). */
-const INSIDE: Record<string, BuildingKind> = { stockpile: 'stockpile', crusher: 'crusher', concentrator: 'plant', garage: 'garage', 'heap-leach': 'leach', 'waste-dump': 'waste', 'sxew-plant': 'sxew', 'tailings-dam': 'tsf', 'concentrate-store': 'conc' };
+const INSIDE: Record<string, BuildingKind> = { stockpile: 'stockpile', crusher: 'crusher', concentrator: 'plant', garage: 'garage', 'heap-leach': 'leach', 'waste-dump': 'waste', 'sxew-plant': 'sxew', 'tailings-dam': 'tsf', 'concentrate-store': 'conc', 'crusher-2': 'crusher2', 'concentrator-2': 'plant2', 'stockpile-2': 'stockpile2' };
 
 const GROUPS: { title: string; kinds: string[] }[] = [
   { title: 'Карьер', kinds: ['open-pit'] },
@@ -68,6 +72,7 @@ const GROUPS: { title: string; kinds: string[] }[] = [
   { title: 'Буровые станки', kinds: ['drill-rig'] },
   { title: 'Самосвалы', kinds: ['haul-truck'] },
   { title: 'Переработка', kinds: ['crusher', 'stockpile', 'concentrator', 'concentrate-store', 'heap-leach', 'sxew-plant', 'waste-dump', 'tailings-dam'] },
+  { title: 'Вторая цепочка и подстанции', kinds: ['crusher-2', 'stockpile-2', 'concentrator-2', 'substation'] },
   { title: 'Агрегаты цехов', kinds: ['unit'] },
   { title: 'Погода и среда', kinds: ['weather-station', 'power-meter', 'cost-model'] },
   { title: 'Инфраструктура', kinds: ['garage', 'road-network', 'blasting', 'shift-log'] },
@@ -189,6 +194,18 @@ function summary(r: TwinRecord): [string, keyof typeof TONE_COLOR] {
       return [`${Math.round(Number(v('bin') ?? 0))} т`, stateTone(state)];
     case 'concentrator':
       return [`${Number(v('feed_grade') ?? 0).toFixed(3)} % Cu`, stateTone(state)];
+    case 'crusher-2':
+      return [`${Math.round(Number(v('bin') ?? 0))} т · подвоз ${Math.round(Number(v('supply_tph') ?? 0))} т/ч`, stateTone(state)];
+    case 'concentrator-2':
+      return [`${v('state') === 'stopped' ? 'стоит' : 'работает'} · ${Number(v('feed_grade') ?? 0).toFixed(3)} % Cu`, stateTone(state)];
+    case 'stockpile-2': {
+      const s = String(v('state') ?? '');
+      return [`${Math.round(Number(v('level') ?? 0)).toLocaleString('ru-RU')} т · ${v('hours_left')} ч`, s === 'depleted' ? 'bad' : Number(v('hours_left')) < 0.5 ? 'warn' : 'ok'];
+    }
+    case 'substation': {
+      const off = String(v('state')) === 'no_power';
+      return [off ? 'нет питания' : `${v('load_mw') ?? 0} МВт · масло ${v('trafo_temp') ?? 0} °C`, off ? 'bad' : 'ok'];
+    }
     case 'open-pit':
       return [`${Math.round(Number(v('tph') ?? 0)).toLocaleString('ru-RU')} т/ч`, Number(v('finished')) ? 'idle' : 'ok'];
     case 'heap-leach':
@@ -358,6 +375,8 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
     return m[1] === 'truck' ? ({ kind: 'truck', id: Number(m[2]) - 101 } as const) : ({ kind: 'excavator', id: Number(m[2]) - 1 } as const);
   })();
   const selVariant = variantOf(sel.id);
+  // У двух подстанций один вид двойника, но два здания: какое открывать, видно по номеру в идентификаторе.
+  const insideKind: BuildingKind | undefined = selKind === 'substation' ? (sel.id.endsWith('-2') ? 'sub2' : 'sub') : INSIDE[selKind];
 
   const fq = fFilter.trim().toLowerCase();
   const sensors = SENSORS_BY_KIND[selKind] ?? null;
@@ -500,8 +519,8 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                {selVariant && INSIDE[selKind] && (
-                  <button onClick={() => onOpenInside(selVariant, INSIDE[selKind])} className="rounded-lg bg-amber-500 px-3 py-1.5 text-[13px] font-bold text-black hover:bg-amber-400">
+                {selVariant && insideKind && (
+                  <button onClick={() => onOpenInside(selVariant, insideKind)} className="rounded-lg bg-amber-500 px-3 py-1.5 text-[13px] font-bold text-black hover:bg-amber-400">
                     ▣ Что внутри
                   </button>
                 )}
@@ -554,7 +573,7 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
             <div className="panel">
               <div className="flex items-center gap-3 border-b border-line px-4 py-2.5">
                 <div className="text-[13px] font-semibold">
-                  Датчики {({ excavator: 'на экскаваторе', 'haul-truck': 'на самосвале', crusher: 'на дробилке', concentrator: 'на фабрике', 'heap-leach': 'на площадке выщелачивания', 'sxew-plant': 'на заводе SX-EW', 'tailings-dam': 'на хвостохранилище', 'weather-station': 'на метеостанции', 'power-meter': 'на подстанции', 'cost-model': 'в экономике', 'concentrate-store': 'на складе концентрата', 'waste-dump': 'на отвале', garage: 'в гараже', 'drill-rig': 'на буровом станке' } as Record<string, string>)[selKind]} <span className="font-normal text-ink-3">· {sensors.length} · attributes.sensors</span>
+                  Датчики {({ excavator: 'на экскаваторе', 'haul-truck': 'на самосвале', crusher: 'на дробилке', concentrator: 'на фабрике', 'heap-leach': 'на площадке выщелачивания', 'sxew-plant': 'на заводе SX-EW', 'tailings-dam': 'на хвостохранилище', 'weather-station': 'на метеостанции', 'power-meter': 'на подстанции', 'crusher-2': 'на ККД-2', 'concentrator-2': 'на ОФ-2', 'stockpile-2': 'на складе ОФ-2', substation: 'на подстанции', 'cost-model': 'в экономике', 'concentrate-store': 'на складе концентрата', 'waste-dump': 'на отвале', garage: 'в гараже', 'drill-rig': 'на буровом станке' } as Record<string, string>)[selKind]} <span className="font-normal text-ink-3">· {sensors.length} · attributes.sensors</span>
                 </div>
                 <span className="ml-auto text-[11.5px] text-ink-3">клик — показать признаки датчика в таблице ниже</span>
               </div>

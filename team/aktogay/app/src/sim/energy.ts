@@ -27,6 +27,8 @@ export interface AreaUse {
   name: string;
   mw: number;
   kwh: number;
+  /** Участок вне моделируемого сегмента (вторая цепочка): входит в нагрузку рудника, но не в удельный расход сегмента. */
+  outside?: boolean;
 }
 
 /** Мощность перекачки, МВт: расход м³/ч, напор м. */
@@ -44,9 +46,13 @@ export class EnergyMeter {
     { id: 'leach', name: 'Насосные растворов выщелачивания', mw: 0, kwh: 0 },
     { id: 'pit', name: 'Карьер: буровые и освещение', mw: 0, kwh: 0 },
     { id: 'aux', name: 'Промплощадка, гараж, водовод', mw: 0, kwh: 0 },
+    { id: 'plant2', name: 'Обогатительная фабрика №2', mw: 0, kwh: 0, outside: true },
+    { id: 'crusher2', name: 'ККД-2 и конвейеры', mw: 0, kwh: 0, outside: true },
   ];
   /** Всего за смену, кВт·ч, и наибольшая мощность, МВт. */
   totalKwh = 0;
+  /** Энергия моделируемого сегмента (без второй цепочки): по ней считаются удельный расход и стоимость. */
+  segmentKwh = 0;
   peakMw = 0;
   /** Сколько энергии фабрика потратила вхолостую, пока стояла без руды, кВт·ч. */
   idleKwh = 0;
@@ -75,33 +81,57 @@ export class EnergyMeter {
     const dark = sim.weather.visibilityM < 5000;
     this.area('pit').mw = drilling * 0.62 + (dark ? 0.9 : 0.35);
     this.area('aux').mw = 1.6;
+    // Вторая цепочка: ОФ-2 и ККД-2 — по их собственному состоянию.
+    const c2 = sim.chain2;
+    this.area('plant2').mw = cut ? 1.5 : c2.running(sim) ? 48 : 13;
+    this.area('crusher2').mw = cut ? 0.4 : (c2.stockpile.crushing ? 6.2 : 0.6) + 2.4;
 
     let total = 0;
+    let segment = 0;
     for (const a of this.areas) {
       a.kwh += (a.mw * 1000 * dt) / 3600;
       total += a.mw;
+      if (!a.outside) segment += a.mw;
     }
     this.totalKwh += (total * 1000 * dt) / 3600;
+    this.segmentKwh += (segment * 1000 * dt) / 3600;
     this.peakMw = Math.max(this.peakMw, total);
     void cfg;
   }
 
+  /** Нагрузка всего рудника, МВт. */
   get totalMw(): number {
     return this.areas.reduce((s, a) => s + a.mw, 0);
   }
 
+  /** Нагрузка моделируемого сегмента без второй цепочки, МВт. */
+  get segmentMw(): number {
+    return this.areas.filter((a) => !a.outside).reduce((s, a) => s + a.mw, 0);
+  }
+
+  /** Температура масла трансформатора, °C: окружающая + прогрев от нагрузки (номинал — rated МВт). */
+  trafoTempC(sim: Simulation, which: 'sub' | 'sub2'): number {
+    const rated = which === 'sub' ? 90 : 75;
+    return sim.weather.tempC + 18 + 30 * (this.substationMw[which] / rated);
+  }
+
+  /** Нагрузка по подстанциям: ОФ-1 питает сегмент, ОФ-2 — вторую цепочку. */
+  get substationMw(): { sub: number; sub2: number } {
+    return { sub: this.segmentMw, sub2: this.areas.filter((a) => a.outside).reduce((s, a) => s + a.mw, 0) };
+  }
+
   /** Удельный расход на тонну руды, переработанной фабрикой, кВт·ч/т. */
   perTonneOre(sim: Simulation): number {
-    return sim.stats.plantFeedT > 0 ? this.totalKwh / sim.stats.plantFeedT : 0;
+    return sim.stats.plantFeedT > 0 ? this.segmentKwh / sim.stats.plantFeedT : 0;
   }
 
   /** Удельный расход на тонну меди (в концентрате и катодах), кВт·ч/т. */
   perTonneCu(sim: Simulation): number {
     const cu = sim.stats.cuConcT + sim.leach.cathodeT;
-    return cu > 0 ? this.totalKwh / cu : 0;
+    return cu > 0 ? this.segmentKwh / cu : 0;
   }
 
   costKzt(sim: Simulation): number {
-    return this.totalKwh * sim.cfg.economics.energyKztPerKwh;
+    return this.segmentKwh * sim.cfg.economics.energyKztPerKwh;
   }
 }

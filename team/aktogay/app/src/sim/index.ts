@@ -13,3 +13,4 @@ export * from './tailings';
 export * from './weather';
 export * from './energy';
 export * from './cost';
+export * from './chain2';

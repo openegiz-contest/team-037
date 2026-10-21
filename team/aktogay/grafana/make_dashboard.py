@@ -211,6 +211,13 @@ timeline("Самосвалы: состояние (реальная работа)
 bars("Топливо за смену, л", per_thing("truck-", "fuel"), 0, 179, "none", 12, 9)
 bars("Пробег за смену, м", per_thing("truck-", "drv_dist"), 12, 179, "lengthm", 12, 9)
 
+row("Вторая цепочка: ККД-2, склад и ОФ-2, подстанции", 198)
+series("ККД-2: приёмный бункер, т и условный подвоз, т/ч", real("crusher-2", {"bin": "бункер, т", "supply_tph": "подвоз, т/ч"}), 0, 199, "none", 8)
+series("Склад ОФ-2, т (пусто = фабрика стоит)", real("stockpile-2", {"level": "склад ОФ-2, т"}), 8, 199, "none", 8)
+series("Нагрузка подстанций, МВт", per_thing("substation-", "load_mw"), 16, 199, "none", 8)
+series("ОФ-2: переработано руды за смену, т и медь в концентрате, т", real("plant-2", {"feed_total": "руда, т", "cu_concentrate": "медь в концентрате, т"}), 0, 207, "none", 12)
+series("Температура масла трансформаторов, °C", per_thing("substation-", "trafo_temp"), 12, 207, "celsius", 12)
+
 row("Склад концентрата и ж/д отгрузка", 188)
 series("Концентрат на складе, т", both("concentrate", "stock"), 0, 189, "none", 8)
 series("Вагонов загружено в состав (из 6)", both("concentrate", "wagons_loaded"), 8, 189, "none", 8)

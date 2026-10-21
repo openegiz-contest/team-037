@@ -85,17 +85,11 @@ const DRILL_SPREAD = 40;
 const LANE_OFFSET = 15;
 
 /** Что можно найти и к чему подлететь камерой. */
-export type SiteId = 'plant2' | 'crusher2' | 'stockpile2' | 'sub' | 'sub2';
-
-export type FocusTarget =
-  | { kind: 'truck' | 'excavator' | 'drill'; id: number }
-  | { kind: 'building'; id: BuildingKind }
-  /** Объекты комбината, у которых нет мнемосхемы: вторая цепочка и подстанции. */
-  | { kind: 'site'; id: SiteId };
+export type FocusTarget = { kind: 'truck' | 'excavator' | 'drill'; id: number } | { kind: 'building'; id: BuildingKind };
 
 export type LabelMode = 'all' | 'hover';
 
-export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew' | 'tsf' | 'conc';
+export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew' | 'tsf' | 'conc' | 'crusher2' | 'plant2' | 'stockpile2' | 'sub' | 'sub2';
 
 const BG = '#0a1526';
 /** Оттенки погодной дымки: снежная и пыльная. */
@@ -378,7 +372,8 @@ export class MineScene {
     plant2.position.set(S2.plant2.x, this.heightAt(S2.plant2.x, S2.plant2.y) - 2, S2.plant2.y);
     plant2.rotation.y = yawTo(S2.plant2, S2.stockpile2);
     this.scene.add(plant2);
-    this.sites.set('plant2', plant2);
+    plant2.userData = { building: 'plant2' };
+    this.buildings.push(plant2);
     const crusher2 = makeCrusher();
     crusher2.root.scale.setScalar(2);
     crusher2.root.position.set(S2.crusher2.x, this.heightAt(S2.crusher2.x, S2.crusher2.y) - 2, S2.crusher2.y);
@@ -388,7 +383,8 @@ export class MineScene {
     crusher2.fillMat.color.set('#22c55e');
     crusher2.fillMat.emissive.set('#22c55e');
     this.scene.add(crusher2.root);
-    this.sites.set('crusher2', crusher2.root);
+    crusher2.root.userData = { building: 'crusher2' };
+    this.buildings.push(crusher2.root);
     const pile2R = 88;
     const pile2G = this.heightAt(S2.stockpile2.x, S2.stockpile2.y);
     const pile2 = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 18, 1), new THREE.MeshStandardMaterial({ color: '#8b6b47', roughness: 1, flatShading: true }));
@@ -397,7 +393,8 @@ export class MineScene {
     pile2.castShadow = true;
     pile2.receiveShadow = true;
     this.scene.add(pile2);
-    this.sites.set('stockpile2', pile2);
+    pile2.userData = { building: 'stockpile2' };
+    this.buildings.push(pile2);
     this.chain2 = {
       crusherTop: new THREE.Vector3(S2.crusher2.x, crusher2.root.position.y + 95, S2.crusher2.y),
       pileTop: new THREE.Vector3(S2.stockpile2.x, pile2G + pile2R * 0.82 + 12, S2.stockpile2.y),
@@ -405,14 +402,15 @@ export class MineScene {
       plantIn: new THREE.Vector3(S2.plant2.x, plant2.position.y + 80, S2.plant2.y),
     };
     // Подстанции фабрик и ЛЭП на опорах: от них зависят фабрика, дробилка и электролиз.
-    const subs: [SiteId, { x: number; y: number }][] = [['sub', S2.sub], ['sub2', S2.sub2]];
-    const subRoots = new Map<SiteId, THREE.Object3D>();
+    const subs: ['sub' | 'sub2', { x: number; y: number }][] = [['sub', S2.sub], ['sub2', S2.sub2]];
+    const subRoots = new Map<'sub' | 'sub2', THREE.Object3D>();
     for (const [key, q] of subs) {
       const { root, lamp } = makeSubstation();
       root.position.set(q.x, this.heightAt(q.x, q.y) - 1, q.y);
       root.rotation.y = 0.4;
       this.scene.add(root);
-      this.sites.set(key, root);
+      root.userData = { building: key };
+      this.buildings.push(root);
       subRoots.set(key, root);
       this.subLamps.push(lamp);
     }
@@ -705,15 +703,29 @@ export class MineScene {
         c.starvedSec > 0 ? 'bad' : 'v'
       }">${(c.starvedSec / 60).toFixed(1)} мин</span>`;
     }, plant);
-    // Вторая цепочка и подстанции: в расчёте их нет — панели честно это говорят.
-    panel(new THREE.Vector3(S2.plant2.x, plant2.position.y + 240, S2.plant2.y), () => `<b>ОБОГАТИТЕЛЬНАЯ ФАБРИКА №2</b><br>Актогай-2, запущена в 2021 г.<br><span class="v">в расчёте не участвует</span>`, plant2);
-    panel(new THREE.Vector3(S2.crusher2.x, crusher2.root.position.y + 200, S2.crusher2.y), () => `<b>ДРОБИЛКА ККД-2</b><br>Питает склад и ОФ-2<br><span class="v">в расчёте не участвует</span>`, crusher2.root);
+    // Вторая цепочка и подстанции: подвоз руды условный, остальное считается — панели это и показывают.
+    panel(new THREE.Vector3(S2.plant2.x, plant2.position.y + 240, S2.plant2.y), () => {
+      const c2 = sim.chain2;
+      if (sim.powerCutLeft > 0) return `<b>ОБОГАТИТЕЛЬНАЯ ФАБРИКА №2</b><br><span class="bad">✖ ОБЕСТОЧЕНА</span> · ещё ${Math.ceil(sim.powerCutLeft / 60)} мин<br>Мельницы и флотация стоят`;
+      const run = c2.running(sim);
+      return `<b>ОБОГАТИТЕЛЬНАЯ ФАБРИКА №2</b><br>${run ? '<span class="ok">РАБОТА</span>' : '<span class="bad">ПРОСТОЙ — НЕТ РУДЫ</span>'}<br>Cu в питании: <span class="v">${c2.view.feedGrade.toFixed(3)} %</span><br>Руда за смену: <span class="v">${fmtInt(c2.stats.plantFeedT)} т</span>`;
+    }, plant2);
+    panel(new THREE.Vector3(S2.crusher2.x, crusher2.root.position.y + 200, S2.crusher2.y), () => {
+      const c2 = sim.chain2;
+      if (sim.powerCutLeft > 0) return `<b>ДРОБИЛКА ККД-2</b><br><span class="bad">✖ ОБЕСТОЧЕНА</span><br>Бункер: <span class="warn">${fmtInt(c2.dump.binT)} т (${Math.round((c2.dump.binT / c2.dump.binCapT) * 100)}%)</span>`;
+      return `<b>ДРОБИЛКА ККД-2</b><br>Бункер: <span class="v">${fmtInt(c2.dump.binT)} т (${Math.round((c2.dump.binT / c2.dump.binCapT) * 100)}%)</span><br>Подвоз: <span class="v">${fmtInt(c2.inflowTph)} т/ч</span> <span class="hint">(условный)</span>`;
+    }, crusher2.root);
+    panel(new THREE.Vector3(S2.stockpile2.x, pile2G + 170, S2.stockpile2.y), () => {
+      const c2 = sim.chain2;
+      const h = c2.stockpile.t / (cfg.dumps.crusher.plantFeedTpm * 60);
+      return `<b>СКЛАД ОФ-2</b><br>${fmtInt(c2.stockpile.t)} т из ${fmtInt(c2.stockpile.capT)} (${Math.round((c2.stockpile.t / c2.stockpile.capT) * 100)}%)<br>запас фабрике: <span class="${c2.stockpile.t <= 0.01 ? 'bad' : h < 0.5 ? 'warn' : 'v'}">${h.toFixed(1)} ч</span>`;
+    }, pile2);
     for (const [key, name] of [['sub', 'ПОДСТАНЦИЯ ОФ-1'], ['sub2', 'ПОДСТАНЦИЯ ОФ-2']] as const) {
       const root = subRoots.get(key)!;
       panel(new THREE.Vector3(root.position.x, root.position.y + 90, root.position.z), () => {
         const e = sim.energy;
         if (sim.powerCutLeft > 0) return `<b>${name}</b><br><span class="bad">✖ НЕТ ПИТАНИЯ</span> · ещё ${Math.ceil(sim.powerCutLeft / 60)} мин<br>Потребители обесточены`;
-        return `<b>${name}</b><br>Нагрузка рудника: <span class="v">${e.totalMw.toFixed(1)} МВт</span><br>Пик за смену: <span class="v">${e.peakMw.toFixed(1)} МВт</span>`;
+        return `<b>${name}</b><br>Нагрузка: <span class="v">${e.substationMw[key].toFixed(1)} МВт</span><br>Масло: <span class="v">${e.trafoTempC(sim, key).toFixed(0)} °C</span>`;
       }, root);
     }
     const leachD = sim.dumps[1];
@@ -1039,13 +1051,6 @@ export class MineScene {
     if (t.kind === 'truck') return this.trucks[t.id] ? { at: this.trucks[t.id].root.position.clone(), size: 60 } : null;
     if (t.kind === 'excavator') return this.excavators[t.id] ? { at: this.excavators[t.id].root.position.clone(), size: 80 } : null;
     if (t.kind === 'drill') return this.drills[t.id] ? { at: this.drills[t.id].root.position.clone(), size: 60 } : null;
-    if (t.kind === 'site') {
-      const o = this.sites.get(t.id);
-      if (!o) return null;
-      const box = new THREE.Box3().setFromObject(o);
-      const size = box.getSize(new THREE.Vector3());
-      return { at: box.getCenter(new THREE.Vector3()), size: Math.max(140, Math.min(520, Math.max(size.x, size.z) * 0.7)) };
-    }
     if (t.id === 'stockpile') return { at: this.stockpileAt.clone(), size: 220 };
     // У склада концентрата габарит задаёт длинный путь — кадрируем по самой погрузке.
     if (t.id === 'conc') return { at: this.concAt.clone().add(new THREE.Vector3(0, 20, 0)), size: 300 };
@@ -1202,8 +1207,6 @@ export class MineScene {
   private readonly precipBase: Float32Array;
   /** Центр ровной площадки под стоянкой: по нему берётся высота плиты. */
   private parkingPadCentre = { x: 0, y: 0 };
-  /** Объекты комбината без мнемосхемы (вторая цепочка, подстанции) — для подлёта камеры. */
-  private readonly sites = new Map<SiteId, THREE.Object3D>();
   /** Сигнальные лампы подстанций: зелёные в работе, красные при обесточивании. */
   private readonly subLamps: THREE.Mesh[] = [];
   /** Точки входа и выхода конвейеров второй цепочки. */

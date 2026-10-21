@@ -28,8 +28,13 @@ const TITLE: Record<BuildingKind, string> = {
   sxew: 'Завод SX-EW и пруды растворов',
   tsf: 'Хвостохранилище: дамба, пруд и оборотная вода',
   conc: 'Склад концентрата и ж/д погрузка',
+  crusher2: 'Первичная дробилка ККД-2',
+  plant2: 'Обогатительная фабрика №2',
+  stockpile2: 'Склад дроблёной руды ОФ-2',
+  sub: 'Подстанция ОФ-1',
+  sub2: 'Подстанция ОФ-2',
 };
-const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile', sxew: 'sxew-plant', tsf: 'tailings-dam', conc: 'concentrate-store' };
+const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile', sxew: 'sxew-plant', tsf: 'tailings-dam', conc: 'concentrate-store', crusher2: 'crusher-2', plant2: 'concentrator-2', stockpile2: 'stockpile-2', sub: 'substation', sub2: 'substation' };
 
 // Цвета схемы (тёмный «экран»).
 const C = {
@@ -57,7 +62,11 @@ interface Props {
 export function BuildingView({ sim, kind, onClose, onTruck, light = false }: Props) {
   const sensors = SENSORS_BY_KIND[TWIN_KIND[kind]] ?? [];
   /** У дробилки и фабрики есть 3D-цех; без WebGL — только схема. */
-  const has3d = (kind === 'crusher' || kind === 'plant' || kind === 'garage') && webglAvailable();
+  // Вторая цепочка показывается теми же схемами и 3D-цехом, но на своих данных: «вид симуляции».
+  const chain2 = kind === 'crusher2' || kind === 'plant2' || kind === 'stockpile2';
+  const base = kind === 'crusher2' ? 'crusher' : kind === 'plant2' ? 'plant' : kind;
+  const vs = chain2 ? sim.chain2.view : sim;
+  const has3d = (base === 'crusher' || base === 'plant' || base === 'garage') && webglAvailable();
   const [tab, setTab] = useState<'3d' | 'scheme'>(has3d ? '3d' : 'scheme');
   const show3d = has3d && tab === '3d';
   return (
@@ -80,21 +89,28 @@ export function BuildingView({ sim, kind, onClose, onTruck, light = false }: Pro
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-3">
+        {chain2 && (
+          <div className="mb-3 rounded-lg bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
+            Вторая цепочка комбината. Подвоз руды условный — его везёт остальной парк, которого в модели нет; бункер, дробилка, склад и фабрика считаются по-настоящему и реагируют на погоду и отключение энергии.
+          </div>
+        )}
         {show3d && (
           <div className="relative h-[46vh] min-h-[300px]">
-            <Interior3D sim={sim} kind={kind as 'crusher' | 'plant' | 'garage'} light={light} />
+            <Interior3D sim={vs} kind={base as 'crusher' | 'plant' | 'garage'} light={light} />
             <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 text-[11.5px] text-ink-2">ЛКМ — вращение · ПКМ — сдвиг · колесо — масштаб</div>
           </div>
         )}
-        {!show3d && kind === 'crusher' && <Crusher sim={sim} onTruck={onTruck} />}
-        {!show3d && kind === 'plant' && <Plant sim={sim} />}
+        {!show3d && base === 'crusher' && <Crusher sim={vs} onTruck={onTruck} />}
+        {!show3d && base === 'plant' && <Plant sim={vs} />}
         {!show3d && kind === 'garage' && <Garage sim={sim} onTruck={onTruck} />}
         {(kind === 'leach' || kind === 'waste') && <Dump sim={sim} kind={kind} onTruck={onTruck} />}
         {kind === 'stockpile' && <Stockpile sim={sim} />}
+        {kind === 'stockpile2' && <Stockpile sim={vs} />}
+        {(kind === 'sub' || kind === 'sub2') && <Substation sim={sim} which={kind} />}
         {kind === 'sxew' && <SxEw sim={sim} />}
         {kind === 'tsf' && <Tailings sim={sim} />}
         {kind === 'conc' && <ConcStore sim={sim} />}
-        {(kind === 'crusher' || kind === 'plant' || kind === 'garage') && <UnitStrip sim={sim} building={kind} />}
+        {(base === 'crusher' || base === 'plant' || base === 'garage') && <UnitStrip sim={vs} building={base} chain2={chain2} />}
         {sensors.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {sensors.map((s) => (
@@ -119,7 +135,7 @@ const UNITS_RU: Record<string, string> = {
 };
 
 /** Карточки агрегатов здания: состояние, ключевые датчики, тревога; клик — двойник агрегата. */
-function UnitStrip({ sim, building }: { sim: Simulation; building: 'crusher' | 'plant' | 'garage' }) {
+function UnitStrip({ sim, building, chain2 = false }: { sim: Simulation; building: 'crusher' | 'plant' | 'garage'; chain2?: boolean }) {
   const units = sim.equipment.units.filter((u) => u.def.building === building);
   const id = thingIds(sim.strategyName);
   return (
@@ -131,7 +147,7 @@ function UnitStrip({ sim, building }: { sim: Simulation; building: 'crusher' | '
           return (
             <a
               key={u.def.key}
-              href={`#/twins/${encodeURIComponent(id.unit(u.def.key))}`}
+              href={`#/twins/${encodeURIComponent(chain2 ? id.unit2(u.def.key) : id.unit(u.def.key))}`}
               className="rounded-lg border bg-panel-2/50 px-2.5 py-2 hover:border-amber-500"
               style={{ borderColor: u.alarm ? '#ef4444' : 'var(--color-line)' }}
               title="Открыть двойник агрегата"
@@ -977,6 +993,73 @@ function ConcStore({ sim }: { sim: Simulation }) {
       </Stats>
       <div className="mt-2 text-[11.5px] text-ink-3">
         Состав масштабирован под моделируемый сегмент парка: на реальном комбинате в составе десятки вагонов. Содержание меди в концентрате — по открытым данным.
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────── подстанция ─────────────────────────────
+
+/** Однолинейная схема: ввод 110 кВ → выключатель → трансформаторы → шины 35/6 кВ → потребители. */
+function Substation({ sim, which }: { sim: Simulation; which: 'sub' | 'sub2' }) {
+  const e = sim.energy;
+  const cut = sim.powerCutLeft > 0;
+  const load = e.substationMw[which];
+  const rated = which === 'sub' ? 90 : 75;
+  const ids = which === 'sub' ? ['plant', 'crusher', 'sxew', 'tailings', 'leach', 'pit', 'aux'] : ['plant2', 'crusher2'];
+  const feeders = ids.map((id) => e.areas.find((a) => a.id === id)!);
+  const temp = e.trafoTempC(sim, which);
+  const rowH = 36;
+  const H = Math.max(250, 74 + feeders.length * rowH);
+  const mid = H / 2;
+  const live = cut ? C.bad : C.ok;
+  const maxMw = Math.max(1, ...feeders.map((a) => a.mw));
+  return (
+    <div>
+      <svg viewBox={`0 0 1000 ${H}`} className="w-full">
+        {/* ввод 110 кВ */}
+        <line x1={14} y1={mid} x2={150} y2={mid} stroke={live} strokeWidth={3} />
+        <text x={14} y={mid - 10} fontSize={12} fill={C.dim}>ЛЭП 110 кВ</text>
+        <text x={14} y={mid + 22} fontSize={11.5} fill={live}>{cut ? 'напряжения нет' : '110 кВ'}</text>
+        {/* выключатель */}
+        <rect x={150} y={mid - 14} width={36} height={28} rx={3} fill={cut ? 'none' : live} stroke={live} strokeWidth={2} />
+        <text x={168} y={mid - 22} textAnchor="middle" fontSize={11} fill={C.dim}>выключатель</text>
+        <text x={168} y={mid + 34} textAnchor="middle" fontSize={11.5} fill={live}>{cut ? 'отключён' : 'включён'}</text>
+        <line x1={186} y1={mid} x2={250} y2={mid} stroke={live} strokeWidth={3} />
+        {/* трансформатор */}
+        <circle cx={278} cy={mid} r={30} fill="none" stroke={live} strokeWidth={3} />
+        <circle cx={310} cy={mid} r={30} fill="none" stroke={live} strokeWidth={3} />
+        <text x={294} y={mid - 44} textAnchor="middle" fontSize={12} fill={C.text}>Трансформатор 110/35 кВ</text>
+        <text x={294} y={mid + 56} textAnchor="middle" fontSize={12} fill={temp > 85 ? C.bad : temp > 70 ? C.warn : C.dim}>масло {temp.toFixed(0)} °C</text>
+        <SensorDot x={256} y={mid + 70} label="термометры масла, газовое реле" />
+        <line x1={340} y1={mid} x2={420} y2={mid} stroke={live} strokeWidth={3} />
+        {/* шины и фидеры */}
+        <line x1={420} y1={36} x2={420} y2={H - 36} stroke={live} strokeWidth={5} />
+        <text x={420} y={26} textAnchor="middle" fontSize={11.5} fill={C.dim}>шины 35 кВ</text>
+        {feeders.map((a, i) => {
+          const y = 50 + i * rowH + (H - 74 - feeders.length * rowH) / 2;
+          const w = (a.mw / maxMw) * 150;
+          return (
+            <g key={a.id}>
+              <line x1={420} y1={y} x2={520} y2={y} stroke={live} strokeWidth={2.5} />
+              <rect x={520} y={y - 14} width={250} height={28} rx={5} fill={C.box} stroke={C.line} />
+              <text x={530} y={y + 4} fontSize={11.5} fill={C.text}>{a.name}</text>
+              <rect x={782} y={y - 6} width={150} height={12} rx={6} fill={C.boxHi} />
+              <rect x={782} y={y - 6} width={Math.max(2, w)} height={12} rx={6} fill={cut ? C.bad : '#f59e0b'} />
+              <text x={940} y={y + 4} fontSize={12} fontWeight={700} fill={C.text} fontFamily="var(--font-mono)">{a.mw.toFixed(1)}</text>
+            </g>
+          );
+        })}
+        <SensorDot x={420} y={H - 14} label="счётчики на фидерах, релейная защита" />
+      </svg>
+      <Stats>
+        <Stat label="Нагрузка подстанции" value={`${load.toFixed(1)} МВт`} tone={cut ? C.bad : undefined} />
+        <Stat label="Доля в нагрузке рудника" value={`${Math.round((load / Math.max(1e-6, e.totalMw)) * 100)} %`} />
+        <Stat label="Загрузка трансформаторов" value={`${Math.round((load / rated) * 100)} % от ${rated} МВт`} tone={load / rated > 0.9 ? C.warn : undefined} />
+        <Stat label="Масло трансформатора" value={`${temp.toFixed(0)} °C`} tone={temp > 85 ? C.bad : temp > 70 ? C.warn : undefined} />
+      </Stats>
+      <div className="mt-2 text-[11.5px] text-ink-3">
+        {which === 'sub' ? 'Питает моделируемый сегмент: ОФ-1, дробилку, SX-EW, насосные и карьер.' : 'Питает вторую цепочку: ОФ-2 и ККД-2.'} Мощности агрегатов и схема питания условные; при сценарии «отключение энергии» ввод теряет напряжение и все фидеры обесточиваются.
       </div>
     </div>
   );

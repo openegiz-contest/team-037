@@ -366,6 +366,39 @@ export const ENERGY_SENSORS: SensorSpec[] = [
   },
 ];
 
+export const SUBSTATION_SENSORS: SensorSpec[] = [
+  {
+    id: 'feeders',
+    name: 'Счётчики на вводах и фидерах подстанции',
+    hardware: 'многофункциональные счётчики на вводах 110 кВ и фидерах 35/6 кВ, трансформаторы тока и напряжения',
+    location: 'распределительные устройства подстанции',
+    measures: 'нагрузка подстанции, МВт, доля в нагрузке рудника, энергия за смену, кВт·ч',
+    features: ['load_mw', 'share_pct', 'energy_kwh'],
+    periodS: 60,
+    purpose: 'сколько потребляют питаемые объекты и когда нагрузка выходит на пик',
+  },
+  {
+    id: 'trafo_temp',
+    name: 'Датчики температуры масла трансформаторов',
+    hardware: 'термометры сопротивления в карманах крышки трансформатора + газовое реле Бухгольца',
+    location: 'силовые трансформаторы',
+    measures: 'температура верхних слоёв масла, °C',
+    features: ['trafo_temp'],
+    periodS: 60,
+    purpose: 'перегрев трансформатора при пиках нагрузки и жаре — до срабатывания защиты',
+  },
+  {
+    id: 'protection',
+    name: 'Микропроцессорная релейная защита и выключатели',
+    hardware: 'терминалы защиты (МТЗ, дифференциальная) и приводы элегазовых выключателей',
+    location: 'ячейки ввода и фидеров',
+    measures: 'напряжение на вводе, кВ; положение выключателя',
+    features: ['voltage_kv', 'breaker', 'state'],
+    periodS: 1,
+    purpose: 'обесточивание участка: какой выключатель отключился и когда напряжение вернулось',
+  },
+];
+
 export const WEATHER_SENSORS: SensorSpec[] = [
   {
     id: 'ams',
@@ -718,6 +751,11 @@ export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   'tailings-dam': TAILINGS_SENSORS,
   'weather-station': WEATHER_SENSORS,
   'power-meter': ENERGY_SENSORS,
+  // Вторая цепочка и подстанции: приборы те же, что у первой цепочки и у остальных подстанций.
+  'crusher-2': CRUSHER_SENSORS,
+  'concentrator-2': PLANT_SENSORS,
+  'stockpile-2': STOCKPILE_SENSORS,
+  substation: SUBSTATION_SENSORS,
 };
 
 /** Компактная запись для attributes.sensors двойника в Ditto. */
@@ -738,3 +776,4 @@ export const sxewSensorAttributes = () => sensorAttributes(SXEW_SENSORS);
 export const tailingsSensorAttributes = () => sensorAttributes(TAILINGS_SENSORS);
 export const weatherSensorAttributes = () => sensorAttributes(WEATHER_SENSORS);
 export const energySensorAttributes = () => sensorAttributes(ENERGY_SENSORS);
+export const substationSensorAttributes = () => sensorAttributes(SUBSTATION_SENSORS);

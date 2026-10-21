@@ -67,14 +67,20 @@ export class PlantEquipment {
   private readonly lastOnPost: (number | null)[] = [null, null];
   private readonly lastInBay: (number | null)[] = [null, null, null];
 
-  constructor(private readonly sim: Simulation) {
-    this.rng = new Rng(subSeed(sim.seed, 9000));
+  /**
+   * defs и salt нужны второй цепочке: свой набор агрегатов и свои потоки случайных чисел, чтобы
+   * поведение первой цепочки и её бенчмарк не менялись.
+   */
+  constructor(private readonly sim: Simulation, opts: { defs?: UnitDef[]; salt?: number } = {}) {
+    const salt = opts.salt ?? 0;
+    const defs = opts.defs ?? UNIT_DEFS;
+    this.rng = new Rng(subSeed(sim.seed, 9000 + salt));
     const T = sim.cfg.shift.durationSec;
     // Обычно за смену начинает греться подшипник одного из вращающихся агрегатов (85% смен).
-    const fr = new Rng(subSeed(sim.seed, 9100));
-    const rotating = UNIT_DEFS.filter((d) => d.bearingC > 0).map((d) => d.key);
+    const fr = new Rng(subSeed(sim.seed, 9100 + salt));
+    const rotating = defs.filter((d) => d.bearingC > 0).map((d) => d.key);
     const faulty = fr.next() < 0.85 ? rotating[Math.floor(fr.next() * rotating.length)] : null;
-    this.units = UNIT_DEFS.map((def) => {
+    this.units = defs.map((def) => {
       const fault = def.key === faulty ? { start: Math.floor(fr.range(0.15, 0.7) * T), dur: Math.round(fr.range(60, 120) * 60), riseC: fr.range(24, 34) } : null;
       const v: UnitValues = def.bearingC > 0 ? { bearing_temp: 30 } : {};
       return { def, state: 'idling' as UnitState, v, fault, alarm: false };
