@@ -75,6 +75,9 @@ export function makeRoadHeightAt(
   // Ровные площадки (буровые блоки на рабочем уступе): высота — по центру площадки.
   const padList = pads.map((p) => ({ ...p, h: base(p.x, p.y), r: Math.hypot(p.halfAlong, p.halfAcross) + SHOULDER }));
   for (const e of roadSegments(sim)) {
+    // Служебные дороги в рельеф не врезаем: они узкие, а сетка степи вдали крупная — врезка
+    // попала бы не во все вершины и дорога торчала бы гранями. Они просто ложатся на склон.
+    if (e.kind === 'service') continue;
     const a = { x: e.ax, y: e.ay };
     const b = { x: e.bx, y: e.by };
     const half = roadWidth(e.kind) / 2;
@@ -131,9 +134,13 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 
 /**
  * Рельеф: плотная полярная сетка вокруг всех выработок (уступы каждой чаши ложатся на неё через
- * высоту в точке) и редкие кольца степи до горизонта.
+ * высоту в точке) и кольца степи до горизонта.
+ *
+ * Снаружи выработок сетка тоже должна быть достаточно частой: там проходят технологические дороги
+ * шириной 36–78 м, врезанные в рельеф. Если шаг по радиусу крупнее ширины дороги, врезка попадает
+ * не во все вершины и дорога торчит из склона длинными гранями.
  */
-export function buildTerrain(cfg: SimConfig, blk: Block | null, heightAt?: (x: number, y: number) => number): THREE.Mesh {
+export function buildTerrain(cfg: SimConfig, blk: Block | null, heightAt?: (x: number, y: number) => number, light = false): THREE.Mesh {
   const A = 520; // сегментов по углу
   const pb = pitsBounds(cfg, 140);
   const gx = (pb.minX + pb.maxX) / 2;
@@ -142,9 +149,15 @@ export function buildTerrain(cfg: SimConfig, blk: Block | null, heightAt?: (x: n
   const ga = ((pb.maxX - pb.minX) / 2) * 1.42;
   const gb = ((pb.maxY - pb.minY) / 2) * 1.42;
   const sList: number[] = [];
-  for (let i = 0; i <= 36; i++) sList.push(4.2 - (i / 36) * 3.2);
-  const inner = 340;
-  for (let i = 1; i <= inner; i++) sList.push(1 - i / inner);
+  // Степь снаружи: у бровки шаг по радиусу ~14 м (дороги и площадки), дальше реже.
+  const outer: [number, number, number][] = [
+    [4.2, 2.6, light ? 16 : 33],
+    [2.6, 1.5, light ? 30 : 64],
+    [1.5, 1.0, light ? 36 : 73],
+  ];
+  for (const [from, to, n] of outer) for (let i = 0; i < n; i++) sList.push(from + ((to - from) * i) / n);
+  const inner = light ? 240 : 340;
+  for (let i = 0; i <= inner; i++) sList.push(1 - i / inner);
   const height = heightAt ?? makeHeightAt(cfg);
 
   const R = sList.length;

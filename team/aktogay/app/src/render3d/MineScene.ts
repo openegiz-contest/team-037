@@ -254,7 +254,7 @@ export class MineScene {
     ground.position.y = -12;
     ground.receiveShadow = true;
     this.scene.add(ground);
-    this.scene.add(buildTerrain(cfg, null, this.heightAt));
+    this.scene.add(buildTerrain(cfg, null, this.heightAt, light));
     this.scene.add(buildWater(cfg));
     this.scene.add(buildRoads(sim, this.heightAt));
 
