@@ -11,6 +11,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { gradeAt, MATERIAL_SHORT, pitPointOf, pitScaleAt, type Blast, type Simulation, type TruckState } from '../sim';
 import { BLOCK_PAD } from '../sim/drilling';
+import { CAMP_BEDS } from '../sim/camp';
 import { TRAIN_WAGONS } from '../sim/concentrate';
 import { SHIFT_START_HOUR } from '../sim/weather';
 import { daylight } from './daylight';
@@ -28,6 +29,7 @@ import {
   WAGON_LEN,
   makeLeachPad,
   makePylon,
+  makeCamp,
   makeSubstation,
   PYLON_ARM,
   PYLON_H,
@@ -89,7 +91,7 @@ export type FocusTarget = { kind: 'truck' | 'excavator' | 'drill'; id: number } 
 
 export type LabelMode = 'all' | 'hover';
 
-export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew' | 'tsf' | 'conc' | 'crusher2' | 'plant2' | 'stockpile2' | 'sub' | 'sub2';
+export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew' | 'tsf' | 'conc' | 'crusher2' | 'plant2' | 'stockpile2' | 'sub' | 'sub2' | 'camp';
 
 const BG = '#0a1526';
 /** Оттенки погодной дымки: снежная и пыльная. */
@@ -226,6 +228,7 @@ export class MineScene {
       pads.push({ x: S.plant2.x, y: S.plant2.y, ...dir(S.plant2, S.stockpile2), halfAlong: 260, halfAcross: 240 });
       pads.push({ x: S.crusher2.x, y: S.crusher2.y, ...dir(S.crusher2, S.stockpile2), halfAlong: 150, halfAcross: 120 });
       pads.push({ x: S.stockpile2.x, y: S.stockpile2.y, ux: 1, uy: 0, halfAlong: 105, halfAcross: 105 });
+      pads.push({ x: S.camp.x, y: S.camp.y, ux: 1, uy: 0, halfAlong: 200, halfAcross: 130 });
       for (const q of [S.sub, S.sub2]) pads.push({ x: q.x, y: q.y, ux: 1, uy: 0, halfAlong: 80, halfAcross: 62 });
     }
     this.heightAt = makeRoadHeightAt(sim, makeHeightAt(cfg), pads);
@@ -416,6 +419,15 @@ export class MineScene {
     }
     for (const line of S2.powerLines) this.addPowerLine(line);
 
+    // Вахтовый посёлок: общежития, столовая, котельная, водонапорная башня, генератор и автобусы.
+    const campModel = makeCamp();
+    const campRoot = campModel.root;
+    campRoot.position.set(S2.camp.x, this.heightAt(S2.camp.x, S2.camp.y) - 1.5, S2.camp.y);
+    this.scene.add(campRoot);
+    campRoot.userData = { building: 'camp' };
+    this.buildings.push(campRoot);
+    this.camp3d = campModel;
+
     // Оксидная ветка после площадки выщелачивания: пруды растворов и завод SX-EW.
     // К ним ничего не ездит — раствор идёт по трубам, поэтому в графе дорог их нет.
     const faceLeach = (p: { x: number; y: number }) => -Math.atan2(cfg.sites.leach.y - p.y, cfg.sites.leach.x - p.x);
@@ -478,6 +490,7 @@ export class MineScene {
       { x: S2.stockpile2.x, y: S2.stockpile2.y, r: 150 },
       { x: S2.sub.x, y: S2.sub.y, r: 120 },
       { x: S2.sub2.x, y: S2.sub2.y, r: 120 },
+      { x: S2.camp.x, y: S2.camp.y, r: 260 },
       { x: leach.position.x, y: leach.position.z, r: 320 },
       { x: cfg.sites.ponds.x, y: cfg.sites.ponds.y, r: 330 },
       { x: cfg.sites.sxew.x, y: cfg.sites.sxew.y, r: 330 },
@@ -720,6 +733,11 @@ export class MineScene {
       const h = c2.stockpile.t / (cfg.dumps.crusher.plantFeedTpm * 60);
       return `<b>СКЛАД ОФ-2</b><br>${fmtInt(c2.stockpile.t)} т из ${fmtInt(c2.stockpile.capT)} (${Math.round((c2.stockpile.t / c2.stockpile.capT) * 100)}%)<br>запас фабрике: <span class="${c2.stockpile.t <= 0.01 ? 'bad' : h < 0.5 ? 'warn' : 'v'}">${h.toFixed(1)} ч</span>`;
     }, pile2);
+    panel(new THREE.Vector3(campRoot.position.x, campRoot.position.y + 90, campRoot.position.z), () => {
+      const c = sim.camp;
+      const feed = !c.powered ? '<span class="bad">✖ БЕЗ СВЕТА</span> · топливо кончилось' : c.genOn ? `<span class="warn">НА ГЕНЕРАТОРЕ</span> · топлива на ${c.fuelHours.toFixed(1)} ч` : '<span class="ok">питание от сети</span>';
+      return `<b>ВАХТОВЫЙ ПОСЁЛОК</b><br>В посёлке: <span class="v">${fmtInt(c.inCamp)}</span> · в пути: <span class="v">${fmtInt(c.inTransit)}</span><br>${feed}<br>Вода: <span class="v">${c.waterM3h.toFixed(0)} м³/ч</span>`;
+    }, campRoot);
     for (const [key, name] of [['sub', 'ПОДСТАНЦИЯ ОФ-1'], ['sub2', 'ПОДСТАНЦИЯ ОФ-2']] as const) {
       const root = subRoots.get(key)!;
       panel(new THREE.Vector3(root.position.x, root.position.y + 90, root.position.z), () => {
@@ -894,6 +912,28 @@ export class MineScene {
       m.emissive.set(col);
     }
     for (const g of this.mastGlows) (g.material as THREE.SpriteMaterial).opacity = 0.15 + 0.85 * d.lampsK;
+    this.syncCamp(sim, d.lampsK, blink);
+  }
+
+  /** Посёлок живёт по смене: окна горят по числу людей, лампа генератора, автобусы на стоянке, дым котельной. */
+  private syncCamp(sim: Simulation, lampsK: number, blink: boolean): void {
+    const m = this.camp3d;
+    if (!m) return;
+    const c = sim.camp;
+    const lit = c.powered ? Math.round((c.inCamp / CAMP_BEDS) * m.dormWindows.length * 1.6) : 0;
+    m.dormWindows.forEach((wm, i) => (wm.emissiveIntensity = 0.1 + (i < lit ? 2.1 * lampsK : 0)));
+    m.commonWindows.emissiveIntensity = 0.1 + (c.powered ? (0.7 + 1.4 * c.mealLoad) * lampsK : 0);
+    const lamp = m.genLamp.material as THREE.MeshStandardMaterial;
+    const col = !c.powered ? (blink ? '#ef4444' : '#3b1010') : c.genOn ? '#f59e0b' : '#22c55e';
+    lamp.color.set(col);
+    lamp.emissive.set(col);
+    // Автобусы: в пересменку часть стоянки пустеет — они в пути.
+    const away = c.buses === 0 ? 0 : Math.min(m.buses.length, Math.ceil(c.buses / 4));
+    m.buses.forEach((b, i) => (b.visible = i < m.buses.length - away));
+    // Дым котельной гуще, когда холодно.
+    const smoke = m.smoke.material as THREE.MeshBasicMaterial;
+    smoke.opacity = Math.min(0.5, 0.06 + c.heatMw * 0.2);
+    m.smoke.scale.setScalar(1 + c.heatMw * 0.15);
   }
 
   /**
@@ -1209,6 +1249,7 @@ export class MineScene {
   private parkingPadCentre = { x: 0, y: 0 };
   /** Сигнальные лампы подстанций: зелёные в работе, красные при обесточивании. */
   private readonly subLamps: THREE.Mesh[] = [];
+  private camp3d: ReturnType<typeof makeCamp> | null = null;
   /** Точки входа и выхода конвейеров второй цепочки. */
   private chain2!: { crusherTop: THREE.Vector3; pileTop: THREE.Vector3; pileGround: number; plantIn: THREE.Vector3 };
   private concRoot!: THREE.Object3D;

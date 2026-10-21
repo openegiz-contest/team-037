@@ -23,6 +23,7 @@ const ORDER: [string, string][] = [
   ['weather-station', 'Погода и сезон'],
   ['power-meter', 'Электроснабжение'],
   ['substation', 'Подстанции ОФ-1 и ОФ-2'],
+  ['camp', 'Вахтовый посёлок'],
   ['garage', 'Гараж, АЗС и стоянка'],
 ];
 

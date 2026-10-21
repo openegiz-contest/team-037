@@ -48,6 +48,7 @@ export class EnergyMeter {
     { id: 'aux', name: 'Промплощадка, гараж, водовод', mw: 0, kwh: 0 },
     { id: 'plant2', name: 'Обогатительная фабрика №2', mw: 0, kwh: 0, outside: true },
     { id: 'crusher2', name: 'ККД-2 и конвейеры', mw: 0, kwh: 0, outside: true },
+    { id: 'camp', name: 'Вахтовый посёлок', mw: 0, kwh: 0, outside: true },
   ];
   /** Всего за смену, кВт·ч, и наибольшая мощность, МВт. */
   totalKwh = 0;
@@ -85,6 +86,9 @@ export class EnergyMeter {
     const c2 = sim.chain2;
     this.area('plant2').mw = cut ? 1.5 : c2.running(sim) ? 48 : 13;
     this.area('crusher2').mw = cut ? 0.4 : (c2.stockpile.crushing ? 6.2 : 0.6) + 2.4;
+
+    // Посёлок: из сети рудника — только пока сеть есть; при отключении живёт на своём генераторе.
+    this.area('camp').mw = sim.camp.gridMw;
 
     let total = 0;
     let segment = 0;

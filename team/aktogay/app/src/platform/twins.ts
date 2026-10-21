@@ -20,11 +20,12 @@ import { costBreakdown, GROUP_RU, type CostGroup } from '../sim/cost';
 import { BLAST_WIND_MS, LEACH_FROST_C, MONTH_RU, SEASON_RU, SKY, type Sky } from '../sim/weather';
 import { CAPACITY_MT, CREST_ABOVE_BEACH_M, CREST_FINAL_M, FREEBOARD_MIN_M, POND_AREA_M2, RECYCLE_PCT, SOLIDS_PCT } from '../sim/tailings';
 import { CELL_CAP_T, EW_CELLS, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, LEACH_DAYS, OXIDE_GRADE_PCT, REC_MAX, SX_EFFICIENCY, type CellStage } from '../sim/leach';
+import { CAMP_BEDS, CAMP_DORMS, CAMP_RESIDENTS, FUEL_TANK_L, GEN_MW } from '../sim/camp';
 import { CONC_GRADE, TRAIN_WAGONS, WAGON_LOAD_SEC, WAGON_T } from '../sim/concentrate';
 import { BENCH_M, BLOCK_M, blockSummary, buildOreModel, CUTOFF, DENSITY, holeAssays, pitResources, type OreModel } from '../geo/orebody';
 import { PIT_DEPTH } from '../geo/relief';
 import { UNIT_DEFS, type UnitState } from '../sim/equipment';
-import { substationSensorAttributes, energySensorAttributes, weatherSensorAttributes, tailingsSensorAttributes, sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
+import { campSensorAttributes, substationSensorAttributes, energySensorAttributes, weatherSensorAttributes, tailingsSensorAttributes, sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -59,6 +60,7 @@ export const thingIds = (v: StrategyName) => {
     plant2: `${ns}:plant-2`,
     sub: `${ns}:substation-1`,
     sub2: `${ns}:substation-2`,
+    camp: `${ns}:camp`,
     unit2: (key: string) => `${ns}:${key}-2`,
     unit: (key: string) => `${ns}:${key}`,
     drill: (i: number) => `${ns}:drill-${i + 1}`,
@@ -250,6 +252,23 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
       features: serializeSubstation(sim, i === 0 ? 'sub' : 'sub2'),
     };
   });
+  out[id.camp] = {
+    policyId: POLICY,
+    attributes: {
+      name: 'Вахтовый посёлок',
+      kind: 'camp',
+      _isType: false,
+      _parents: parent,
+      residents: CAMP_RESIDENTS,
+      beds: CAMP_BEDS,
+      dorms: CAMP_DORMS,
+      generator_mw: GEN_MW,
+      fuel_tank_l: FUEL_TANK_L,
+      note: 'численность, нормы воды и мощности — оценки по открытым нормам для вахтовых посёлков',
+      sensors: campSensorAttributes(),
+    },
+    features: serializeCamp(sim),
+  };
   out[id.cost] = {
     policyId: POLICY,
     attributes: {
@@ -651,6 +670,7 @@ export function serializeEnergy(sim: Simulation): Features {
     segment_mw: f(Math.round(e.segmentMw * 10) / 10, 'MW'),
     segment_kwh: f(Math.round(e.segmentKwh), 'kWh'),
     plant2_mw: f(by('plant2'), 'MW'),
+    camp_mw: f(by('camp'), 'MW'),
     crusher2_mw: f(by('crusher2'), 'MW'),
     plant_mw: f(by('plant'), 'MW'),
     crusher_mw: f(by('crusher'), 'MW'),
@@ -800,6 +820,28 @@ export function serializeConcentrate(sim: Simulation): Features {
   };
 }
 
+/** Признаки вахтового посёлка. */
+export function serializeCamp(sim: Simulation): Features {
+  const c = sim.camp;
+  return {
+    state: f(!c.powered ? 'no_power' : c.genOn ? 'generator' : 'grid'),
+    in_camp: f(c.inCamp, 'pcs'),
+    in_transit: f(c.inTransit, 'pcs'),
+    on_shift: f(c.onShift, 'pcs'),
+    occupancy: f(r1(c.occupancyPct), '%'),
+    buses: f(c.buses, 'pcs'),
+    canteen_load: f(Math.round(c.mealLoad * 100), '%'),
+    meals_served: f(Math.round(c.mealsServed), 'pcs'),
+    water_m3h: f(r1(c.waterM3h), 'm3/h'),
+    water_total: f(Math.round(c.waterTotalM3), 'm3'),
+    heat_mw: f(r1(c.heatMw), 'MW'),
+    load_mw: f(r1(c.loadMw), 'MW'),
+    generator: f(c.genOn ? 1 : 0),
+    fuel_l: f(Math.round(c.fuelL), 'l'),
+    fuel_hours: f(r1(c.fuelHours), 'h'),
+  };
+}
+
 /** Признаки склада дроблёной руды. */
 export function serializeStockpile(sim: Simulation): Features {
   const s = sim.stockpile;
@@ -904,6 +946,7 @@ export function serializeAll(sim: Simulation, v: StrategyName, k: Kpis): Record<
   for (const u of sim.chain2.equipment.units) out[id.unit2(u.def.key)] = serializeUnit(sim.chain2.view, u.def.key);
   out[id.sub] = serializeSubstation(sim, 'sub');
   out[id.sub2] = serializeSubstation(sim, 'sub2');
+  out[id.camp] = serializeCamp(sim);
   out[id.waste] = serializeWaste(sim);
   out[id.garage] = serializeGarage(sim);
   out[id.roads] = serializeRoads(sim);
@@ -1070,6 +1113,26 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     g.opStats.expectedM = num(fs, 'op_expected_m');
   });
 
+  // Вахтовый посёлок.
+  const cmf = things.get(id.camp);
+  if (cmf) {
+    const c = sim.camp;
+    c.inCamp = num(cmf, 'in_camp', c.inCamp);
+    c.inTransit = num(cmf, 'in_transit', c.inTransit);
+    c.onShift = num(cmf, 'on_shift', c.onShift);
+    c.buses = num(cmf, 'buses', c.buses);
+    c.mealLoad = num(cmf, 'canteen_load') / 100;
+    c.mealsServed = num(cmf, 'meals_served', c.mealsServed);
+    c.waterM3h = num(cmf, 'water_m3h', c.waterM3h);
+    c.waterTotalM3 = num(cmf, 'water_total', c.waterTotalM3);
+    c.heatMw = num(cmf, 'heat_mw', c.heatMw);
+    c.loadMw = num(cmf, 'load_mw', c.loadMw);
+    c.genOn = num(cmf, 'generator') === 1;
+    c.fuelL = num(cmf, 'fuel_l', c.fuelL);
+    c.powered = str(cmf, 'state') !== 'no_power';
+    c.gridMw = c.genOn || !c.powered ? 0 : c.loadMw;
+  }
+
   // Склад концентрата.
   const cf2 = things.get(id.concentrate);
   if (cf2) {
@@ -1166,7 +1229,7 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
       en.totalKwh = num(ef, 'kwh_shift', en.totalKwh);
       en.segmentKwh = num(ef, 'segment_kwh', en.segmentKwh);
       // Мгновенные мощности по участкам: без них схема подстанции и панели на стенде показывали бы нули.
-      const mwKey: Record<string, string> = { plant: 'plant_mw', crusher: 'crusher_mw', sxew: 'sxew_mw', tailings: 'tailings_mw', leach: 'leach_mw', pit: 'pit_mw', aux: 'aux_mw', plant2: 'plant2_mw', crusher2: 'crusher2_mw' };
+      const mwKey: Record<string, string> = { plant: 'plant_mw', crusher: 'crusher_mw', sxew: 'sxew_mw', tailings: 'tailings_mw', leach: 'leach_mw', pit: 'pit_mw', aux: 'aux_mw', plant2: 'plant2_mw', crusher2: 'crusher2_mw', camp: 'camp_mw' };
       for (const area of en.areas) area.mw = num(ef, mwKey[area.id], area.mw);
       en.peakMw = num(ef, 'peak_mw', en.peakMw);
       en.idleKwh = num(ef, 'idle_kwh', en.idleKwh);

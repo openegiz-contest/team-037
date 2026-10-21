@@ -691,6 +691,69 @@ export const CONCENTRATE_SENSORS: SensorSpec[] = [
   },
 ];
 
+export const CAMP_SENSORS: SensorSpec[] = [
+  {
+    id: 'turnstile',
+    name: 'Турникеты и учёт проживающих',
+    hardware: 'турникеты с бесконтактными картами на входе в общежития и на КПП посёлка',
+    location: 'общежития, КПП посёлка',
+    measures: 'сколько человек сейчас в посёлке, в пути и на смене',
+    features: ['in_camp', 'in_transit', 'on_shift', 'occupancy'],
+    periodS: 60,
+    purpose: 'заселение и пересменка, наличие людей на случай эвакуации',
+  },
+  {
+    id: 'bus_gps',
+    name: 'ГЛОНАСС/GPS вахтовых автобусов',
+    hardware: 'трекеры на автобусах, связь по LTE',
+    location: 'вахтовые автобусы (45 мест)',
+    measures: 'автобусов в рейсе, время в пути',
+    features: ['buses'],
+    periodS: 30,
+    purpose: 'доставка смены без опозданий, учёт рейсов',
+  },
+  {
+    id: 'canteen',
+    name: 'Учёт выдачи питания',
+    hardware: 'кассовые терминалы с картами на раздаче столовой',
+    location: 'столовая',
+    measures: 'выдано порций, загрузка столовой',
+    features: ['meals_served', 'canteen_load'],
+    periodS: 60,
+    purpose: 'сколько приготовить к приёму пищи, очереди на раздаче',
+  },
+  {
+    id: 'water_meter',
+    name: 'Водомеры на вводе в посёлок',
+    hardware: 'ультразвуковые расходомеры на водоводе',
+    location: 'ввод водовода в посёлок',
+    measures: 'расход питьевой и хозяйственной воды, м³/ч',
+    features: ['water_m3h', 'water_total'],
+    periodS: 60,
+    purpose: 'утечки и перерасход, нормативный расход на человека',
+  },
+  {
+    id: 'boiler',
+    name: 'Теплосчётчик котельной',
+    hardware: 'теплосчётчик на подаче в теплосеть + датчики температуры сетевой воды',
+    location: 'котельная посёлка',
+    measures: 'тепловая нагрузка, МВт',
+    features: ['heat_mw'],
+    periodS: 60,
+    purpose: 'сколько тепла нужно при текущей температуре воздуха',
+  },
+  {
+    id: 'genset',
+    name: 'Контроллер дизель-генератора и уровнемер бака',
+    hardware: 'контроллер АВР и поплавковый уровнемер топливного бака',
+    location: 'резервная электростанция посёлка',
+    measures: 'генератор включён, остаток топлива, л, часы работы на остатке',
+    features: ['generator', 'fuel_l', 'fuel_hours', 'load_mw'],
+    periodS: 30,
+    purpose: 'сможет ли посёлок пережить отключение сети и на сколько часов хватит топлива',
+  },
+];
+
 export const GEOLOGY_SENSORS: SensorSpec[] = [
   {
     id: 'core',
@@ -756,6 +819,7 @@ export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   'concentrator-2': PLANT_SENSORS,
   'stockpile-2': STOCKPILE_SENSORS,
   substation: SUBSTATION_SENSORS,
+  camp: CAMP_SENSORS,
 };
 
 /** Компактная запись для attributes.sensors двойника в Ditto. */
@@ -776,4 +840,5 @@ export const sxewSensorAttributes = () => sensorAttributes(SXEW_SENSORS);
 export const tailingsSensorAttributes = () => sensorAttributes(TAILINGS_SENSORS);
 export const weatherSensorAttributes = () => sensorAttributes(WEATHER_SENSORS);
 export const energySensorAttributes = () => sensorAttributes(ENERGY_SENSORS);
+export const campSensorAttributes = () => sensorAttributes(CAMP_SENSORS);
 export const substationSensorAttributes = () => sensorAttributes(SUBSTATION_SENSORS);

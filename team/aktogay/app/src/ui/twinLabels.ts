@@ -28,6 +28,7 @@ export const KIND_LABEL: Record<string, string> = {
   'concentrator-2': 'Обогатительная фабрика №2',
   'stockpile-2': 'Склад ОФ-2',
   substation: 'Подстанция',
+  camp: 'Вахтовый посёлок',
 };
 
 export const FEATURE_LABEL: Record<string, string> = {
@@ -44,6 +45,21 @@ export const FEATURE_LABEL: Record<string, string> = {
   segment_kwh: 'Энергия сегмента за смену',
   plant2_mw: 'Обогатительная фабрика №2',
   crusher2_mw: 'ККД-2 и конвейеры',
+  camp_mw: 'Вахтовый посёлок',
+  // вахтовый посёлок
+  in_camp: 'В посёлке',
+  in_transit: 'В пути на автобусах',
+  on_shift: 'На смене',
+  occupancy: 'Заполнение общежитий',
+  buses: 'Автобусов в рейсе',
+  canteen_load: 'Загрузка столовой',
+  meals_served: 'Порций выдано за смену',
+  water_m3h: 'Расход воды',
+  water_total: 'Вода за смену',
+  heat_mw: 'Тепловая нагрузка котельной',
+  generator: 'Дизель-генератор запущен',
+  fuel_l: 'Топливо в баке генератора',
+  fuel_hours: 'Хватит топлива на',
   // себестоимость
   usd_per_lb: 'Себестоимость, $ за фунт меди',
   kzt_per_t_cu: 'Себестоимость, ₸ за тонну меди',

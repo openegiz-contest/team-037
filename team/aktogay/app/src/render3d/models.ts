@@ -724,3 +724,90 @@ export function makeDrillRig(): DrillModel {
   root.add(ring);
   return { root, mast, rod, ring, light };
 }
+
+/**
+ * Вахтовый посёлок: шесть трёхэтажных общежитий, столовая, котельная с трубой, водонапорная башня,
+ * дизель-генератор с топливным баком и стоянка вахтовых автобусов. Окна каждого общежития — свой
+ * материал (сцена зажигает их по числу людей в посёлке и гасит при потере питания), лампа генератора
+ * зелёная при работе от сети и красная на дизеле.
+ */
+export function makeCamp(): { root: THREE.Group; dormWindows: THREE.MeshStandardMaterial[]; commonWindows: THREE.MeshStandardMaterial; genLamp: THREE.Mesh; buses: THREE.Object3D[]; smoke: THREE.Mesh } {
+  const root = new THREE.Group();
+  root.add(box(380, 2, 240, MAT.concreteDark, 0, 1, 0));
+  const fence = std('#8d949b', { roughness: 0.7, metalness: 0.4 });
+  root.add(box(382, 6, 0.8, fence, 0, 5, 120));
+  root.add(box(382, 6, 0.8, fence, 0, 5, -120));
+  root.add(box(0.8, 6, 240, fence, 190, 5, 0));
+  root.add(box(0.8, 6, 240, fence, -190, 5, 0));
+  const wall = std('#cfc7b8', { roughness: 0.8 });
+  const roof = std('#7a4a3a', { roughness: 0.75 });
+  const dormWindows: THREE.MeshStandardMaterial[] = [];
+  let i = 0;
+  for (const z of [-82, -42]) {
+    for (const x of [-138, -80, -22]) {
+      const wm = new THREE.MeshStandardMaterial({ color: '#ffd98a', emissive: '#ffcf70', emissiveIntensity: 0.1 });
+      dormWindows.push(wm);
+      root.add(box(50, 18, 18, wall, x, 11, z));
+      root.add(box(52, 1.6, 20, roof, x, 21, z));
+      for (const side of [-1, 1]) {
+        for (let fl = 0; fl < 3; fl++) root.add(box(44, 2.2, 0.4, wm, x, 6 + fl * 5.2, z + side * 9.2));
+      }
+      i++;
+    }
+  }
+  void i;
+  // Столовая: низкое широкое здание с вытяжкой.
+  const commonWindows = new THREE.MeshStandardMaterial({ color: '#ffd98a', emissive: '#ffcf70', emissiveIntensity: 0.1 });
+  root.add(box(64, 10, 34, wall, 82, 7, -62));
+  root.add(box(66, 1.6, 36, roof, 82, 13, -62));
+  root.add(box(54, 2.6, 0.4, commonWindows, 82, 8, -44.4));
+  root.add(box(54, 2.6, 0.4, commonWindows, 82, 8, -79.6));
+  for (const x of [66, 82, 98]) root.add(box(4, 5, 4, MAT.steel, x, 16, -62));
+  // Котельная: корпус и высокая труба с дымом.
+  root.add(box(34, 14, 26, std('#b9b4a9', { roughness: 0.85 }), 150, 9, -62));
+  root.add(box(36, 1.6, 28, roof, 150, 17, -62));
+  const stack = cyl(1.8, 2.6, 42, std('#9c9488', { roughness: 0.9 }), 14);
+  stack.position.set(160, 30, -62);
+  root.add(stack);
+  const smoke = new THREE.Mesh(
+    new THREE.SphereGeometry(6, 10, 8),
+    new THREE.MeshBasicMaterial({ color: '#dfe3e6', transparent: true, opacity: 0.32, depthWrite: false }),
+  );
+  smoke.position.set(164, 58, -62);
+  smoke.scale.set(1.6, 1.1, 1.2);
+  root.add(smoke);
+  // Дизель-генератор: контейнер, труба выхлопа, сигнальная лампа и бак.
+  root.add(box(26, 9, 14, std('#6c7f6b', { roughness: 0.6, metalness: 0.3 }), 150, 6.5, 18));
+  const exhaust = cyl(0.9, 0.9, 8, MAT.dark, 10);
+  exhaust.position.set(158, 15, 18);
+  root.add(exhaust);
+  const genLamp = new THREE.Mesh(
+    new THREE.SphereGeometry(2.4, 12, 8),
+    new THREE.MeshStandardMaterial({ color: '#22c55e', emissive: '#22c55e', emissiveIntensity: 2.2 }),
+  );
+  genLamp.position.set(140, 14, 26);
+  root.add(genLamp);
+  const tank = cyl(5, 5, 16, MAT.wall, 18);
+  tank.rotation.z = Math.PI / 2;
+  tank.position.set(150, 5, 42);
+  root.add(tank);
+  // Водонапорная башня.
+  for (const dx of [-5, 5]) for (const dz of [-5, 5]) root.add(box(1, 24, 1, MAT.steel, 96 + dx, 13, 24 + dz));
+  root.add(cyl(9, 9, 10, std('#9fb4c4', { roughness: 0.5, metalness: 0.3 }), 20));
+  root.children[root.children.length - 1].position.set(96, 30, 24);
+  const cap = cyl(0.1, 9, 4, std('#7d93a3', { roughness: 0.5 }), 20);
+  cap.position.set(96, 37, 24);
+  root.add(cap);
+  // Стоянка вахтовых автобусов.
+  const buses: THREE.Object3D[] = [];
+  for (let b = 0; b < 6; b++) {
+    const bus = new THREE.Group();
+    bus.add(box(14, 4.4, 3.4, std('#e8b92f', { roughness: 0.55 }), 0, 3.6, 0));
+    bus.add(box(12, 1.3, 3.5, std('#2a3a48', { roughness: 0.3, metalness: 0.5 }), 0, 4.6, 0));
+    for (const wx of [-4.5, 4.5]) for (const wz of [-1.7, 1.7]) bus.add(wheel(1.1, 0.8, MAT.tyre, wx, 1.1, wz, 12));
+    bus.position.set(-138 + b * 18, 2, 44 + (b % 2) * 0);
+    root.add(bus);
+    buses.push(bus);
+  }
+  return { root, dormWindows, commonWindows, genLamp, buses, smoke };
+}

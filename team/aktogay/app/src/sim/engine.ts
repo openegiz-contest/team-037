@@ -15,6 +15,7 @@ import { PlantEquipment } from './equipment';
 import { ConcentrateYard } from './concentrate';
 import { HeapLeach } from './leach';
 import { FREEBOARD_MIN_M, TailingsDam } from './tailings';
+import { Camp } from './camp';
 import { SecondChain } from './chain2';
 import { EnergyMeter } from './energy';
 import { Weather } from './weather';
@@ -122,6 +123,8 @@ export class Simulation {
   readonly energy = new EnergyMeter();
   /** Вторая цепочка комбината (ККД-2 → склад → ОФ-2): подвоз условный, дальше всё считается. */
   chain2!: SecondChain;
+  /** Вахтовый посёлок: люди, столовая, вода, тепло и резервный генератор. */
+  readonly camp = new Camp();
   private readonly windWarned = new Set<number>();
   /** Сценарий «отключение энергии»: сколько ещё стоит фабрика, дробилка и электролиз, с. */
   powerCutLeft = 0;
@@ -761,6 +764,7 @@ export class Simulation {
     this.leach.update(this, dt);
     this.tailings.update(this, dt);
     this.chain2.update(this, dt);
+    this.camp.update(this, dt);
     this.energy.update(this, dt);
     this.buildLaneOccupancy();
     for (const t of this.trucks) this.updateTruck(t, dt);

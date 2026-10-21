@@ -15,6 +15,8 @@ import { CELL_CAP_T, EW_CELLS, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, SX_EFFICI
 import { fmtInt } from '../ui/format';
 import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
 import { thingIds } from '../platform/twins';
+import { campAt, CAMP_BEDS, CAMP_DORMS, CAMP_RESIDENTS, FUEL_TANK_L, GEN_MW } from '../sim/camp';
+import { SHIFT_START_HOUR } from '../sim/weather';
 import { UNIT_STATE_RU } from '../sim/equipment';
 import { FEATURE_LABEL, stateTone, TONE_COLOR, UNIT_LABEL } from '../ui/twinLabels';
 
@@ -33,8 +35,9 @@ const TITLE: Record<BuildingKind, string> = {
   stockpile2: 'Склад дроблёной руды ОФ-2',
   sub: 'Подстанция ОФ-1',
   sub2: 'Подстанция ОФ-2',
+  camp: 'Вахтовый посёлок',
 };
-const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile', sxew: 'sxew-plant', tsf: 'tailings-dam', conc: 'concentrate-store', crusher2: 'crusher-2', plant2: 'concentrator-2', stockpile2: 'stockpile-2', sub: 'substation', sub2: 'substation' };
+const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile', sxew: 'sxew-plant', tsf: 'tailings-dam', conc: 'concentrate-store', crusher2: 'crusher-2', plant2: 'concentrator-2', stockpile2: 'stockpile-2', sub: 'substation', sub2: 'substation', camp: 'camp' };
 
 // Цвета схемы (тёмный «экран»).
 const C = {
@@ -107,6 +110,7 @@ export function BuildingView({ sim, kind, onClose, onTruck, light = false }: Pro
         {kind === 'stockpile' && <Stockpile sim={sim} />}
         {kind === 'stockpile2' && <Stockpile sim={vs} />}
         {(kind === 'sub' || kind === 'sub2') && <Substation sim={sim} which={kind} />}
+        {kind === 'camp' && <CampView sim={sim} />}
         {kind === 'sxew' && <SxEw sim={sim} />}
         {kind === 'tsf' && <Tailings sim={sim} />}
         {kind === 'conc' && <ConcStore sim={sim} />}
@@ -1006,7 +1010,7 @@ function Substation({ sim, which }: { sim: Simulation; which: 'sub' | 'sub2' }) 
   const cut = sim.powerCutLeft > 0;
   const load = e.substationMw[which];
   const rated = which === 'sub' ? 90 : 75;
-  const ids = which === 'sub' ? ['plant', 'crusher', 'sxew', 'tailings', 'leach', 'pit', 'aux'] : ['plant2', 'crusher2'];
+  const ids = which === 'sub' ? ['plant', 'crusher', 'sxew', 'tailings', 'leach', 'pit', 'aux'] : ['plant2', 'crusher2', 'camp'];
   const feeders = ids.map((id) => e.areas.find((a) => a.id === id)!);
   const temp = e.trafoTempC(sim, which);
   const rowH = 36;
@@ -1060,6 +1064,104 @@ function Substation({ sim, which }: { sim: Simulation; which: 'sub' | 'sub2' }) 
       </Stats>
       <div className="mt-2 text-[11.5px] text-ink-3">
         {which === 'sub' ? 'Питает моделируемый сегмент: ОФ-1, дробилку, SX-EW, насосные и карьер.' : 'Питает вторую цепочку: ОФ-2 и ККД-2.'} Мощности агрегатов и схема питания условные; при сценарии «отключение энергии» ввод теряет напряжение и все фидеры обесточиваются.
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────── вахтовый посёлок ─────────────────────────────
+
+const CHANGEOVER_LABELS = [SHIFT_START_HOUR, (SHIFT_START_HOUR + 12) % 24];
+
+/** Суточный график людей в посёлке, общежития, питание и жизнеобеспечение: вода, тепло, электричество и генератор. */
+function CampView({ sim }: { sim: Simulation }) {
+  const c = sim.camp;
+  const hourNow = (SHIFT_START_HOUR + sim.now / 3600) % 24;
+  const W = 1000;
+  const H = 210;
+  const L = 52;
+  const R = 12;
+  const T = 14;
+  const B = 30;
+  const x = (h: number) => L + (((((h - SHIFT_START_HOUR) % 24) + 24) % 24) / 24) * (W - L - R);
+  const y = (v: number) => T + (1 - v / CAMP_BEDS) * (H - T - B);
+  const pts: [number, number][] = [];
+  for (let k = 0; k <= 288; k++) {
+    const h = SHIFT_START_HOUR + (k / 288) * 24;
+    pts.push([L + (k / 288) * (W - L - R), y(campAt(h % 24).inCamp)]);
+  }
+  const area = `M${L},${y(0)} ` + pts.map(([px, py]) => `L${px.toFixed(1)},${py.toFixed(1)}`).join(' ') + ` L${W - R},${y(0)} Z`;
+  const meals = [6.75, 14.75, 18.75, 2.5];
+  const dormFill = c.inCamp / CAMP_BEDS;
+  const perDorm = Math.round(c.inCamp / CAMP_DORMS);
+  const cut = sim.powerCutLeft > 0;
+  const feed = !c.powered ? 'нет света' : c.genOn ? 'дизель-генератор' : 'сеть подстанции ОФ-2';
+  const feedColor = !c.powered ? C.bad : c.genOn ? C.warn : C.ok;
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
+        <text x={L} y={10} fontSize={11.5} fill={C.dim}>Людей в посёлке в течение суток (коек {CAMP_BEDS.toLocaleString('ru-RU')})</text>
+        {meals.map((m) => (
+          <rect key={m} x={x(m - 0.6)} y={T} width={(1.2 / 24) * (W - L - R)} height={H - T - B} fill="#f59e0b" opacity={0.14} />
+        ))}
+        <path d={area} fill={C.boxHi} stroke="#60a5fa" strokeWidth={2} />
+        {[0, 6, 12, 18].map((h) => (
+          <g key={h}>
+            <line x1={x(h)} y1={T} x2={x(h)} y2={H - B} stroke={C.line} strokeWidth={0.6} />
+            <text x={x(h)} y={H - 12} textAnchor="middle" fontSize={11.5} fill={C.dim}>{String(h).padStart(2, '0')}:00</text>
+          </g>
+        ))}
+        {CHANGEOVER_LABELS.map((h) => (
+          <text key={h} x={x(h) + 4} y={T + 12} fontSize={11} fill={C.dim}>пересменка</text>
+        ))}
+        <line x1={x(hourNow)} y1={T} x2={x(hourNow)} y2={H - B} stroke="#f59e0b" strokeWidth={2} />
+        <circle cx={x(hourNow)} cy={y(c.inCamp)} r={5} fill="#f59e0b" />
+        <text x={Math.min(W - 120, x(hourNow) + 8)} y={y(c.inCamp) - 8} fontSize={12.5} fontWeight={700} fill={C.text}>{c.inCamp.toLocaleString('ru-RU')} чел.</text>
+        <text x={L - 6} y={y(CAMP_BEDS) + 4} textAnchor="end" fontSize={11} fill={C.dim}>{CAMP_BEDS}</text>
+        <text x={L - 6} y={y(0) + 4} textAnchor="end" fontSize={11} fill={C.dim}>0</text>
+        <text x={W - R} y={10} textAnchor="end" fontSize={11} fill="#f59e0b">▮ приёмы пищи</text>
+        <SensorDot x={W - 250} y={7} label="турникеты на входе в общежития, GPS автобусов" />
+      </svg>
+      <Stats>
+        <Stat label="В посёлке" value={`${c.inCamp.toLocaleString('ru-RU')} чел.`} />
+        <Stat label="В пути на автобусах" value={`${c.inTransit.toLocaleString('ru-RU')} чел. · ${c.buses} авт.`} tone={c.inTransit > 0 ? C.warn : undefined} />
+        <Stat label="На смене" value={`${c.onShift.toLocaleString('ru-RU')} чел.`} />
+        <Stat label="Заполнение общежитий" value={`${Math.round(c.occupancyPct)} %`} />
+        <Stat label="Загрузка столовой" value={`${Math.round(c.mealLoad * 100)} % · порций ${Math.round(c.mealsServed).toLocaleString('ru-RU')}`} />
+        <Stat label="Расход воды" value={`${c.waterM3h.toFixed(0)} м³/ч · ${Math.round(c.waterTotalM3)} м³ за смену`} />
+        <Stat label="Тепловая нагрузка" value={`${c.heatMw.toFixed(1)} МВт · воздух ${sim.weather.tempC.toFixed(0)} °C`} />
+        <Stat label="Электропитание" value={`${feed} · ${c.loadMw.toFixed(1)} МВт`} tone={feedColor} />
+      </Stats>
+      <div className="mt-3 grid gap-2 md:grid-cols-2">
+        <div className="rounded-lg bg-panel-2 p-3">
+          <div className="mb-1.5 text-[12px] font-semibold text-ink-2">Общежития</div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {Array.from({ length: CAMP_DORMS }, (_, i) => (
+              <div key={i} className="rounded bg-panel px-2 py-1.5 text-[11.5px]">
+                <div className="text-ink-3">Корпус {i + 1}</div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-black/30">
+                  <div className="h-full rounded-full bg-sky-400" style={{ width: `${Math.min(100, dormFill * 100)}%` }} />
+                </div>
+                <div className="mt-1 font-mono">{perDorm} чел.</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-lg bg-panel-2 p-3">
+          <div className="mb-1.5 text-[12px] font-semibold text-ink-2">Резервный дизель-генератор {GEN_MW} МВт</div>
+          <div className="h-2.5 overflow-hidden rounded-full bg-black/30">
+            <div className="h-full rounded-full" style={{ width: `${(c.fuelL / FUEL_TANK_L) * 100}%`, background: c.fuelL < FUEL_TANK_L * 0.25 ? C.bad : c.genOn ? C.warn : C.ok }} />
+          </div>
+          <div className="mt-1.5 text-[12px] text-ink-2">
+            Топливо: <b className="font-mono text-ink">{Math.round(c.fuelL).toLocaleString('ru-RU')} л</b> из {FUEL_TANK_L.toLocaleString('ru-RU')} · хватит на <b className="font-mono text-ink">{c.fuelHours.toFixed(1)} ч</b>{' '}
+            <span className="text-ink-3">{cut ? (c.genOn ? '— сеть потеряна, генератор работает' : '— топливо кончилось') : '— сеть есть, генератор в резерве'}</span>
+          </div>
+          <div className="mt-1 text-[11px] text-ink-3">◉ контроллер АВР и уровнемер бака</div>
+        </div>
+      </div>
+      <div className="mt-2 text-[11.5px] text-ink-3">
+        Численность ({CAMP_RESIDENTS.toLocaleString('ru-RU')} чел.), нормы воды и мощности — оценки по открытым нормам для вахтовых посёлков, не данные комбината.
+        Одна половина живёт в посёлке, другая на смене; в пересменку автобусы везут людей в обе стороны. При сценарии «отключение энергии» посёлок переходит на дизель-генератор.
       </div>
     </div>
   );

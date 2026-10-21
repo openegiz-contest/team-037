@@ -97,7 +97,7 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
   const abk = { x: 960, y: 1450 }; // промплощадка у дороги от карьера к фабрикам (OSM)
   const lab = { x: 580, y: 1325 }; // промплощадка (OSM)
   const gsm = { x: -905, y: 2165 }; // промплощадка (OSM)
-  const camp = { x: -1115, y: 3415 }; // жилой посёлок (OSM: landuse=residential)
+  const camp = S.camp; // жилой посёлок (OSM: landuse=residential)
   const kpp = { x: -1250, y: 2900 };
   const wasteE = S.wasteExtra[0] ?? { x: 450, y: -2050 }; // восточный отвал (снимок, OSM: landuse=landfill)
   const wasteSE = S.wasteExtra[1] ?? { x: 2150, y: -1100 };
@@ -449,9 +449,17 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       layer: 'infra',
       shape: { kind: 'rect', x: camp.x, y: camp.y, w: 380, h: 240, rot: 0 },
       fill: '#334155',
-      live: false,
-      about: 'Общежития, столовая, спортзал для работников вахты.',
-      facts: ['работа круглосуточно, сменами'],
+      live: true,
+      about: 'Общежития, столовая, котельная, водонапорная башня и резервная дизельная станция. Люди живут сменами: половина на производстве, половина отдыхает.',
+      facts: ['работа круглосуточно, сменами по 12 ч', 'численность и мощности — оценки, не данные комбината'],
+      metrics: (s) => [
+        ['В посёлке', `${s.camp.inCamp.toLocaleString('ru-RU')} чел.`],
+        ['В пути', `${s.camp.inTransit.toLocaleString('ru-RU')} чел.`],
+        ['Питание', !s.camp.powered ? 'нет света' : s.camp.genOn ? 'дизель-генератор' : 'сеть'],
+        ['Нагрузка', `${s.camp.loadMw.toFixed(1)} МВт`],
+      ],
+      building: 'camp',
+      twin: 'camp',
       label: 'Вахтовый посёлок',
     },
     {
