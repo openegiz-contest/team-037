@@ -47,6 +47,18 @@ export type CameraPreset = 'overview' | 'crusher' | 'bottom' | 'side';
 /** Здания, у которых есть «внутренний двойник» (мнемосхема). */
 /** Наибольший радиус конуса склада дроблёной руды (при полном складе), м сцены. */
 const STOCKPILE_MAX_R = 140;
+/**
+ * Габариты стоянки в её системе координат: X — наружу от карьера, Z — поперёк. Одни и те же числа
+ * нужны и плите с разметкой, и ровной площадке в рельефе под ней, иначе край плиты тонет в склоне.
+ */
+function parkingBox(P: { cols: number; rows: number; dx: number; dy: number; aisle0: number; depth: number }) {
+  const crossOf = (c: number) => (c - (P.cols - 1) / 2) * P.dx;
+  const zMin = crossOf(0) - P.dx * 1.4;
+  const zMax = crossOf(P.cols - 1) + P.dx * 0.6;
+  const xMax = P.aisle0 + (P.rows - 1) * P.dy + P.depth + 55;
+  return { crossOf, zMin, zMax, xMax };
+}
+
 /** Высота ленты конвейера и радиус куска руды на ней, м. */
 const BELT_H = 4;
 const ORE_R = 2.2;
@@ -182,6 +194,24 @@ export class MineScene {
     const cfg = sim.cfg;
     // Под каждым буровым блоком — ровная рабочая площадка (сетка скважин и станки стоят на ней).
     const pads = sim.drill.blocks.map((b) => ({ x: b.x, y: b.y, ux: b.ux, uy: b.uy, ...BLOCK_PAD }));
+    // Стоянка тоже ровная: плита лежит на высоте своего центра, и рельеф вокруг не должен её перекрывать.
+    {
+      const P = sim.parking;
+      const f = P.frame;
+      const { zMin, zMax, xMax } = parkingBox(P);
+      // Локальная ось X стоянки — «наружу» (ox, oy), локальная Z — поперёк: (−oy, ox).
+      const along = xMax / 2 - 5;
+      const across = (zMin + zMax) / 2;
+      pads.push({
+        x: f.cx + f.ox * along - f.oy * across,
+        y: f.cy + f.oy * along + f.ox * across,
+        ux: f.ox,
+        uy: f.oy,
+        halfAlong: (xMax + 10) / 2 + 8,
+        halfAcross: (zMax - zMin) / 2 + 8,
+      });
+      this.parkingPadCentre = { x: f.cx + f.ox * along - f.oy * across, y: f.cy + f.oy * along + f.ox * across };
+    }
     this.heightAt = makeRoadHeightAt(sim, makeHeightAt(cfg), pads);
     this.light = !!opts.light;
     this.onSlow = opts.onSlow ?? null;
@@ -979,6 +1009,8 @@ export class MineScene {
   private precip!: THREE.Points;
   private precipMat!: THREE.PointsMaterial;
   private readonly precipBase: Float32Array;
+  /** Центр ровной площадки под стоянкой: по нему берётся высота плиты. */
+  private parkingPadCentre = { x: 0, y: 0 };
   private concRoot!: THREE.Object3D;
   private concRake!: THREE.Group;
   private concHeaps: THREE.Mesh[] = [];
@@ -1312,12 +1344,10 @@ export class MineScene {
     const P = this.sim.parking;
     const f = P.frame;
     const grp = new THREE.Group();
-    grp.position.set(f.cx, this.heightAt(f.cx, f.cy) + 1.2, f.cy);
+    // Высота — по центру ровной площадки: на ней рельеф выровнен, и плита нигде не тонет в склоне.
+    grp.position.set(f.cx, this.heightAt(this.parkingPadCentre.x, this.parkingPadCentre.y) + 1.2, f.cy);
     grp.rotation.y = -Math.atan2(f.oy, f.ox); // локальная X — «наружу», локальная Z — поперёк
-    const crossOf = (c: number) => (c - (P.cols - 1) / 2) * P.dx;
-    const zMin = crossOf(0) - P.dx * 1.4;
-    const zMax = crossOf(P.cols - 1) + P.dx * 0.6;
-    const xMax = P.aisle0 + (P.rows - 1) * P.dy + P.depth + 55;
+    const { crossOf, zMin, zMax, xMax } = parkingBox(P);
     const pad = new THREE.Mesh(new THREE.BoxGeometry(xMax + 10, 2, zMax - zMin), new THREE.MeshStandardMaterial({ color: '#45484d', roughness: 0.9 }));
     pad.position.set(xMax / 2 - 5, 0, (zMin + zMax) / 2);
     pad.receiveShadow = true;
