@@ -93,10 +93,10 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
   const water = { x: 1345, y: 3025 }; // резервуар (OSM: water=reservoir)
   const magazine = { x: -900, y: -2600 }; // условно: вынесен за отвалы, к северу
   const g = S.garage;
-  const rmc = { x: -680, y: 2510 }; // промплощадка (OSM: landuse=industrial)
+  const rmc = S.rmc; // промплощадка (OSM: building=industrial)
   const abk = { x: 960, y: 1450 }; // промплощадка у дороги от карьера к фабрикам (OSM)
   const lab = { x: 580, y: 1325 }; // промплощадка (OSM)
-  const gsm = { x: -905, y: 2165 }; // промплощадка (OSM)
+  const gsm = S.gsm; // промплощадка у проезда (OSM)
   const camp = S.camp; // жилой посёлок (OSM: landuse=residential)
   const kpp = S.kpp; // КПП — на главной дороге с юго-запада (OSM)
   const wasteE = S.wasteExtra[0] ?? { x: 450, y: -2050 }; // восточный отвал (снимок, OSM: landuse=landfill)
@@ -393,7 +393,14 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       layer: 'infra',
       shape: { kind: 'rect', x: rmc.x, y: rmc.y, w: 240, h: 120, rot: 0 },
       fill: '#1e40af',
-      live: false,
+      live: true,
+      metrics: (s) => [
+        ['Заявок', String(s.repairShop.open)],
+        ['Механиков занято', `${s.repairShop.mechanicsBusy} из 24`],
+        ['Шин на складе', String(s.repairShop.tyres)],
+      ],
+      building: 'rmc',
+      twin: 'rmc',
       about: 'Капитальный ремонт узлов, шиномонтаж карьерных самосвалов, склад запчастей.',
       facts: ['шина карьерного самосвала класса CAT 793 — одна из крупнейших статей расходов'],
       label: 'РМЦ',
@@ -427,7 +434,14 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       layer: 'infra',
       shape: { kind: 'rect', x: gsm.x, y: gsm.y, w: 170, h: 110, rot: 0 },
       fill: '#3730a3',
-      live: false,
+      live: true,
+      metrics: (s) => [
+        ['Запас дизеля', `${Math.round(s.fuelDepot.stockM3)} м³`],
+        ['Хватит на', `${Math.min(99, s.fuelDepot.hoursLeft).toFixed(0)} ч`],
+        ['Автоцистерн', String(s.fuelDepot.tankers)],
+      ],
+      building: 'gsm',
+      twin: 'gsm',
       about: 'Резервуары дизельного топлива для карьерной техники, наливная эстакада.',
       facts: ['бак самосвала — 3400 л (модель)'],
       label: 'Склад ГСМ',
@@ -552,7 +566,6 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
     { id: 'r2', name: 'Дорога к ОФ-2 и складу концентрата', layer: 'transport', kind: 'road', pts: [[g.x, g.y], [conc.x, conc.y], [pl2.x, pl2.y]] },
     { id: 'r3', name: 'Дорога к складу ВМ (условно)', layer: 'transport', kind: 'road', pts: [[S.waste.x + 300, S.waste.y - 500], [magazine.x, magazine.y]] },
     { id: 'r4', name: 'Дорога к заводу SX-EW', layer: 'transport', kind: 'road', pts: [[S.leach.x, S.leach.y], [sx.x, sx.y], [abk.x, abk.y]] },
-    { id: 'r5', name: 'Дорога к складу ГСМ', layer: 'transport', kind: 'road', pts: [[g.x, g.y], [gsm.x, gsm.y]] },
   ];
   return { objects, lines };
 }

@@ -17,6 +17,7 @@ import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
 import { thingIds } from '../platform/twins';
 import { campAt, CAMP_BEDS, CAMP_DORMS, CAMP_RESIDENTS, FUEL_TANK_L, GEN_MW } from '../sim/camp';
 import { cargoPerHour } from '../sim/checkpoint';
+import { FLEET_SCALE, FUEL_TANKS, FUEL_TANK_M3, MECHANICS, PARTS_INITIAL, SHOP_BAYS, TANKER_M3, TYRES_INITIAL } from '../sim/depot';
 import { SHIFT_START_HOUR } from '../sim/weather';
 import { UNIT_STATE_RU } from '../sim/equipment';
 import { FEATURE_LABEL, stateTone, TONE_COLOR, UNIT_LABEL } from '../ui/twinLabels';
@@ -38,8 +39,10 @@ const TITLE: Record<BuildingKind, string> = {
   sub2: 'Подстанция ОФ-2',
   camp: 'Вахтовый посёлок',
   kpp: 'КПП и автовесы',
+  gsm: 'Склад ГСМ',
+  rmc: 'Ремонтно-механический цех',
 };
-const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile', sxew: 'sxew-plant', tsf: 'tailings-dam', conc: 'concentrate-store', crusher2: 'crusher-2', plant2: 'concentrator-2', stockpile2: 'stockpile-2', sub: 'substation', sub2: 'substation', camp: 'camp', kpp: 'checkpoint' };
+const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile', sxew: 'sxew-plant', tsf: 'tailings-dam', conc: 'concentrate-store', crusher2: 'crusher-2', plant2: 'concentrator-2', stockpile2: 'stockpile-2', sub: 'substation', sub2: 'substation', camp: 'camp', kpp: 'checkpoint', gsm: 'fuel-depot', rmc: 'repair-shop' };
 
 // Цвета схемы (тёмный «экран»).
 const C = {
@@ -114,6 +117,8 @@ export function BuildingView({ sim, kind, onClose, onTruck, light = false }: Pro
         {(kind === 'sub' || kind === 'sub2') && <Substation sim={sim} which={kind} />}
         {kind === 'camp' && <CampView sim={sim} />}
         {kind === 'kpp' && <KppView sim={sim} />}
+        {kind === 'gsm' && <FuelDepotView sim={sim} />}
+        {kind === 'rmc' && <RepairShopView sim={sim} />}
         {kind === 'sxew' && <SxEw sim={sim} />}
         {kind === 'tsf' && <Tailings sim={sim} />}
         {kind === 'conc' && <ConcStore sim={sim} />}
@@ -1246,6 +1251,114 @@ function KppView({ sim }: { sim: Simulation }) {
       <div className="mt-2 text-[11.5px] text-ink-3">
         Через КПП идут вахтовые автобусы (в пересменку), реагенты, кислота, шары для мельниц, топливо и запчасти; рудничные самосвалы здесь не ездят. Каждый грузовик взвешивается на въезде и на выезде.
         Поток и время взвешивания — оценки порядка величины. При сценарии «отключение энергии» автовесы переходят на ручной режим по одной полосе — очередь растёт.
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────── склад ГСМ ─────────────────────────────
+
+/** Резервуары с уровнем, раздача, приём автоцистерн и запас на часы работы. */
+function FuelDepotView({ sim }: { sim: Simulation }) {
+  const d = sim.fuelDepot;
+  const cap = FUEL_TANKS * FUEL_TANK_M3;
+  const level = Math.min(1, d.stockM3 / cap);
+  const low = level < 0.3;
+  const colour = low ? C.bad : d.refilling ? C.warn : C.ok;
+  return (
+    <div>
+      <svg viewBox="0 0 1000 250" className="w-full">
+        {Array.from({ length: FUEL_TANKS }, (_, i) => {
+          const x = 90 + i * 150;
+          const top = 40;
+          const h = 150;
+          const fh = h * level;
+          return (
+            <g key={i}>
+              <rect x={x} y={top} width={100} height={h} rx={8} fill={C.box} stroke={C.line} strokeWidth={2} />
+              <rect x={x + 3} y={top + h - fh} width={94} height={Math.max(1, fh - 3)} rx={5} fill="#c98a1a" opacity={0.85} />
+              <text x={x + 50} y={top + h + 22} textAnchor="middle" fontSize={12} fill={C.dim}>Резервуар {i + 1}</text>
+              <text x={x + 50} y={top + h / 2 + 4} textAnchor="middle" fontSize={14} fontWeight={700} fill={C.text}>{Math.round(d.stockM3 / FUEL_TANKS)} м³</text>
+            </g>
+          );
+        })}
+        <SensorDot x={80} y={30} label="радарные уровнемеры на резервуарах" />
+        {/* линии: раздача и приём */}
+        <line x1={560} y1={115} x2={680} y2={115} stroke={C.line} strokeWidth={3} />
+        <rect x={680} y={80} width={290} height={70} rx={8} fill={C.box} stroke={C.line} />
+        <text x={695} y={104} fontSize={12.5} fill={C.text}>Раздача: АЗС гаража и посёлок</text>
+        <text x={695} y={126} fontSize={12} fill={C.dim}>расход {d.flowM3h.toFixed(1)} м³/ч · отпущено {Math.round(d.dispensedM3)} м³</text>
+        <SensorDot x={690} y={70} label="массовые расходомеры раздачи" />
+        <rect x={560} y={172} width={410} height={52} rx={8} fill={C.box} stroke={d.refilling ? C.warn : C.line} />
+        <text x={575} y={194} fontSize={12.5} fill={d.refilling ? C.warn : C.text}>{d.refilling ? 'Идёт завоз автоцистернами' : 'Завоз не нужен'}</text>
+        <text x={575} y={213} fontSize={12} fill={C.dim}>принято {Math.round(d.receivedM3)} м³ · рейсов {d.tankers} по {TANKER_M3} м³</text>
+        <SensorDot x={570} y={164} label="расходомер на сливе и считыватель номеров цистерн" />
+      </svg>
+      <Stats>
+        <Stat label="Запас дизеля" value={`${Math.round(d.stockM3).toLocaleString('ru-RU')} м³ (${Math.round(level * 100)} %)`} tone={colour} />
+        <Stat label="Хватит на" value={`${Math.min(99, d.hoursLeft).toFixed(0)} ч`} tone={d.hoursLeft < 12 ? C.warn : undefined} />
+        <Stat label="Расход всего парка" value={`${d.flowM3h.toFixed(1)} м³/ч`} />
+        <Stat label="Автоцистерн за смену" value={`${d.tankers} · ${Math.round(d.receivedM3)} м³`} />
+      </Stats>
+      <div className="mt-2 text-[11.5px] text-ink-3">
+        Склад обслуживает весь парк комбината: расход нашего сегмента умножен на {FLEET_SCALE} (оценка доли остального парка), к нему добавляется заправка бака генератора посёлка. Автоцистерны идут через КПП: в непогоду приезжают реже, а при ручном взвешивании на КПП ждут в очереди.
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────── РМЦ ─────────────────────────────
+
+/** Боксы с самосвалами, загрузка механиков и склад запчастей и шин. */
+function RepairShopView({ sim }: { sim: Simulation }) {
+  const r = sim.repairShop;
+  const inShop = sim.trucks.filter((t) => t.state === 'service' || t.state === 'broken');
+  const bar = (v: number, max: number, colour: string) => (
+    <div className="h-2 overflow-hidden rounded-full bg-black/30">
+      <div className="h-full rounded-full" style={{ width: `${Math.min(100, (v / max) * 100)}%`, background: colour }} />
+    </div>
+  );
+  return (
+    <div>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        {Array.from({ length: SHOP_BAYS }, (_, i) => {
+          const t = inShop[i];
+          return (
+            <div key={i} className="rounded-lg bg-panel-2 p-3">
+              <div className="text-[11.5px] text-ink-3">Бокс {i + 1}</div>
+              <div className="mt-1 text-[14px] font-semibold" style={{ color: t ? (t.state === 'broken' ? C.bad : C.warn) : C.dim }}>
+                {t ? t.name : 'свободен'}
+              </div>
+              <div className="text-[11.5px] text-ink-2">{t ? (t.state === 'broken' ? 'ремонт после поломки' : 'плановый ремонт по прогнозу') : '—'}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 grid gap-2 md:grid-cols-3">
+        <div className="rounded-lg bg-panel-2 p-3">
+          <div className="mb-1.5 text-[12px] font-semibold text-ink-2">Механики: {r.mechanicsBusy} из {MECHANICS}</div>
+          {bar(r.mechanicsBusy, MECHANICS, r.mechanicsBusy > MECHANICS * 0.8 ? C.warn : C.ok)}
+          <div className="mt-1 text-[11px] text-ink-3">◉ карты на входе в цех, занятость боксов</div>
+        </div>
+        <div className="rounded-lg bg-panel-2 p-3">
+          <div className="mb-1.5 text-[12px] font-semibold text-ink-2">Комплекты запчастей: {r.parts}</div>
+          {bar(r.parts, PARTS_INITIAL, r.parts < 10 ? C.bad : C.ok)}
+          <div className="mt-1 text-[11px] text-ink-3">◉ сканеры на выдаче склада</div>
+        </div>
+        <div className="rounded-lg bg-panel-2 p-3">
+          <div className="mb-1.5 text-[12px] font-semibold text-ink-2">Шины карьерных самосвалов: {r.tyres}</div>
+          {bar(r.tyres, TYRES_INITIAL, r.tyres < 4 ? C.bad : C.ok)}
+          <div className="mt-1 text-[11px] text-ink-3">◉ складской учёт</div>
+        </div>
+      </div>
+      <Stats>
+        <Stat label="Открытых заявок" value={`${r.open}`} tone={r.broken ? C.warn : undefined} />
+        <Stat label="Плановых закрыто" value={`${r.plannedDone}`} />
+        <Stat label="Аварийных закрыто" value={`${r.breakdownDone}`} />
+        <Stat label="Боксов занято" value={`${r.baysBusy} из ${SHOP_BAYS}`} />
+      </Stats>
+      <div className="mt-2 text-[11.5px] text-ink-3">
+        Заявки приходят от гаража: плановый ремонт по прогнозу отказов и поломки на трассе. После каждого ремонта расходуется комплект запчастей, каждый третий раз — шина. Запасы и численность цеха — оценки.
       </div>
     </div>
   );

@@ -16,3 +16,4 @@ export * from './cost';
 export * from './chain2';
 export * from './camp';
 export * from './checkpoint';
+export * from './depot';

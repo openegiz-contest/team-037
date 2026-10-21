@@ -20,13 +20,14 @@ import { costBreakdown, GROUP_RU, type CostGroup } from '../sim/cost';
 import { BLAST_WIND_MS, LEACH_FROST_C, MONTH_RU, SEASON_RU, SKY, type Sky } from '../sim/weather';
 import { CAPACITY_MT, CREST_ABOVE_BEACH_M, CREST_FINAL_M, FREEBOARD_MIN_M, POND_AREA_M2, RECYCLE_PCT, SOLIDS_PCT } from '../sim/tailings';
 import { CELL_CAP_T, EW_CELLS, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, LEACH_DAYS, OXIDE_GRADE_PCT, REC_MAX, SX_EFFICIENCY, type CellStage } from '../sim/leach';
+import { FLEET_SCALE, FUEL_TANKS, FUEL_TANK_M3, MECHANICS, SHOP_BAYS, TANKER_M3 } from '../sim/depot';
 import { KPP_LANES, WEIGH_AUTO_SEC, WEIGH_MANUAL_SEC } from '../sim/checkpoint';
 import { CAMP_BEDS, CAMP_DORMS, CAMP_RESIDENTS, FUEL_TANK_L, GEN_MW } from '../sim/camp';
 import { CONC_GRADE, TRAIN_WAGONS, WAGON_LOAD_SEC, WAGON_T } from '../sim/concentrate';
 import { BENCH_M, BLOCK_M, blockSummary, buildOreModel, CUTOFF, DENSITY, holeAssays, pitResources, type OreModel } from '../geo/orebody';
 import { PIT_DEPTH } from '../geo/relief';
 import { UNIT_DEFS, type UnitState } from '../sim/equipment';
-import { checkpointSensorAttributes, campSensorAttributes, substationSensorAttributes, energySensorAttributes, weatherSensorAttributes, tailingsSensorAttributes, sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
+import { fuelDepotSensorAttributes, repairShopSensorAttributes, checkpointSensorAttributes, campSensorAttributes, substationSensorAttributes, energySensorAttributes, weatherSensorAttributes, tailingsSensorAttributes, sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -63,6 +64,8 @@ export const thingIds = (v: StrategyName) => {
     sub2: `${ns}:substation-2`,
     camp: `${ns}:camp`,
     kpp: `${ns}:checkpoint`,
+    gsm: `${ns}:fuel-depot`,
+    rmc: `${ns}:repair-shop`,
     unit2: (key: string) => `${ns}:${key}-2`,
     unit: (key: string) => `${ns}:${key}`,
     drill: (i: number) => `${ns}:drill-${i + 1}`,
@@ -285,6 +288,36 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
       sensors: checkpointSensorAttributes(),
     },
     features: serializeCheckpoint(sim),
+  };
+  out[id.gsm] = {
+    policyId: POLICY,
+    attributes: {
+      name: 'Склад ГСМ',
+      kind: 'fuel-depot',
+      _isType: false,
+      _parents: parent,
+      tanks: FUEL_TANKS,
+      tank_m3: FUEL_TANK_M3,
+      tanker_m3: TANKER_M3,
+      fleet_scale: FLEET_SCALE,
+      note: 'склад обслуживает весь парк комбината: расход сегмента умножен на оценку доли остального парка',
+      sensors: fuelDepotSensorAttributes(),
+    },
+    features: serializeFuelDepot(sim),
+  };
+  out[id.rmc] = {
+    policyId: POLICY,
+    attributes: {
+      name: 'Ремонтно-механический цех',
+      kind: 'repair-shop',
+      _isType: false,
+      _parents: parent,
+      mechanics: MECHANICS,
+      bays: SHOP_BAYS,
+      note: 'запасы и численность — оценки; заявки приходят от гаража (плановый ремонт и поломки)',
+      sensors: repairShopSensorAttributes(),
+    },
+    features: serializeRepairShop(sim),
   };
   out[id.cost] = {
     policyId: POLICY,
@@ -837,6 +870,39 @@ export function serializeConcentrate(sim: Simulation): Features {
   };
 }
 
+/** Признаки склада ГСМ. */
+export function serializeFuelDepot(sim: Simulation): Features {
+  const d = sim.fuelDepot;
+  const cap = FUEL_TANKS * FUEL_TANK_M3;
+  return {
+    state: f(d.stockM3 < 0.3 * cap ? 'low' : d.refilling ? 'refilling' : 'ok'),
+    stock: f(Math.round(d.stockM3), 'm3'),
+    fill: f(r1((d.stockM3 / cap) * 100), '%'),
+    stock_hours: f(r1(Math.min(99, d.hoursLeft)), 'h'),
+    flow: f(r1(d.flowM3h), 'm3/h'),
+    dispensed_m3: f(Math.round(d.dispensedM3), 'm3'),
+    received: f(Math.round(d.receivedM3), 'm3'),
+    tankers: f(d.tankers, 'pcs'),
+  };
+}
+
+/** Признаки ремонтно-механического цеха. */
+export function serializeRepairShop(sim: Simulation): Features {
+  const r = sim.repairShop;
+  return {
+    state: f(r.broken > 0 ? 'repairing' : r.inService > 0 ? 'servicing' : 'idle'),
+    open_orders: f(r.open, 'pcs'),
+    in_ppr: f(r.inService, 'pcs'),
+    broken: f(r.broken, 'pcs'),
+    planned_done: f(r.plannedDone, 'pcs'),
+    breakdown_done: f(r.breakdownDone, 'pcs'),
+    parts: f(r.parts, 'pcs'),
+    tyres: f(r.tyres, 'pcs'),
+    mechanics_busy: f(r.mechanicsBusy, 'pcs'),
+    bays_busy: f(r.baysBusy, 'pcs'),
+  };
+}
+
 /** Признаки КПП и автовесов. */
 export function serializeCheckpoint(sim: Simulation): Features {
   const k = sim.checkpoint;
@@ -984,6 +1050,8 @@ export function serializeAll(sim: Simulation, v: StrategyName, k: Kpis): Record<
   out[id.sub2] = serializeSubstation(sim, 'sub2');
   out[id.camp] = serializeCamp(sim);
   out[id.kpp] = serializeCheckpoint(sim);
+  out[id.gsm] = serializeFuelDepot(sim);
+  out[id.rmc] = serializeRepairShop(sim);
   out[id.waste] = serializeWaste(sim);
   out[id.garage] = serializeGarage(sim);
   out[id.roads] = serializeRoads(sim);
@@ -1149,6 +1217,30 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     g.opStats.jams = num(fs, 'op_jams');
     g.opStats.expectedM = num(fs, 'op_expected_m');
   });
+
+  // Склад ГСМ и РМЦ.
+  const gsf = things.get(id.gsm);
+  if (gsf) {
+    const d = sim.fuelDepot;
+    d.stockM3 = num(gsf, 'stock', d.stockM3);
+    d.dispensedM3 = num(gsf, 'dispensed_m3', d.dispensedM3);
+    d.receivedM3 = num(gsf, 'received', d.receivedM3);
+    d.tankers = num(gsf, 'tankers', d.tankers);
+    d.flowM3h = num(gsf, 'flow', d.flowM3h);
+    d.refilling = str(gsf, 'state') === 'refilling' || str(gsf, 'state') === 'low';
+  }
+  const rf = things.get(id.rmc);
+  if (rf) {
+    const r = sim.repairShop;
+    r.inService = num(rf, 'in_ppr', r.inService);
+    r.broken = num(rf, 'broken', r.broken);
+    r.plannedDone = num(rf, 'planned_done', r.plannedDone);
+    r.breakdownDone = num(rf, 'breakdown_done', r.breakdownDone);
+    r.parts = num(rf, 'parts', r.parts);
+    r.tyres = num(rf, 'tyres', r.tyres);
+    r.mechanicsBusy = num(rf, 'mechanics_busy', r.mechanicsBusy);
+    r.baysBusy = num(rf, 'bays_busy', r.baysBusy);
+  }
 
   // КПП и автовесы.
   const kf = things.get(id.kpp);

@@ -30,6 +30,8 @@ export const KIND_LABEL: Record<string, string> = {
   substation: 'Подстанция',
   camp: 'Вахтовый посёлок',
   checkpoint: 'КПП и автовесы',
+  'fuel-depot': 'Склад ГСМ',
+  'repair-shop': 'Ремонтно-механический цех',
 };
 
 export const FEATURE_LABEL: Record<string, string> = {
@@ -47,6 +49,20 @@ export const FEATURE_LABEL: Record<string, string> = {
   plant2_mw: 'Обогатительная фабрика №2',
   crusher2_mw: 'ККД-2 и конвейеры',
   camp_mw: 'Вахтовый посёлок',
+  // склад ГСМ
+  stock_hours: 'Хватит топлива на',
+  dispensed_m3: 'Отпущено за смену',
+  received: 'Принято автоцистернами',
+  tankers: 'Автоцистерн за смену',
+  // РМЦ
+  open_orders: 'Открытых заявок',
+  in_ppr: 'На плановом ремонте',
+  planned_done: 'Плановых ремонтов закрыто',
+  breakdown_done: 'Аварийных ремонтов закрыто',
+  parts: 'Комплектов запчастей на складе',
+  tyres: 'Крупногабаритных шин на складе',
+  mechanics_busy: 'Механиков занято',
+  bays_busy: 'Боксов занято',
   // КПП и автовесы
   lanes_open: 'Открыто полос взвешивания',
   arrivals_ph: 'Поток на въезд',

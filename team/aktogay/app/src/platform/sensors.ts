@@ -787,6 +787,72 @@ export const CHECKPOINT_SENSORS: SensorSpec[] = [
   },
 ];
 
+export const FUEL_DEPOT_SENSORS: SensorSpec[] = [
+  {
+    id: 'level',
+    name: 'Радарные уровнемеры резервуаров',
+    hardware: 'радарные уровнемеры с термодатчиками на каждом резервуаре, пересчёт в объём',
+    location: 'резервуары склада ГСМ',
+    measures: 'запас дизельного топлива, м³, заполнение, на сколько часов хватит',
+    features: ['stock', 'fill', 'stock_hours'],
+    periodS: 30,
+    purpose: 'не допустить, чтобы заправка встала, и вовремя заказать автоцистерны',
+  },
+  {
+    id: 'dispense',
+    name: 'Массовые расходомеры раздачи',
+    hardware: 'кориолисовы расходомеры на раздаточных линиях АЗС и на линии к посёлку',
+    location: 'раздаточные колонки склада ГСМ',
+    measures: 'отпущено топлива, м³, расход сейчас, м³/ч',
+    features: ['dispensed_m3', 'flow'],
+    periodS: 10,
+    purpose: 'учёт расхода парка и сверка с баком каждого самосвала',
+  },
+  {
+    id: 'receiving',
+    name: 'Приёмный узел автоцистерн',
+    hardware: 'расходомер на сливе и считыватель номеров цистерн',
+    location: 'эстакада слива склада ГСМ',
+    measures: 'принято топлива, м³, рейсов автоцистерн',
+    features: ['received', 'tankers'],
+    periodS: 60,
+    purpose: 'сколько привезли и когда ждать следующую цистерну',
+  },
+];
+
+export const REPAIR_SHOP_SENSORS: SensorSpec[] = [
+  {
+    id: 'orders',
+    name: 'Журнал заявок на ремонт',
+    hardware: 'система заказ-нарядов, связанная с диспетчерской и гаражом',
+    location: 'РМЦ, диспетчерская ремонтной службы',
+    measures: 'открытых заявок, самосвалов на плановом ремонте и после поломки, закрыто заявок',
+    features: ['open_orders', 'in_ppr', 'broken', 'planned_done', 'breakdown_done'],
+    periodS: 60,
+    purpose: 'загрузка цеха и срок возврата самосвалов в работу',
+  },
+  {
+    id: 'stock',
+    name: 'Складской учёт запчастей и шин',
+    hardware: 'сканеры штрихкодов на выдаче склада, учёт в системе управления складом',
+    location: 'склад запчастей РМЦ',
+    measures: 'комплектов запчастей и крупногабаритных шин на складе',
+    features: ['parts', 'tyres'],
+    periodS: 300,
+    purpose: 'вовремя заказать шины и узлы, чтобы ремонт не ждал деталей',
+  },
+  {
+    id: 'staff',
+    name: 'Учёт механиков и боксов',
+    hardware: 'бесконтактные карты на входе в цех и датчики занятости боксов',
+    location: 'ремонтные боксы РМЦ',
+    measures: 'механиков на работе, занятых боксов',
+    features: ['mechanics_busy', 'bays_busy'],
+    periodS: 60,
+    purpose: 'сколько людей и боксов занято и хватит ли на следующую заявку',
+  },
+];
+
 export const GEOLOGY_SENSORS: SensorSpec[] = [
   {
     id: 'core',
@@ -854,6 +920,8 @@ export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   substation: SUBSTATION_SENSORS,
   camp: CAMP_SENSORS,
   checkpoint: CHECKPOINT_SENSORS,
+  'fuel-depot': FUEL_DEPOT_SENSORS,
+  'repair-shop': REPAIR_SHOP_SENSORS,
 };
 
 /** Компактная запись для attributes.sensors двойника в Ditto. */
@@ -874,6 +942,8 @@ export const sxewSensorAttributes = () => sensorAttributes(SXEW_SENSORS);
 export const tailingsSensorAttributes = () => sensorAttributes(TAILINGS_SENSORS);
 export const weatherSensorAttributes = () => sensorAttributes(WEATHER_SENSORS);
 export const energySensorAttributes = () => sensorAttributes(ENERGY_SENSORS);
+export const fuelDepotSensorAttributes = () => sensorAttributes(FUEL_DEPOT_SENSORS);
+export const repairShopSensorAttributes = () => sensorAttributes(REPAIR_SHOP_SENSORS);
 export const checkpointSensorAttributes = () => sensorAttributes(CHECKPOINT_SENSORS);
 export const campSensorAttributes = () => sensorAttributes(CAMP_SENSORS);
 export const substationSensorAttributes = () => sensorAttributes(SUBSTATION_SENSORS);

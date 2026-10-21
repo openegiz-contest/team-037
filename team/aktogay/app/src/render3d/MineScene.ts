@@ -13,6 +13,7 @@ import { gradeAt, MATERIAL_SHORT, pitPointOf, pitScaleAt, type Blast, type Simul
 import { BLOCK_PAD } from '../sim/drilling';
 import { CAMP_BEDS } from '../sim/camp';
 import { kppDirection } from '../sim/checkpoint';
+import { FUEL_TANKS, FUEL_TANK_M3, TYRES_INITIAL } from '../sim/depot';
 import { TRAIN_WAGONS } from '../sim/concentrate';
 import { SHIFT_START_HOUR } from '../sim/weather';
 import { daylight } from './daylight';
@@ -32,6 +33,8 @@ import {
   makePylon,
   makeCamp,
   makeCheckpoint,
+  makeFuelDepot,
+  makeRepairShop,
   makeSubstation,
   PYLON_ARM,
   PYLON_H,
@@ -93,7 +96,7 @@ export type FocusTarget = { kind: 'truck' | 'excavator' | 'drill'; id: number } 
 
 export type LabelMode = 'all' | 'hover';
 
-export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew' | 'tsf' | 'conc' | 'crusher2' | 'plant2' | 'stockpile2' | 'sub' | 'sub2' | 'camp' | 'kpp';
+export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew' | 'tsf' | 'conc' | 'crusher2' | 'plant2' | 'stockpile2' | 'sub' | 'sub2' | 'camp' | 'kpp' | 'gsm' | 'rmc';
 
 const BG = '#0a1526';
 /** Оттенки погодной дымки: снежная и пыльная. */
@@ -222,6 +225,7 @@ export class MineScene {
       this.parkingPadCentre = { x: f.cx + f.ox * along - f.oy * across, y: f.cy + f.oy * along + f.ox * across };
     }
     const KPP_DIR = kppDirection(cfg.sites.kpp, cfg.serviceRoads);
+    const RMC_DIR = kppDirection(cfg.sites.rmc, cfg.serviceRoads);
     // Вторая цепочка и подстанции тоже стоят на ровных площадках, а не висят на склоне.
     {
       const S = cfg.sites;
@@ -233,6 +237,8 @@ export class MineScene {
       pads.push({ x: S.crusher2.x, y: S.crusher2.y, ...dir(S.crusher2, S.stockpile2), halfAlong: 150, halfAcross: 120 });
       pads.push({ x: S.stockpile2.x, y: S.stockpile2.y, ux: 1, uy: 0, halfAlong: 105, halfAcross: 105 });
       pads.push({ x: S.camp.x, y: S.camp.y, ux: 1, uy: 0, halfAlong: 200, halfAcross: 130 });
+      pads.push({ x: S.rmc.x, y: S.rmc.y, ux: RMC_DIR.ux, uy: RMC_DIR.uy, halfAlong: 100, halfAcross: 70 });
+      pads.push({ x: S.gsm.x, y: S.gsm.y, ux: RMC_DIR.ux, uy: RMC_DIR.uy, halfAlong: 70, halfAcross: 50 });
       pads.push({ x: S.kpp.x, y: S.kpp.y, ux: KPP_DIR.ux, uy: KPP_DIR.uy, halfAlong: 160, halfAcross: 50 });
       for (const q of [S.sub, S.sub2]) pads.push({ x: q.x, y: q.y, ux: 1, uy: 0, halfAlong: 80, halfAcross: 62 });
     }
@@ -443,6 +449,23 @@ export class MineScene {
     this.buildings.push(kppModel.root);
     this.kpp3d = kppModel;
 
+    // РМЦ и склад ГСМ на промплощадке у проездов (OSM): вытянуты вдоль ближайшей дороги.
+    const rmcModel = makeRepairShop();
+    rmcModel.root.position.set(S2.rmc.x, this.heightAt(S2.rmc.x, S2.rmc.y) - 0.8, S2.rmc.y);
+    rmcModel.root.rotation.y = -Math.atan2(RMC_DIR.uy, RMC_DIR.ux);
+    this.scene.add(rmcModel.root);
+    rmcModel.root.userData = { building: 'rmc' };
+    this.buildings.push(rmcModel.root);
+    this.rmc3d = rmcModel;
+    const gsmModel = makeFuelDepot();
+    gsmModel.root.position.set(S2.gsm.x, this.heightAt(S2.gsm.x, S2.gsm.y) - 0.8, S2.gsm.y);
+    gsmModel.root.rotation.y = -Math.atan2(RMC_DIR.uy, RMC_DIR.ux);
+    gsmModel.root.scale.setScalar(0.75);
+    this.scene.add(gsmModel.root);
+    gsmModel.root.userData = { building: 'gsm' };
+    this.buildings.push(gsmModel.root);
+    this.gsm3d = gsmModel;
+
     // Оксидная ветка после площадки выщелачивания: пруды растворов и завод SX-EW.
     // К ним ничего не ездит — раствор идёт по трубам, поэтому в графе дорог их нет.
     const faceLeach = (p: { x: number; y: number }) => -Math.atan2(cfg.sites.leach.y - p.y, cfg.sites.leach.x - p.x);
@@ -507,6 +530,8 @@ export class MineScene {
       { x: S2.sub2.x, y: S2.sub2.y, r: 120 },
       { x: S2.camp.x, y: S2.camp.y, r: 260 },
       { x: S2.kpp.x, y: S2.kpp.y, r: 200 },
+      { x: S2.rmc.x, y: S2.rmc.y, r: 170 },
+      { x: S2.gsm.x, y: S2.gsm.y, r: 120 },
       { x: leach.position.x, y: leach.position.z, r: 320 },
       { x: cfg.sites.ponds.x, y: cfg.sites.ponds.y, r: 330 },
       { x: cfg.sites.sxew.x, y: cfg.sites.sxew.y, r: 330 },
@@ -759,6 +784,15 @@ export class MineScene {
       const mode = k.mode === 'manual' ? '<span class="bad">РУЧНОЕ ВЗВЕШИВАНИЕ</span> · 1 полоса' : '<span class="ok">автовесы</span> · 2 полосы';
       return `<b>КПП И АВТОВЕСЫ</b><br>${mode}<br>Очередь: <span class="${k.queue > 8 ? 'bad' : 'v'}">${Math.round(k.queue)}</span> · ожидание <span class="v">${k.waitMin.toFixed(1)} мин</span><br>Принято грузовиков: <span class="v">${fmtInt(k.cargoVehicles)}</span>`;
     }, kppModel.root);
+    panel(new THREE.Vector3(rmcModel.root.position.x, rmcModel.root.position.y + 55, rmcModel.root.position.z), () => {
+      const r = sim.repairShop;
+      return `<b>РЕМОНТНО-МЕХАНИЧЕСКИЙ ЦЕХ</b><br>Заявок: <span class="${r.broken ? 'warn' : 'v'}">${r.open}</span> · боксов занято <span class="v">${r.baysBusy}/4</span><br>Механиков: <span class="v">${r.mechanicsBusy}</span> · шин на складе <span class="${r.tyres < 4 ? 'bad' : 'v'}">${r.tyres}</span>`;
+    }, rmcModel.root);
+    panel(new THREE.Vector3(gsmModel.root.position.x, gsmModel.root.position.y + 45, gsmModel.root.position.z), () => {
+      const d = sim.fuelDepot;
+      const cap = FUEL_TANKS * FUEL_TANK_M3;
+      return `<b>СКЛАД ГСМ</b><br>Дизель: <span class="${d.stockM3 < 0.3 * cap ? 'bad' : 'v'}">${fmtInt(d.stockM3)} м³ (${Math.round((d.stockM3 / cap) * 100)}%)</span><br>Хватит на <span class="v">${Math.min(99, d.hoursLeft).toFixed(0)} ч</span>${d.refilling ? ' · <span class="warn">идёт завоз</span>' : ''}`;
+    }, gsmModel.root);
     for (const [key, name] of [['sub', 'ПОДСТАНЦИЯ ОФ-1'], ['sub2', 'ПОДСТАНЦИЯ ОФ-2']] as const) {
       const root = subRoots.get(key)!;
       panel(new THREE.Vector3(root.position.x, root.position.y + 90, root.position.z), () => {
@@ -935,6 +969,31 @@ export class MineScene {
     for (const g of this.mastGlows) (g.material as THREE.SpriteMaterial).opacity = 0.15 + 0.85 * d.lampsK;
     this.syncCamp(sim, d.lampsK, blink);
     this.syncKpp(sim, blink);
+    this.syncDepot(sim, blink);
+  }
+
+  /** Склад ГСМ и РМЦ: уровень в резервуарах, занятые боксы, шины по остатку на складе. */
+  private syncDepot(sim: Simulation, blink: boolean): void {
+    const g = this.gsm3d;
+    if (g) {
+      const d = sim.fuelDepot;
+      const level = Math.min(1, d.stockM3 / (FUEL_TANKS * FUEL_TANK_M3));
+      g.fills.forEach((f) => {
+        f.scale.y = Math.max(0.01, level * 25);
+        f.position.y = 2 + (f.scale.y - 1) / 2;
+      });
+      const m = g.lamp.material as THREE.MeshStandardMaterial;
+      const col = level < 0.3 ? (blink ? '#ef4444' : '#3b1010') : d.refilling ? '#f59e0b' : '#22c55e';
+      m.color.set(col);
+      m.emissive.set(col);
+    }
+    const r = this.rmc3d;
+    if (r) {
+      const rs = sim.repairShop;
+      r.bays.forEach((m, i) => (m.emissiveIntensity = i < rs.baysBusy ? 0.9 + 0.3 * Math.sin(performance.now() / 300 + i) : 0));
+      const n = Math.round((rs.tyres / TYRES_INITIAL) * r.tyres.length);
+      r.tyres.forEach((t, i) => (t.visible = i < n));
+    }
   }
 
   /** КПП: шлагбаумы поднимаются, пока идёт поток; светофор красный, когда очередь или ручной режим. */
@@ -1293,6 +1352,8 @@ export class MineScene {
   private readonly subLamps: THREE.Mesh[] = [];
   private camp3d: ReturnType<typeof makeCamp> | null = null;
   private kpp3d: ReturnType<typeof makeCheckpoint> | null = null;
+  private rmc3d: ReturnType<typeof makeRepairShop> | null = null;
+  private gsm3d: ReturnType<typeof makeFuelDepot> | null = null;
   /** Точки входа и выхода конвейеров второй цепочки. */
   private chain2!: { crusherTop: THREE.Vector3; pileTop: THREE.Vector3; pileGround: number; plantIn: THREE.Vector3 };
   private concRoot!: THREE.Object3D;

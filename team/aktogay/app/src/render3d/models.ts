@@ -866,3 +866,85 @@ export function makeCheckpoint(): { root: THREE.Group; arms: THREE.Mesh[]; signa
   root.add(box(0.5, 6, 0.5, MAT.steel, -50, 3.4, 13));
   return { root, arms, signals };
 }
+
+/**
+ * Склад ГСМ: три вертикальных резервуара в обваловании (внутри каждого «уровень топлива» — цилиндр,
+ * который сцена масштабирует по запасу), насосная, эстакада слива и автоцистерна под сливом.
+ */
+export function makeFuelDepot(): { root: THREE.Group; fills: THREE.Mesh[]; lamp: THREE.Mesh } {
+  const root = new THREE.Group();
+  root.add(box(120, 1.6, 74, MAT.concreteDark, 0, 0.8, 0));
+  // Обвалование: невысокий бетонный бортик по периметру.
+  for (const [w, d, x, z] of [[120, 1.6, 0, 36], [120, 1.6, 0, -36], [1.6, 74, 59, 0], [1.6, 74, -59, 0]] as [number, number, number, number][]) root.add(box(w, 3, d, MAT.concrete, x, 3, z));
+  const shellMat = new THREE.MeshStandardMaterial({ color: '#b9c4cc', transparent: true, opacity: 0.38, side: THREE.DoubleSide, depthWrite: false, metalness: 0.4, roughness: 0.4 });
+  const fills: THREE.Mesh[] = [];
+  for (const x of [-34, 0, 34]) {
+    const shell = new THREE.Mesh(new THREE.CylinderGeometry(13, 13, 26, 24, 1, true), shellMat);
+    shell.position.set(x, 15, -6);
+    root.add(shell);
+    const roof = cyl(0.5, 13.4, 3.2, std('#8a9099', { roughness: 0.5, metalness: 0.5 }), 24);
+    roof.position.set(x, 29.6, -6);
+    root.add(roof);
+    const fill = cyl(12.4, 12.4, 1, std('#c98a1a', { roughness: 0.35, metalness: 0.1 }), 24);
+    fill.position.set(x, 2, -6);
+    root.add(fill);
+    fills.push(fill);
+    // лестница на крышу
+    root.add(box(1, 26, 0.5, MAT.steel, x + 13.2, 15, -6));
+  }
+  // Насосная и трубная эстакада.
+  root.add(box(18, 8, 12, std('#cfc7b8', { roughness: 0.75 }), -42, 5.8, 24));
+  root.add(box(20, 1.2, 14, std('#46586a', { roughness: 0.7 }), -42, 10.4, 24));
+  root.add(box(96, 0.8, 0.8, MAT.steel, 0, 6, 14));
+  for (const x of [-40, -10, 20, 50]) root.add(box(0.6, 5, 0.6, MAT.steel, x, 3.8, 14));
+  // Эстакада слива и автоцистерна.
+  root.add(box(30, 0.6, 12, MAT.concrete, 38, 2, 24));
+  root.add(box(12, 3.4, 2.6, std('#c4442c', { roughness: 0.5 }), 36, 4.4, 24));
+  const tank = cyl(1.9, 1.9, 9, std('#e6e9ec', { roughness: 0.4, metalness: 0.4 }), 14);
+  tank.rotation.z = Math.PI / 2;
+  tank.position.set(42, 5.2, 24);
+  root.add(tank);
+  const lampMat = new THREE.MeshStandardMaterial({ color: '#22c55e', emissive: '#22c55e', emissiveIntensity: 2.2 });
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(1.6, 10, 8), lampMat);
+  lamp.position.set(-52, 12, 24);
+  root.add(lamp);
+  return { root, fills, lamp };
+}
+
+/**
+ * Ремонтно-механический цех: пролёт с четырьмя воротами боксов и мостовым краном, склад запчастей и
+ * площадка с шинами (шины — отдельная группа, сцена показывает их по остатку на складе).
+ */
+export function makeRepairShop(): { root: THREE.Group; bays: THREE.MeshStandardMaterial[]; tyres: THREE.Object3D[] } {
+  const root = new THREE.Group();
+  root.add(box(170, 1.6, 110, MAT.concreteDark, 0, 0.8, 0));
+  const hall = shed(110, 26, 36);
+  hall.position.set(-18, 1.6, -22);
+  root.add(hall);
+  // Ворота боксов на длинной стене и мостовой кран под крышей.
+  const bays: THREE.MeshStandardMaterial[] = [];
+  for (let i = 0; i < 4; i++) {
+    const m = new THREE.MeshStandardMaterial({ color: '#1b1d22', emissive: '#f59e0b', emissiveIntensity: 0, roughness: 0.8 });
+    bays.push(m);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(18, 18, 1.2), m);
+    door.position.set(-58 + i * 26, 11, -3.6);
+    root.add(door);
+  }
+  root.add(box(104, 1.2, 1.6, MAT.yellow, -18, 24, -22));
+  root.add(box(6, 3.4, 5, MAT.yellowDark, -30, 22, -22));
+  // Склад запчастей и контейнеры.
+  const store = shed(46, 14, 24);
+  store.position.set(62, 1.6, -24);
+  root.add(store);
+  for (const [x, z] of [[40, 26], [52, 26], [64, 26]] as [number, number][]) root.add(box(10, 5, 4, std('#51697f', { roughness: 0.6, metalness: 0.3 }), x, 4.2, z));
+  // Шины карьерных самосвалов: штабель под открытым небом.
+  const tyres: THREE.Object3D[] = [];
+  for (let i = 0; i < 12; i++) {
+    const t = cyl(3.6, 3.6, 2.6, MAT.tyre, 16);
+    t.rotation.z = Math.PI / 2;
+    t.position.set(-70 + (i % 6) * 7.6, 4.8, 30 + Math.floor(i / 6) * 8);
+    root.add(t);
+    tyres.push(t);
+  }
+  return { root, bays, tyres };
+}
