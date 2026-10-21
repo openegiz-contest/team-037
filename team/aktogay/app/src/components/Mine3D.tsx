@@ -33,6 +33,7 @@ export function Mine3D({ sim, selection, onSelect, showControls = true, light = 
   const [orbit, setOrbit] = useState(false);
   /** Подписи на сцене: все сразу или только у объекта под курсором. */
   const [labelsAll, setLabelsAll] = useState(true);
+  const [weatherOn, setWeatherOn] = useState(true);
   const [follow, setFollow] = useState(false);
   const [full, setFull] = useState(false);
 
@@ -124,6 +125,7 @@ export function Mine3D({ sim, selection, onSelect, showControls = true, light = 
   }, [selection]);
 
   useEffect(() => sceneRef.current?.setLabelMode(labelsAll ? 'all' : 'hover'), [labelsAll]);
+  useEffect(() => sceneRef.current?.setWeatherVisible(weatherOn), [weatherOn]);
   useEffect(() => sceneRef.current?.setAutoRotate(orbit), [orbit]);
   useEffect(() => sceneRef.current?.setFollow(follow), [follow]);
 
@@ -144,6 +146,13 @@ export function Mine3D({ sim, selection, onSelect, showControls = true, light = 
             title={labelsAll ? 'Скрыть подписи — показывать только у объекта под курсором' : 'Показать все подписи'}
           >
             {labelsAll ? '◌ Скрыть подписи' : '◉ Подписи по наведению'}
+          </button>
+          <button
+            onClick={() => setWeatherOn((v) => !v)}
+            className={`${btn} ${weatherOn ? 'bg-black/55 text-ink-2 hover:text-ink' : 'bg-amber-500 text-black'}`}
+            title={weatherOn ? 'Убрать с картинки осадки и дымку, чтобы лучше видеть. Погода в модели остаётся' : 'Показать осадки и дымку'}
+          >
+            {weatherOn ? '☁ Скрыть погоду' : '☀ Погода скрыта'}
           </button>
           <button onClick={() => setOrbit((o) => !o)} className={`${btn} ${orbit ? 'bg-amber-500 text-black' : 'bg-black/55 text-ink-2 hover:text-ink'}`}>
             ⟳ Облёт

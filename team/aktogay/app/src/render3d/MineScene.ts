@@ -166,6 +166,7 @@ export class MineScene {
   private readonly panels: { obj: CSS2DObject; render: () => string; owner?: THREE.Object3D }[] = [];
   /** Подписи: все сразу или только у объекта под курсором. */
   private labelMode: LabelMode = 'all';
+  private weatherShown = true;
   private hoverRoot: THREE.Object3D | null = null;
   /** Насколько сейчас светло: 0 — ночь, 1 — день. */
   private dayK = 1;
@@ -984,17 +985,17 @@ export class MineScene {
   private syncWeather(sim: Simulation, now: number): void {
     const w = sim.weather;
     const fog = this.scene.fog as THREE.Fog;
-    const far = Math.max(1400, Math.min(14000, w.visibilityM * 0.8));
+    const far = this.weatherShown ? Math.max(1400, Math.min(14000, w.visibilityM * 0.8)) : 14000;
     fog.far += (far - fog.far) * 0.05;
     fog.near = fog.far * 0.38;
     // Небо: цвет времени суток, в непогоду к нему подмешивается дымка (ночью она тоже темнеет).
-    const haze = w.sky === 'dust' ? DUST_HAZE : w.sky === 'snow' || w.sky === 'blizzard' || w.sky === 'fog' ? SNOW_HAZE : null;
+    const haze = !this.weatherShown ? null : w.sky === 'dust' ? DUST_HAZE : w.sky === 'snow' || w.sky === 'blizzard' || w.sky === 'fog' ? SNOW_HAZE : null;
     const hazeK = w.sky === 'blizzard' || w.sky === 'fog' ? 0.8 : w.sky === 'snow' || w.sky === 'dust' ? 0.55 : 0;
     const tint = haze ? this.skyNow.clone().lerp(haze.clone().multiplyScalar(0.25 + 0.75 * this.dayK), hazeK) : this.skyNow;
     (this.scene.background as THREE.Color).lerp(tint, 0.05);
     fog.color.copy(this.scene.background as THREE.Color);
 
-    const drops = w.sky === 'blizzard' ? 1 : w.sky === 'snow' ? 0.55 : w.sky === 'dust' ? 0.7 : w.sky === 'rain' ? 0.5 : 0;
+    const drops = !this.weatherShown ? 0 : w.sky === 'blizzard' ? 1 : w.sky === 'snow' ? 0.55 : w.sky === 'dust' ? 0.7 : w.sky === 'rain' ? 0.5 : 0;
     this.precip.visible = drops > 0;
     if (drops === 0) return;
     this.precipMat.opacity = 0.75 * drops;
@@ -1323,6 +1324,11 @@ export class MineScene {
 
   /** Здание под курсором — для «внутреннего двойника». */
   /** Режим подписей: все сразу или только под курсором. */
+  /** Показ погоды на сцене: осадки и дымка. Выключенная погода не меняет саму модель — только картинку. */
+  setWeatherVisible(on: boolean): void {
+    this.weatherShown = on;
+  }
+
   setLabelMode(mode: LabelMode): void {
     this.labelMode = mode;
     if (mode === 'all') {
