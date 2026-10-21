@@ -378,6 +378,8 @@ export function buildRoads(sim: Simulation, heightAt: (x: number, y: number) => 
   const pos: number[] = [];
   const col: number[] = [];
   const idx: number[] = [];
+  // Полотно приподнято над врезанной поверхностью на сантиметры — дальше работает polygonOffset.
+  const LIFT = 0.8;
   const cRamp = new THREE.Color('#e3d0a6');
   const cRing = new THREE.Color('#cdb88f');
   const cSurf = new THREE.Color('#ddc79c');
@@ -396,11 +398,22 @@ export function buildRoads(sim: Simulation, heightAt: (x: number, y: number) => 
     const base = pos.length / 3;
     for (let i = 0; i <= segs; i++) {
       const t = i / segs;
-      const ext = (i === 0 ? -width / 2 : i === segs ? width / 2 : 0) / len;
+      // Торцы ленты выпускаем на полширины, чтобы на повороте не было щели. Высоту при этом берём
+      // в самой точке стыка, а не в вынесенной: за дорогой уже естественный склон, и лента уходила
+      // бы вниз длинным клином сквозь уступ.
+      // Выпуск не длиннее половины самого отрезка: на нижних кольцах узлы стоят в 20 м друг от
+      // друга при ширине дороги 62 м, и полный выпуск разворачивал бы ленты веером внахлёст.
+      const over = Math.min(width / 2, len / 2);
+      const ext = (i === 0 ? -over : i === segs ? over : 0) / len;
       const x = a.x + (b.x - a.x) * (t + ext);
       const y = a.y + (b.y - a.y) * (t + ext);
-      const h = heightAt(x, y) + 2.2;
-      pos.push(x + nx, h, y + ny, x - nx, h, y - ny);
+      // Края ленты берём по высоте в самих краях, а не по оси: на пересечениях и развязках
+      // полотно так следует врезанной поверхности, а не висит над ней плоским куском.
+      const px = a.x + (b.x - a.x) * t;
+      const py = a.y + (b.y - a.y) * t;
+      const hl = heightAt(px + nx, py + ny) + LIFT;
+      const hr = heightAt(px - nx, py - ny) + LIFT;
+      pos.push(x + nx, hl, y + ny, x - nx, hr, y - ny);
       col.push(color.r, color.g, color.b, color.r, color.g, color.b);
     }
     for (let i = 0; i < segs; i++) {
