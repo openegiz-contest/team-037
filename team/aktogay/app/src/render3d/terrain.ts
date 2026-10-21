@@ -407,13 +407,10 @@ export function buildRoads(sim: Simulation, heightAt: (x: number, y: number) => 
       const ext = (i === 0 ? -over : i === segs ? over : 0) / len;
       const x = a.x + (b.x - a.x) * (t + ext);
       const y = a.y + (b.y - a.y) * (t + ext);
-      // Края ленты берём по высоте в самих краях, а не по оси: на пересечениях и развязках
-      // полотно так следует врезанной поверхности, а не висит над ней плоским куском.
-      const px = a.x + (b.x - a.x) * t;
-      const py = a.y + (b.y - a.y) * t;
-      const hl = heightAt(px + nx, py + ny) + LIFT;
-      const hr = heightAt(px - nx, py - ny) + LIFT;
-      pos.push(x + nx, hl, y + ny, x - nx, hr, y - ny);
+      // Дорога врезана ровно поперёк, поэтому высота полотна — по оси, одна на оба края. Брать её
+      // по краям нельзя: на бермах край выходит на стенку уступа и лента скручивается.
+      const h = heightAt(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t) + LIFT;
+      pos.push(x + nx, h, y + ny, x - nx, h, y - ny);
       col.push(color.r, color.g, color.b, color.r, color.g, color.b);
     }
     for (let i = 0; i < segs; i++) {
