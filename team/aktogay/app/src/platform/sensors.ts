@@ -754,6 +754,39 @@ export const CAMP_SENSORS: SensorSpec[] = [
   },
 ];
 
+export const CHECKPOINT_SENSORS: SensorSpec[] = [
+  {
+    id: 'anpr',
+    name: 'Камеры распознавания номеров (ANPR)',
+    hardware: 'камеры с ИК-подсветкой на въезде и выезде, распознавание номеров и сверка с заявками',
+    location: 'въездные и выездные полосы КПП',
+    measures: 'въехавшие грузовики и автобусы, машин в очереди',
+    features: ['cargo_vehicles', 'bus_passes', 'queue'],
+    periodS: 10,
+    purpose: 'допуск только заявленных машин, учёт потока на въезде',
+  },
+  {
+    id: 'weighbridge',
+    name: 'Автомобильные весы',
+    hardware: 'платформенные весы на тензодатчиках, 60 т, на каждой полосе',
+    location: 'полосы взвешивания за шлагбаумом',
+    measures: 'масса грузовика на въезде и выезде, масса груза, т',
+    features: ['weighings', 'cargo_t', 'mode'],
+    periodS: 5,
+    purpose: 'учёт принятых и вывезенных грузов, контроль перегруза',
+  },
+  {
+    id: 'barrier',
+    name: 'Контроллеры шлагбаумов и светофоры',
+    hardware: 'шлагбаумы с контроллером, сигнальные светофоры, индукционные петли',
+    location: 'въезд и выезд КПП',
+    measures: 'открытые полосы, ожидание в очереди, мин',
+    features: ['lanes_open', 'wait_min', 'capacity_ph'],
+    periodS: 10,
+    purpose: 'сколько машин в час пропустит КПП и сколько они ждут',
+  },
+];
+
 export const GEOLOGY_SENSORS: SensorSpec[] = [
   {
     id: 'core',
@@ -820,6 +853,7 @@ export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   'stockpile-2': STOCKPILE_SENSORS,
   substation: SUBSTATION_SENSORS,
   camp: CAMP_SENSORS,
+  checkpoint: CHECKPOINT_SENSORS,
 };
 
 /** Компактная запись для attributes.sensors двойника в Ditto. */
@@ -840,5 +874,6 @@ export const sxewSensorAttributes = () => sensorAttributes(SXEW_SENSORS);
 export const tailingsSensorAttributes = () => sensorAttributes(TAILINGS_SENSORS);
 export const weatherSensorAttributes = () => sensorAttributes(WEATHER_SENSORS);
 export const energySensorAttributes = () => sensorAttributes(ENERGY_SENSORS);
+export const checkpointSensorAttributes = () => sensorAttributes(CHECKPOINT_SENSORS);
 export const campSensorAttributes = () => sensorAttributes(CAMP_SENSORS);
 export const substationSensorAttributes = () => sensorAttributes(SUBSTATION_SENSORS);

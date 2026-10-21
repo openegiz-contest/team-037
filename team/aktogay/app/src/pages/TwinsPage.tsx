@@ -49,6 +49,7 @@ const KEY_METRICS: Record<string, string[]> = {
   'concentrator-2': ['state', 'feed_rate', 'feed_grade', 'cu_concentrate'],
   substation: ['state', 'load_mw', 'share_pct', 'trafo_temp', 'breaker'],
   camp: ['in_camp', 'in_transit', 'water_m3h', 'load_mw', 'fuel_l'],
+  checkpoint: ['state', 'queue', 'wait_min', 'cargo_vehicles', 'weighings'],
   concentrator: ['state', 'feed_rate', 'feed_grade', 'cu_concentrate'],
   'heap-leach': ['tonnes_total', 'queue', 'cells_irrigated', 'pls_flow', 'pls_cu', 'cu_leached_total'],
   'sxew-plant': ['cathode_total', 'cathode_tpd', 'ew_current', 'acid_total'],
@@ -64,7 +65,7 @@ const KEY_METRICS: Record<string, string[]> = {
 };
 
 /** Тип двойника → «внутренний двойник» здания (мнемосхема на карте). */
-const INSIDE: Record<string, BuildingKind> = { stockpile: 'stockpile', crusher: 'crusher', concentrator: 'plant', garage: 'garage', 'heap-leach': 'leach', 'waste-dump': 'waste', 'sxew-plant': 'sxew', 'tailings-dam': 'tsf', 'concentrate-store': 'conc', 'crusher-2': 'crusher2', 'concentrator-2': 'plant2', 'stockpile-2': 'stockpile2', camp: 'camp' };
+const INSIDE: Record<string, BuildingKind> = { stockpile: 'stockpile', crusher: 'crusher', concentrator: 'plant', garage: 'garage', 'heap-leach': 'leach', 'waste-dump': 'waste', 'sxew-plant': 'sxew', 'tailings-dam': 'tsf', 'concentrate-store': 'conc', 'crusher-2': 'crusher2', 'concentrator-2': 'plant2', 'stockpile-2': 'stockpile2', camp: 'camp', checkpoint: 'kpp' };
 
 const GROUPS: { title: string; kinds: string[] }[] = [
   { title: 'Карьер', kinds: ['open-pit'] },
@@ -74,7 +75,7 @@ const GROUPS: { title: string; kinds: string[] }[] = [
   { title: 'Самосвалы', kinds: ['haul-truck'] },
   { title: 'Переработка', kinds: ['crusher', 'stockpile', 'concentrator', 'concentrate-store', 'heap-leach', 'sxew-plant', 'waste-dump', 'tailings-dam'] },
   { title: 'Вторая цепочка и подстанции', kinds: ['crusher-2', 'stockpile-2', 'concentrator-2', 'substation'] },
-  { title: 'Посёлок', kinds: ['camp'] },
+  { title: 'Посёлок и КПП', kinds: ['camp', 'checkpoint'] },
   { title: 'Агрегаты цехов', kinds: ['unit'] },
   { title: 'Погода и среда', kinds: ['weather-station', 'power-meter', 'cost-model'] },
   { title: 'Инфраструктура', kinds: ['garage', 'road-network', 'blasting', 'shift-log'] },
@@ -207,6 +208,10 @@ function summary(r: TwinRecord): [string, keyof typeof TONE_COLOR] {
     case 'substation': {
       const off = String(v('state')) === 'no_power';
       return [off ? 'нет питания' : `${v('load_mw') ?? 0} МВт · масло ${v('trafo_temp') ?? 0} °C`, off ? 'bad' : 'ok'];
+    }
+    case 'checkpoint': {
+      const st = String(v('state') ?? '');
+      return [st === 'manual' ? `ручное взвешивание · очередь ${v('queue') ?? 0} · ожидание ${v('wait_min') ?? 0} мин` : `${v('lanes_open') ?? 0} полосы · очередь ${v('queue') ?? 0} · принято ${v('cargo_vehicles') ?? 0} гр.`, st === 'manual' ? 'warn' : st === 'queue' ? 'warn' : 'ok'];
     }
     case 'camp': {
       const st = String(v('state') ?? '');
@@ -579,7 +584,7 @@ export function TwinsPage({ bridge, localSims, version, now, running, onToggleRu
             <div className="panel">
               <div className="flex items-center gap-3 border-b border-line px-4 py-2.5">
                 <div className="text-[13px] font-semibold">
-                  Датчики {({ excavator: 'на экскаваторе', 'haul-truck': 'на самосвале', crusher: 'на дробилке', concentrator: 'на фабрике', 'heap-leach': 'на площадке выщелачивания', 'sxew-plant': 'на заводе SX-EW', 'tailings-dam': 'на хвостохранилище', 'weather-station': 'на метеостанции', 'power-meter': 'на подстанции', 'crusher-2': 'на ККД-2', 'concentrator-2': 'на ОФ-2', 'stockpile-2': 'на складе ОФ-2', substation: 'на подстанции', camp: 'в посёлке', 'cost-model': 'в экономике', 'concentrate-store': 'на складе концентрата', 'waste-dump': 'на отвале', garage: 'в гараже', 'drill-rig': 'на буровом станке' } as Record<string, string>)[selKind]} <span className="font-normal text-ink-3">· {sensors.length} · attributes.sensors</span>
+                  Датчики {({ excavator: 'на экскаваторе', 'haul-truck': 'на самосвале', crusher: 'на дробилке', concentrator: 'на фабрике', 'heap-leach': 'на площадке выщелачивания', 'sxew-plant': 'на заводе SX-EW', 'tailings-dam': 'на хвостохранилище', 'weather-station': 'на метеостанции', 'power-meter': 'на подстанции', 'crusher-2': 'на ККД-2', 'concentrator-2': 'на ОФ-2', 'stockpile-2': 'на складе ОФ-2', substation: 'на подстанции', camp: 'в посёлке', checkpoint: 'на КПП', 'cost-model': 'в экономике', 'concentrate-store': 'на складе концентрата', 'waste-dump': 'на отвале', garage: 'в гараже', 'drill-rig': 'на буровом станке' } as Record<string, string>)[selKind]} <span className="font-normal text-ink-3">· {sensors.length} · attributes.sensors</span>
                 </div>
                 <span className="ml-auto text-[11.5px] text-ink-3">клик — показать признаки датчика в таблице ниже</span>
               </div>

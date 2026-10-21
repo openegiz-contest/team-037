@@ -16,6 +16,7 @@ import { fmtInt } from '../ui/format';
 import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
 import { thingIds } from '../platform/twins';
 import { campAt, CAMP_BEDS, CAMP_DORMS, CAMP_RESIDENTS, FUEL_TANK_L, GEN_MW } from '../sim/camp';
+import { cargoPerHour } from '../sim/checkpoint';
 import { SHIFT_START_HOUR } from '../sim/weather';
 import { UNIT_STATE_RU } from '../sim/equipment';
 import { FEATURE_LABEL, stateTone, TONE_COLOR, UNIT_LABEL } from '../ui/twinLabels';
@@ -36,8 +37,9 @@ const TITLE: Record<BuildingKind, string> = {
   sub: 'Подстанция ОФ-1',
   sub2: 'Подстанция ОФ-2',
   camp: 'Вахтовый посёлок',
+  kpp: 'КПП и автовесы',
 };
-const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile', sxew: 'sxew-plant', tsf: 'tailings-dam', conc: 'concentrate-store', crusher2: 'crusher-2', plant2: 'concentrator-2', stockpile2: 'stockpile-2', sub: 'substation', sub2: 'substation', camp: 'camp' };
+const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile', sxew: 'sxew-plant', tsf: 'tailings-dam', conc: 'concentrate-store', crusher2: 'crusher-2', plant2: 'concentrator-2', stockpile2: 'stockpile-2', sub: 'substation', sub2: 'substation', camp: 'camp', kpp: 'checkpoint' };
 
 // Цвета схемы (тёмный «экран»).
 const C = {
@@ -111,6 +113,7 @@ export function BuildingView({ sim, kind, onClose, onTruck, light = false }: Pro
         {kind === 'stockpile2' && <Stockpile sim={vs} />}
         {(kind === 'sub' || kind === 'sub2') && <Substation sim={sim} which={kind} />}
         {kind === 'camp' && <CampView sim={sim} />}
+        {kind === 'kpp' && <KppView sim={sim} />}
         {kind === 'sxew' && <SxEw sim={sim} />}
         {kind === 'tsf' && <Tailings sim={sim} />}
         {kind === 'conc' && <ConcStore sim={sim} />}
@@ -1162,6 +1165,87 @@ function CampView({ sim }: { sim: Simulation }) {
       <div className="mt-2 text-[11.5px] text-ink-3">
         Численность ({CAMP_RESIDENTS.toLocaleString('ru-RU')} чел.), нормы воды и мощности — оценки по открытым нормам для вахтовых посёлков, не данные комбината.
         Одна половина живёт в посёлке, другая на смене; в пересменку автобусы везут людей в обе стороны. При сценарии «отключение энергии» посёлок переходит на дизель-генератор.
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────── КПП и автовесы ─────────────────────────────
+
+/** Схема въезда сверху (полосы, шлагбаумы, весы, очередь) и суточный поток против пропускной способности. */
+function KppView({ sim }: { sim: Simulation }) {
+  const k = sim.checkpoint;
+  const cut = sim.powerCutLeft > 0;
+  const hourNow = (SHIFT_START_HOUR + sim.now / 3600) % 24;
+  const W = 1000;
+  const lanesY = [78, 128];
+  const queued = Math.min(14, Math.round(k.queue));
+  const cap = k.capacityPh;
+  // график потока за сутки
+  const gx0 = 52;
+  const gy0 = 214;
+  const gH = 120;
+  const maxPh = Math.max(40, cargoPerHour(12) * 1.5);
+  const gx = (h: number) => gx0 + (((((h - SHIFT_START_HOUR) % 24) + 24) % 24) / 24) * (W - gx0 - 14);
+  const gy = (v: number) => gy0 + gH - (v / maxPh) * gH;
+  const line = Array.from({ length: 145 }, (_, i) => {
+    const h = SHIFT_START_HOUR + (i / 144) * 24;
+    return `${i === 0 ? 'M' : 'L'}${gx(h).toFixed(1)},${gy(cargoPerHour(h % 24)).toFixed(1)}`;
+  }).join(' ');
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} 360`} className="w-full">
+        {/* дорога и полосы */}
+        <rect x={14} y={54} width={W - 28} height={100} rx={4} fill={C.box} stroke={C.line} />
+        <text x={20} y={46} fontSize={11.5} fill={C.dim}>← с комбината</text>
+        <text x={W - 20} y={46} textAnchor="end" fontSize={11.5} fill={C.dim}>от посёлка Актогай →</text>
+        {lanesY.map((y, i) => (
+          <g key={y}>
+            <line x1={14} y1={y + 24} x2={W - 14} y2={y + 24} stroke={C.line} strokeDasharray="8 8" opacity={0.6} />
+            <text x={26} y={y + 4} fontSize={11.5} fill={i >= k.lanesOpen ? C.bad : C.dim}>{i === 0 ? 'въезд' : 'выезд'}</text>
+          </g>
+        ))}
+        {/* очередь на въезде */}
+        {Array.from({ length: queued }, (_, i) => (
+          <rect key={i} x={W - 330 - i * 30 - 24} y={lanesY[0] - 8} width={24} height={16} rx={3} fill={k.mode === 'manual' ? C.warn : C.ok} opacity={0.9} />
+        ))}
+        {/* шлагбаумы и весы */}
+        {lanesY.map((y, i) => (
+          <g key={`g${y}`}>
+            <rect x={W - 300} y={y - 12} width={14} height={24} rx={2} fill={i >= k.lanesOpen ? C.bad : C.ok} />
+            <text x={W - 293} y={y - 18} textAnchor="middle" fontSize={11} fill={C.dim}>шлагбаум</text>
+            <rect x={W - 240} y={y - 14} width={130} height={28} rx={4} fill={C.boxHi} stroke={i >= k.lanesOpen ? C.bad : C.line} />
+            <text x={W - 175} y={y + 4} textAnchor="middle" fontSize={11.5} fill={i >= k.lanesOpen ? C.bad : C.text}>{i >= k.lanesOpen ? 'полоса закрыта' : k.mode === 'manual' ? 'весы вручную' : 'автовесы'}</text>
+          </g>
+        ))}
+        <SensorDot x={420} y={64} label="камеры ANPR на въезде" />
+        <SensorDot x={640} y={64} label="платформенные весы на тензодатчиках" />
+        <text x={W - 20} y={176} textAnchor="end" fontSize={11.5} fill={C.dim}>очередь на взвешивание: {Math.round(k.queue)} маш. · ожидание {k.waitMin.toFixed(1)} мин</text>
+        {/* суточный поток */}
+        <text x={gx0} y={gy0 - 8} fontSize={11.5} fill={C.dim}>Грузовиков на въезд в течение суток, маш./ч (пунктир — пропускная способность автовесов сейчас)</text>
+        <path d={line} fill="none" stroke="#60a5fa" strokeWidth={2} />
+        <line x1={gx0} y1={gy(Math.min(cap, maxPh))} x2={W - 14} y2={gy(Math.min(cap, maxPh))} stroke={cut ? C.bad : C.ok} strokeDasharray="6 6" />
+        <text x={W - 16} y={gy(Math.min(cap, maxPh)) - 5} textAnchor="end" fontSize={11} fill={cut ? C.bad : C.ok}>{Math.round(cap)} маш./ч</text>
+        {[0, 6, 12, 18].map((h) => (
+          <g key={h}>
+            <line x1={gx(h)} y1={gy0} x2={gx(h)} y2={gy0 + gH} stroke={C.line} strokeWidth={0.6} />
+            <text x={gx(h)} y={gy0 + gH + 16} textAnchor="middle" fontSize={11.5} fill={C.dim}>{String(h).padStart(2, '0')}:00</text>
+          </g>
+        ))}
+        <line x1={gx(hourNow)} y1={gy0} x2={gx(hourNow)} y2={gy0 + gH} stroke="#f59e0b" strokeWidth={2} />
+        <circle cx={gx(hourNow)} cy={gy(Math.min(maxPh, k.arrivalsPh))} r={5} fill="#f59e0b" />
+      </svg>
+      <Stats>
+        <Stat label="Режим автовесов" value={k.mode === 'manual' ? 'ручной, 1 полоса' : 'автоматический, 2 полосы'} tone={k.mode === 'manual' ? C.bad : undefined} />
+        <Stat label="Поток на въезд" value={`${Math.round(k.arrivalsPh)} маш./ч`} />
+        <Stat label="Очередь / ожидание" value={`${Math.round(k.queue)} маш. · ${k.waitMin.toFixed(1)} мин`} tone={k.queue > 8 ? C.warn : undefined} />
+        <Stat label="Грузовиков принято" value={`${Math.round(k.cargoVehicles)} · ${Math.round(k.cargoT).toLocaleString('ru-RU')} т груза`} />
+        <Stat label="Взвешиваний за смену" value={`${Math.round(k.weighings)}`} />
+        <Stat label="Автобусов прошло" value={`${Math.round(k.busPasses)}`} />
+      </Stats>
+      <div className="mt-2 text-[11.5px] text-ink-3">
+        Через КПП идут вахтовые автобусы (в пересменку), реагенты, кислота, шары для мельниц, топливо и запчасти; рудничные самосвалы здесь не ездят. Каждый грузовик взвешивается на въезде и на выезде.
+        Поток и время взвешивания — оценки порядка величины. При сценарии «отключение энергии» автовесы переходят на ручной режим по одной полосе — очередь растёт.
       </div>
     </div>
   );

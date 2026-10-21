@@ -98,7 +98,7 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
   const lab = { x: 580, y: 1325 }; // промплощадка (OSM)
   const gsm = { x: -905, y: 2165 }; // промплощадка (OSM)
   const camp = S.camp; // жилой посёлок (OSM: landuse=residential)
-  const kpp = { x: -1250, y: 2900 };
+  const kpp = S.kpp; // КПП — на главной дороге с юго-запада (OSM)
   const wasteE = S.wasteExtra[0] ?? { x: 450, y: -2050 }; // восточный отвал (снимок, OSM: landuse=landfill)
   const wasteSE = S.wasteExtra[1] ?? { x: 2150, y: -1100 };
   const crusher = sim.crusher;
@@ -468,7 +468,14 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       layer: 'infra',
       shape: { kind: 'rect', x: kpp.x, y: kpp.y, w: 110, h: 60, rot: 0 },
       fill: '#475569',
-      live: false,
+      live: true,
+      metrics: (s) => [
+        ['Режим автовесов', s.checkpoint.mode === 'manual' ? 'ручной' : 'автоматический'],
+        ['Очередь', `${Math.round(s.checkpoint.queue)} маш.`],
+        ['Грузовиков принято', String(Math.round(s.checkpoint.cargoVehicles))],
+      ],
+      building: 'kpp',
+      twin: 'kpp',
       about: 'Въезд на территорию комбината, контроль доступа, взвешивание грузового транспорта.',
       facts: [],
       label: 'КПП',
@@ -541,7 +548,7 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
     { id: 'p1', name: 'ЛЭП → ОФ-1, дробилка, SX-EW', layer: 'utility', kind: 'power', pts: S.powerLines[0] },
     { id: 'p2', name: 'ЛЭП → ОФ-2', layer: 'utility', kind: 'power', pts: S.powerLines[1] },
     { id: 'rail', name: 'Железная дорога: станция → фабрики → промзона', layer: 'transport', kind: 'rail', pts: S.rail.map(([x, y]) => [x, y] as [number, number]) },
-    { id: 'r1', name: 'Дорога карьер → фабрики → посёлок', layer: 'transport', kind: 'road', pts: [[cr.x, cr.y], [abk.x, abk.y], [sub.x, sub.y], [g.x, g.y], [kpp.x, kpp.y], [camp.x, camp.y]] },
+    { id: 'r1', name: 'Дорога карьер → фабрики → гараж', layer: 'transport', kind: 'road', pts: [[cr.x, cr.y], [abk.x, abk.y], [sub.x, sub.y], [g.x, g.y]] },
     { id: 'r2', name: 'Дорога к ОФ-2 и складу концентрата', layer: 'transport', kind: 'road', pts: [[g.x, g.y], [conc.x, conc.y], [pl2.x, pl2.y]] },
     { id: 'r3', name: 'Дорога к складу ВМ (условно)', layer: 'transport', kind: 'road', pts: [[S.waste.x + 300, S.waste.y - 500], [magazine.x, magazine.y]] },
     { id: 'r4', name: 'Дорога к заводу SX-EW', layer: 'transport', kind: 'road', pts: [[S.leach.x, S.leach.y], [sx.x, sx.y], [abk.x, abk.y]] },

@@ -811,3 +811,58 @@ export function makeCamp(): { root: THREE.Group; dormWindows: THREE.MeshStandard
   }
   return { root, dormWindows, commonWindows, genLamp, buses, smoke };
 }
+
+/**
+ * КПП на въезде: две полосы с шлагбаумами, навес над постом, будка охраны, автомобильные весы
+ * (платформа в яме) и столб с камерой распознавания номеров. Локальная ось X идёт вдоль дороги,
+ * полосы — по Z. Стрелки шлагбаумов отдельно, чтобы сцена их поднимала и опускала.
+ */
+export function makeCheckpoint(): { root: THREE.Group; arms: THREE.Mesh[]; signals: THREE.Mesh[] } {
+  const root = new THREE.Group();
+  root.add(box(120, 0.8, 30, MAT.concreteDark, 0, 0.4, 0));
+  // Островок между полосами с будкой охраны.
+  root.add(box(30, 1.2, 4, MAT.concrete, -22, 0.8, 0));
+  root.add(box(10, 5, 3.4, std('#cfc7b8', { roughness: 0.7 }), -22, 3.4, 0));
+  root.add(box(10.4, 0.5, 3.8, std('#46586a', { roughness: 0.7 }), -22, 6.1, 0));
+  root.add(box(7, 1.8, 0.2, MAT.window, -22, 3.6, 1.8));
+  root.add(box(7, 1.8, 0.2, MAT.window, -22, 3.6, -1.8));
+  // Навес над обеими полосами.
+  root.add(box(26, 0.7, 20, std('#b9433a', { roughness: 0.6 }), -22, 8.4, 0));
+  for (const z of [-9, 9]) for (const x of [-32, -12]) root.add(box(0.7, 8, 0.7, MAT.steel, x, 4.4, z));
+  const arms: THREE.Mesh[] = [];
+  const signals: THREE.Mesh[] = [];
+  for (const z of [-5.2, 5.2]) {
+    root.add(box(1.4, 2.4, 1.4, MAT.darker, -34, 1.6, z * 1.34 * (z > 0 ? 1 : 1)));
+    const arm = box(9, 0.35, 0.35, std('#f5f5f5', { roughness: 0.5 }), 4.5, 0, 0);
+    const pivot = new THREE.Group();
+    pivot.position.set(-34, 2.6, z * 1.34);
+    pivot.add(arm);
+    arm.userData.pivot = pivot;
+    root.add(pivot);
+    arms.push(arm);
+    const sg = new THREE.Mesh(new THREE.SphereGeometry(0.55, 10, 8), new THREE.MeshStandardMaterial({ color: '#22c55e', emissive: '#22c55e', emissiveIntensity: 2 }));
+    sg.position.set(-34, 3.9, z * 1.34);
+    root.add(sg);
+    signals.push(sg);
+  }
+  // Автомобильные весы: платформа в яме на каждой полосе.
+  for (const z of [-5.2, 5.2]) {
+    root.add(box(22, 0.4, 4.6, std('#6e7a85', { roughness: 0.5, metalness: 0.5 }), 24, 1.1, z * 1.34));
+    root.add(box(24, 0.7, 5.2, MAT.concreteDark, 24, 0.6, z * 1.34));
+  }
+  root.add(box(5, 3.2, 3.2, std('#cfc7b8', { roughness: 0.7 }), 38, 2.4, -14));
+  root.add(box(3.6, 1.6, 0.2, MAT.window, 38, 2.6, -12.3));
+  // Столб с камерой ANPR и мачта освещения.
+  const pole = cyl(0.25, 0.3, 9, MAT.steel, 8);
+  pole.position.set(-40, 5, 0);
+  root.add(pole);
+  root.add(box(1.2, 0.6, 0.8, MAT.dark, -40, 9.4, 0));
+  const lamp = cyl(0.2, 0.25, 12, MAT.steel, 8);
+  lamp.position.set(42, 6.4, 13);
+  root.add(lamp);
+  root.add(box(1.8, 0.4, 0.8, MAT.lamp, 42, 12.6, 13));
+  // Информационный щит.
+  root.add(box(10, 3.4, 0.4, std('#1e4a7a', { roughness: 0.6 }), -50, 7, 13));
+  root.add(box(0.5, 6, 0.5, MAT.steel, -50, 3.4, 13));
+  return { root, arms, signals };
+}

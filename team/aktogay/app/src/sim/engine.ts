@@ -16,6 +16,7 @@ import { ConcentrateYard } from './concentrate';
 import { HeapLeach } from './leach';
 import { FREEBOARD_MIN_M, TailingsDam } from './tailings';
 import { Camp } from './camp';
+import { Checkpoint } from './checkpoint';
 import { SecondChain } from './chain2';
 import { EnergyMeter } from './energy';
 import { Weather } from './weather';
@@ -125,6 +126,8 @@ export class Simulation {
   chain2!: SecondChain;
   /** Вахтовый посёлок: люди, столовая, вода, тепло и резервный генератор. */
   readonly camp = new Camp();
+  /** КПП и автовесы на въезде: грузовики, автобусы, очередь. */
+  readonly checkpoint = new Checkpoint();
   private readonly windWarned = new Set<number>();
   /** Сценарий «отключение энергии»: сколько ещё стоит фабрика, дробилка и электролиз, с. */
   powerCutLeft = 0;
@@ -765,6 +768,7 @@ export class Simulation {
     this.tailings.update(this, dt);
     this.chain2.update(this, dt);
     this.camp.update(this, dt);
+    this.checkpoint.update(this, dt);
     this.energy.update(this, dt);
     this.buildLaneOccupancy();
     for (const t of this.trucks) this.updateTruck(t, dt);

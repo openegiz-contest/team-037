@@ -20,12 +20,13 @@ import { costBreakdown, GROUP_RU, type CostGroup } from '../sim/cost';
 import { BLAST_WIND_MS, LEACH_FROST_C, MONTH_RU, SEASON_RU, SKY, type Sky } from '../sim/weather';
 import { CAPACITY_MT, CREST_ABOVE_BEACH_M, CREST_FINAL_M, FREEBOARD_MIN_M, POND_AREA_M2, RECYCLE_PCT, SOLIDS_PCT } from '../sim/tailings';
 import { CELL_CAP_T, EW_CELLS, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, LEACH_DAYS, OXIDE_GRADE_PCT, REC_MAX, SX_EFFICIENCY, type CellStage } from '../sim/leach';
+import { KPP_LANES, WEIGH_AUTO_SEC, WEIGH_MANUAL_SEC } from '../sim/checkpoint';
 import { CAMP_BEDS, CAMP_DORMS, CAMP_RESIDENTS, FUEL_TANK_L, GEN_MW } from '../sim/camp';
 import { CONC_GRADE, TRAIN_WAGONS, WAGON_LOAD_SEC, WAGON_T } from '../sim/concentrate';
 import { BENCH_M, BLOCK_M, blockSummary, buildOreModel, CUTOFF, DENSITY, holeAssays, pitResources, type OreModel } from '../geo/orebody';
 import { PIT_DEPTH } from '../geo/relief';
 import { UNIT_DEFS, type UnitState } from '../sim/equipment';
-import { campSensorAttributes, substationSensorAttributes, energySensorAttributes, weatherSensorAttributes, tailingsSensorAttributes, sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
+import { checkpointSensorAttributes, campSensorAttributes, substationSensorAttributes, energySensorAttributes, weatherSensorAttributes, tailingsSensorAttributes, sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -61,6 +62,7 @@ export const thingIds = (v: StrategyName) => {
     sub: `${ns}:substation-1`,
     sub2: `${ns}:substation-2`,
     camp: `${ns}:camp`,
+    kpp: `${ns}:checkpoint`,
     unit2: (key: string) => `${ns}:${key}-2`,
     unit: (key: string) => `${ns}:${key}`,
     drill: (i: number) => `${ns}:drill-${i + 1}`,
@@ -268,6 +270,21 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
       sensors: campSensorAttributes(),
     },
     features: serializeCamp(sim),
+  };
+  out[id.kpp] = {
+    policyId: POLICY,
+    attributes: {
+      name: 'КПП и автовесы',
+      kind: 'checkpoint',
+      _isType: false,
+      _parents: parent,
+      lanes: KPP_LANES,
+      weigh_auto_s: WEIGH_AUTO_SEC,
+      weigh_manual_s: WEIGH_MANUAL_SEC,
+      note: 'поток грузовиков и время взвешивания — оценки порядка величины; место — на главной дороге по OpenStreetMap',
+      sensors: checkpointSensorAttributes(),
+    },
+    features: serializeCheckpoint(sim),
   };
   out[id.cost] = {
     policyId: POLICY,
@@ -820,6 +837,25 @@ export function serializeConcentrate(sim: Simulation): Features {
   };
 }
 
+/** Признаки КПП и автовесов. */
+export function serializeCheckpoint(sim: Simulation): Features {
+  const k = sim.checkpoint;
+  return {
+    state: f(k.mode === 'manual' ? 'manual' : k.queue > 8 ? 'queue' : 'auto'),
+    mode: f(k.mode),
+    lanes_open: f(k.lanesOpen, 'pcs'),
+    arrivals_ph: f(Math.round(k.arrivalsPh), 'pcs/h'),
+    capacity_ph: f(Math.round(k.capacityPh), 'pcs/h'),
+    queue: f(Math.round(k.queue), 'pcs'),
+    peak_queue: f(Math.round(k.peakQueue), 'pcs'),
+    wait_min: f(r1(k.waitMin), 'min'),
+    weighings: f(Math.round(k.weighings), 'pcs'),
+    bus_passes: f(Math.round(k.busPasses), 'pcs'),
+    cargo_vehicles: f(Math.round(k.cargoVehicles), 'pcs'),
+    cargo_t: f(Math.round(k.cargoT), 't'),
+  };
+}
+
 /** Признаки вахтового посёлка. */
 export function serializeCamp(sim: Simulation): Features {
   const c = sim.camp;
@@ -947,6 +983,7 @@ export function serializeAll(sim: Simulation, v: StrategyName, k: Kpis): Record<
   out[id.sub] = serializeSubstation(sim, 'sub');
   out[id.sub2] = serializeSubstation(sim, 'sub2');
   out[id.camp] = serializeCamp(sim);
+  out[id.kpp] = serializeCheckpoint(sim);
   out[id.waste] = serializeWaste(sim);
   out[id.garage] = serializeGarage(sim);
   out[id.roads] = serializeRoads(sim);
@@ -1112,6 +1149,22 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     g.opStats.jams = num(fs, 'op_jams');
     g.opStats.expectedM = num(fs, 'op_expected_m');
   });
+
+  // КПП и автовесы.
+  const kf = things.get(id.kpp);
+  if (kf) {
+    const k = sim.checkpoint;
+    k.queue = num(kf, 'queue', k.queue);
+    k.peakQueue = num(kf, 'peak_queue', k.peakQueue);
+    k.weighings = num(kf, 'weighings', k.weighings);
+    k.busPasses = num(kf, 'bus_passes', k.busPasses);
+    k.cargoVehicles = num(kf, 'cargo_vehicles', k.cargoVehicles);
+    k.cargoT = num(kf, 'cargo_t', k.cargoT);
+    k.arrivalsPh = num(kf, 'arrivals_ph', k.arrivalsPh);
+    k.waitMin = num(kf, 'wait_min', k.waitMin);
+    k.lanesOpen = num(kf, 'lanes_open', k.lanesOpen);
+    k.mode = str(kf, 'mode') === 'manual' ? 'manual' : 'auto';
+  }
 
   // Вахтовый посёлок.
   const cmf = things.get(id.camp);

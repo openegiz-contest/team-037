@@ -12,6 +12,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { gradeAt, MATERIAL_SHORT, pitPointOf, pitScaleAt, type Blast, type Simulation, type TruckState } from '../sim';
 import { BLOCK_PAD } from '../sim/drilling';
 import { CAMP_BEDS } from '../sim/camp';
+import { kppDirection } from '../sim/checkpoint';
 import { TRAIN_WAGONS } from '../sim/concentrate';
 import { SHIFT_START_HOUR } from '../sim/weather';
 import { daylight } from './daylight';
@@ -30,6 +31,7 @@ import {
   makeLeachPad,
   makePylon,
   makeCamp,
+  makeCheckpoint,
   makeSubstation,
   PYLON_ARM,
   PYLON_H,
@@ -91,7 +93,7 @@ export type FocusTarget = { kind: 'truck' | 'excavator' | 'drill'; id: number } 
 
 export type LabelMode = 'all' | 'hover';
 
-export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew' | 'tsf' | 'conc' | 'crusher2' | 'plant2' | 'stockpile2' | 'sub' | 'sub2' | 'camp';
+export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew' | 'tsf' | 'conc' | 'crusher2' | 'plant2' | 'stockpile2' | 'sub' | 'sub2' | 'camp' | 'kpp';
 
 const BG = '#0a1526';
 /** Оттенки погодной дымки: снежная и пыльная. */
@@ -218,6 +220,7 @@ export class MineScene {
       });
       this.parkingPadCentre = { x: f.cx + f.ox * along - f.oy * across, y: f.cy + f.oy * along + f.ox * across };
     }
+    const KPP_DIR = kppDirection(cfg.sites.kpp, cfg.serviceRoads);
     // Вторая цепочка и подстанции тоже стоят на ровных площадках, а не висят на склоне.
     {
       const S = cfg.sites;
@@ -229,6 +232,7 @@ export class MineScene {
       pads.push({ x: S.crusher2.x, y: S.crusher2.y, ...dir(S.crusher2, S.stockpile2), halfAlong: 150, halfAcross: 120 });
       pads.push({ x: S.stockpile2.x, y: S.stockpile2.y, ux: 1, uy: 0, halfAlong: 105, halfAcross: 105 });
       pads.push({ x: S.camp.x, y: S.camp.y, ux: 1, uy: 0, halfAlong: 200, halfAcross: 130 });
+      pads.push({ x: S.kpp.x, y: S.kpp.y, ux: KPP_DIR.ux, uy: KPP_DIR.uy, halfAlong: 160, halfAcross: 50 });
       for (const q of [S.sub, S.sub2]) pads.push({ x: q.x, y: q.y, ux: 1, uy: 0, halfAlong: 80, halfAcross: 62 });
     }
     this.heightAt = makeRoadHeightAt(sim, makeHeightAt(cfg), pads);
@@ -428,6 +432,16 @@ export class MineScene {
     this.buildings.push(campRoot);
     this.camp3d = campModel;
 
+    // КПП на главной дороге: направление — вдоль дороги, шлагбаумы и весы на полосах.
+    const kppModel = makeCheckpoint();
+    kppModel.root.position.set(S2.kpp.x, this.heightAt(S2.kpp.x, S2.kpp.y) - 0.4, S2.kpp.y);
+    kppModel.root.rotation.y = -Math.atan2(KPP_DIR.uy, KPP_DIR.ux);
+    kppModel.root.scale.setScalar(2.2);
+    this.scene.add(kppModel.root);
+    kppModel.root.userData = { building: 'kpp' };
+    this.buildings.push(kppModel.root);
+    this.kpp3d = kppModel;
+
     // Оксидная ветка после площадки выщелачивания: пруды растворов и завод SX-EW.
     // К ним ничего не ездит — раствор идёт по трубам, поэтому в графе дорог их нет.
     const faceLeach = (p: { x: number; y: number }) => -Math.atan2(cfg.sites.leach.y - p.y, cfg.sites.leach.x - p.x);
@@ -491,6 +505,7 @@ export class MineScene {
       { x: S2.sub.x, y: S2.sub.y, r: 120 },
       { x: S2.sub2.x, y: S2.sub2.y, r: 120 },
       { x: S2.camp.x, y: S2.camp.y, r: 260 },
+      { x: S2.kpp.x, y: S2.kpp.y, r: 200 },
       { x: leach.position.x, y: leach.position.z, r: 320 },
       { x: cfg.sites.ponds.x, y: cfg.sites.ponds.y, r: 330 },
       { x: cfg.sites.sxew.x, y: cfg.sites.sxew.y, r: 330 },
@@ -738,6 +753,11 @@ export class MineScene {
       const feed = !c.powered ? '<span class="bad">✖ БЕЗ СВЕТА</span> · топливо кончилось' : c.genOn ? `<span class="warn">НА ГЕНЕРАТОРЕ</span> · топлива на ${c.fuelHours.toFixed(1)} ч` : '<span class="ok">питание от сети</span>';
       return `<b>ВАХТОВЫЙ ПОСЁЛОК</b><br>В посёлке: <span class="v">${fmtInt(c.inCamp)}</span> · в пути: <span class="v">${fmtInt(c.inTransit)}</span><br>${feed}<br>Вода: <span class="v">${c.waterM3h.toFixed(0)} м³/ч</span>`;
     }, campRoot);
+    panel(new THREE.Vector3(kppModel.root.position.x, kppModel.root.position.y + 70, kppModel.root.position.z), () => {
+      const k = sim.checkpoint;
+      const mode = k.mode === 'manual' ? '<span class="bad">РУЧНОЕ ВЗВЕШИВАНИЕ</span> · 1 полоса' : '<span class="ok">автовесы</span> · 2 полосы';
+      return `<b>КПП И АВТОВЕСЫ</b><br>${mode}<br>Очередь: <span class="${k.queue > 8 ? 'bad' : 'v'}">${Math.round(k.queue)}</span> · ожидание <span class="v">${k.waitMin.toFixed(1)} мин</span><br>Принято грузовиков: <span class="v">${fmtInt(k.cargoVehicles)}</span>`;
+    }, kppModel.root);
     for (const [key, name] of [['sub', 'ПОДСТАНЦИЯ ОФ-1'], ['sub2', 'ПОДСТАНЦИЯ ОФ-2']] as const) {
       const root = subRoots.get(key)!;
       panel(new THREE.Vector3(root.position.x, root.position.y + 90, root.position.z), () => {
@@ -913,6 +933,27 @@ export class MineScene {
     }
     for (const g of this.mastGlows) (g.material as THREE.SpriteMaterial).opacity = 0.15 + 0.85 * d.lampsK;
     this.syncCamp(sim, d.lampsK, blink);
+    this.syncKpp(sim, blink);
+  }
+
+  /** КПП: шлагбаумы поднимаются, пока идёт поток; светофор красный, когда очередь или ручной режим. */
+  private syncKpp(sim: Simulation, blink: boolean): void {
+    const m = this.kpp3d;
+    if (!m) return;
+    const k = sim.checkpoint;
+    const t = performance.now() / 1000;
+    m.arms.forEach((arm, i) => {
+      const pivot = arm.userData.pivot as THREE.Object3D;
+      const busy = k.arrivalsPh > 1 && i < k.lanesOpen;
+      const open = busy ? 0.5 + 0.5 * Math.sin(t * 0.9 + i * 2) : 0;
+      pivot.rotation.z = open * 1.3;
+    });
+    m.signals.forEach((sg, i) => {
+      const mat = sg.material as THREE.MeshStandardMaterial;
+      const col = i >= k.lanesOpen ? '#ef4444' : k.queue > 8 ? (blink ? '#f59e0b' : '#3b2a08') : '#22c55e';
+      mat.color.set(col);
+      mat.emissive.set(col);
+    });
   }
 
   /** Посёлок живёт по смене: окна горят по числу людей, лампа генератора, автобусы на стоянке, дым котельной. */
@@ -1250,6 +1291,7 @@ export class MineScene {
   /** Сигнальные лампы подстанций: зелёные в работе, красные при обесточивании. */
   private readonly subLamps: THREE.Mesh[] = [];
   private camp3d: ReturnType<typeof makeCamp> | null = null;
+  private kpp3d: ReturnType<typeof makeCheckpoint> | null = null;
   /** Точки входа и выхода конвейеров второй цепочки. */
   private chain2!: { crusherTop: THREE.Vector3; pileTop: THREE.Vector3; pileGround: number; plantIn: THREE.Vector3 };
   private concRoot!: THREE.Object3D;
