@@ -26,6 +26,15 @@ const BUILDINGS: { id: Extract<FocusTarget, { kind: 'building' }>['id']; title: 
   { id: 'garage', title: 'Гараж, АЗС и стоянка', words: 'гараж азс стоянка ремонт заправка garage' },
 ];
 
+/** Объекты комбината без мнемосхемы: к ним камера подлетает, но «внутрь» не открывается. */
+const SITES: { id: Extract<FocusTarget, { kind: 'site' }>['id']; title: string; words: string }[] = [
+  { id: 'plant2', title: 'Обогатительная фабрика №2', words: 'фабрика оф-2 оф2 вторая обогатительная актогай-2 plant2' },
+  { id: 'crusher2', title: 'Дробилка ККД-2', words: 'дробилка ккд-2 ккд2 вторая crusher2' },
+  { id: 'stockpile2', title: 'Склад дроблёной руды ОФ-2', words: 'склад руды оф-2 конус вторая stockpile2' },
+  { id: 'sub', title: 'Подстанция ОФ-1', words: 'подстанция электричество лэп энергия трансформатор sub' },
+  { id: 'sub2', title: 'Подстанция ОФ-2', words: 'подстанция электричество лэп энергия трансформатор sub2' },
+];
+
 const MATERIAL_RU = { sulfide: 'сульфид', oxide: 'оксид', waste: 'вскрыша' } as const;
 
 export function EquipmentSearch({ sim, onPick }: { sim: Simulation; onPick: (t: FocusTarget) => void }) {
@@ -57,6 +66,7 @@ export function EquipmentSearch({ sim, onPick }: { sim: Simulation; onPick: (t: 
         target: { kind: 'drill' as const, id: r.id },
       })),
       ...BUILDINGS.map((b) => ({ key: `b${b.id}`, title: b.title, sub: 'здание', hay: `${b.title} ${b.words}`.toLowerCase(), target: { kind: 'building' as const, id: b.id } })),
+      ...SITES.map((b) => ({ key: `s${b.id}`, title: b.title, sub: 'объект комбината', hay: `${b.title} ${b.words}`.toLowerCase(), target: { kind: 'site' as const, id: b.id } })),
     ],
     [sim],
   );

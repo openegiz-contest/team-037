@@ -576,6 +576,77 @@ export function makeGarage(): THREE.Group {
   return root;
 }
 
+/** Высота опоры ЛЭП, м, и полуразмах траверсы, м: общие для модели и для привязки проводов. */
+export const PYLON_H = 64;
+export const PYLON_ARM = 20;
+
+/**
+ * Опора ЛЭП 110 кВ: решётчатая башня (четырёхгранная усечённая пирамида, прорисована рёбрами) с двумя
+ * траверсами и гирляндами изоляторов. Траверсы идут вдоль локальной оси X — провода тянутся вдоль Z.
+ * Три точки подвеса фаз: концы нижней траверсы и вершина.
+ */
+export function makePylon(): THREE.Group {
+  const g = new THREE.Group();
+  const lattice = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.2, 9, PYLON_H, 4, 9, true),
+    new THREE.MeshBasicMaterial({ color: '#59616b', wireframe: true }),
+  );
+  lattice.rotation.y = Math.PI / 4;
+  lattice.position.y = PYLON_H / 2;
+  g.add(lattice);
+  g.add(box(PYLON_ARM * 2, 1.4, 1.6, MAT.steel, 0, PYLON_H - 12, 0));
+  g.add(box(PYLON_ARM * 1.3, 1.2, 1.4, MAT.steel, 0, PYLON_H - 2, 0));
+  const glass = std('#d9e4dc', { roughness: 0.3 });
+  for (const [x, y] of [[-PYLON_ARM, PYLON_H - 12], [PYLON_ARM, PYLON_H - 12], [0, PYLON_H - 2]] as [number, number][]) {
+    const ins = cyl(0.7, 0.7, 5, glass, 8);
+    ins.position.set(x, y - 3, 0);
+    g.add(ins);
+  }
+  return g;
+}
+
+/**
+ * Подстанция: огороженная площадка, два силовых трансформатора с радиаторами и вводами, портал с
+ * гирляндами изоляторов и здание управления. Сигнальная лампа на мачте — зелёная в работе и красная
+ * при обесточивании (материал отдельный, чтобы сцена могла менять цвет).
+ */
+export function makeSubstation(): { root: THREE.Group; lamp: THREE.Mesh } {
+  const root = new THREE.Group();
+  root.add(box(130, 2, 96, MAT.concreteDark, 0, 1, 0));
+  const fence = std('#8d949b', { roughness: 0.7, metalness: 0.4 });
+  root.add(box(132, 7, 0.8, fence, 0, 5, 48));
+  root.add(box(132, 7, 0.8, fence, 0, 5, -48));
+  root.add(box(0.8, 7, 96, fence, 65, 5, 0));
+  root.add(box(0.8, 7, 96, fence, -65, 5, 0));
+  const tank = std('#6e8497', { roughness: 0.5, metalness: 0.3 });
+  for (const x of [-26, 22]) {
+    root.add(box(26, 18, 20, tank, x, 11, -8));
+    for (const dz of [-1, 1]) for (let i = -2; i <= 2; i++) root.add(box(2.4, 14, 5, MAT.darker, x + i * 4.4, 11, -8 + dz * 12.5));
+    for (const bx of [-7, 0, 7]) {
+      const bush = cyl(1.3, 1.8, 10, std('#c9c4b8', { roughness: 0.4 }), 10);
+      bush.position.set(x + bx, 25, -8);
+      root.add(bush);
+    }
+  }
+  // портал ввода: две стойки и ригель с тремя гирляндами
+  for (const x of [-52, 52]) root.add(box(2.6, 38, 2.6, MAT.steel, x, 20, 30));
+  root.add(box(108, 2, 2.6, MAT.steel, 0, 38, 30));
+  for (const x of [-34, 0, 34]) {
+    const ins = cyl(0.8, 0.8, 7, std('#d9e4dc', { roughness: 0.3 }), 8);
+    ins.position.set(x, 33, 30);
+    root.add(ins);
+  }
+  const hall = shed(34, 16, 22);
+  hall.position.set(-40, 2, 30);
+  root.add(hall);
+  root.add(box(1.4, 30, 1.4, MAT.steel, 52, 17, -38));
+  const lampMat = new THREE.MeshStandardMaterial({ color: '#22c55e', emissive: '#22c55e', emissiveIntensity: 2.4 });
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(3.2, 12, 8), lampMat);
+  lamp.position.set(52, 33, -38);
+  root.add(lamp);
+  return { root, lamp };
+}
+
 /** Мачта освещения: опора, прожекторы, световое пятно. */
 export function makeLightMast(): THREE.Group {
   const g = new THREE.Group();

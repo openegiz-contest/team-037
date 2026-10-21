@@ -79,17 +79,17 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
   const via = S.conveyorVia.map((p) => [p.x, p.y] as [number, number]);
   const via2 = S.plantVia.map((p) => [p.x, p.y] as [number, number]);
   // Вторая цепочка комбината (в модели не участвует): ККД-2 у соседней головы конвейера → склад-2 → ОФ-2.
-  const cr2 = { x: 1392, y: 880 };
-  const sp2 = { x: 126, y: 3029 };
+  const cr2 = S.crusher2;
+  const sp2 = S.stockpile2;
   // Реальные места объектов (координаты модели; пересчёт со спутникового снимка и OpenStreetMap,
   // см. src/geo/geoRef.ts). Объекты, назначение которых на снимке не подписано, стоят условно.
-  const pl2 = { x: -33, y: 3871 }; // вторая фабрика — корпус западного фабричного комплекса (OSM)
+  const pl2 = S.plant2; // вторая фабрика — корпус западного фабричного комплекса (OSM)
   const tsf = S.tsf; // хвостохранилище к юго-востоку от фабрик (контур — OSM)
   const sx = S.sxew; // корпуса у карт выщелачивания — завод SX-EW
   const ponds = S.ponds;
   const conc = S.conc; // склад концентрата у ж/д путей между фабриками
-  const sub = { x: 550, y: 2545 }; // подстанция фабрики №1 (OSM: power=substation)
-  const sub2 = { x: -335, y: 3710 }; // подстанция фабрики №2 (OSM)
+  const sub = S.sub; // подстанция фабрики №1 (OSM: power=substation)
+  const sub2 = S.sub2; // подстанция фабрики №2 (OSM)
   const water = { x: 1345, y: 3025 }; // резервуар (OSM: water=reservoir)
   const magazine = { x: -900, y: -2600 }; // условно: вынесен за отвалы, к северу
   const g = S.garage;
@@ -493,7 +493,7 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
     { id: 'conv1', name: 'Конвейер дробилка → склад', layer: 'process', kind: 'conveyor', pts: [[cr.x, cr.y], ...via, [sp.x, sp.y]] },
     { id: 'conv2', name: 'Конвейер склад → ОФ-1', layer: 'process', kind: 'conveyor', pts: [[sp.x, sp.y], ...via2, [pl.x, pl.y]] },
     { id: 'conv3', name: 'Конвейер ККД-2 → склад ОФ-2', layer: 'process', kind: 'conveyor', pts: [[cr2.x, cr2.y], [sp2.x, sp2.y]] },
-    { id: 'conv4', name: 'Конвейер склад → ОФ-2', layer: 'process', kind: 'conveyor', pts: [[sp2.x, sp2.y], [-111, 3419], [pl2.x, pl2.y]] },
+    { id: 'conv4', name: 'Конвейер склад → ОФ-2', layer: 'process', kind: 'conveyor', pts: [[sp2.x, sp2.y], ...S.plant2Via.map((q) => [q.x, q.y] as [number, number]), [pl2.x, pl2.y]] },
     { id: 'tail1', name: 'Хвосты ОФ-1 → хвостохранилище (пульпопровод)', layer: 'waste', kind: 'pipe', pts: [[pl.x, pl.y], ...S.pulpVia.map((q) => [q.x, q.y] as [number, number]), [2006, 3377]] },
     { id: 'tail2', name: 'Хвосты ОФ-2 → хвостохранилище', layer: 'waste', kind: 'pipe', pts: [[pl2.x, pl2.y], [tsf.x - 1100, tsf.y - 200]] },
     { id: 'ret', name: 'Оборотная вода → фабрики', layer: 'utility', kind: 'water', pts: [[2006, 3377], ...[...S.pulpVia].reverse().map((q) => [q.x, q.y] as [number, number]), [water.x, water.y]] },
@@ -501,8 +501,8 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
     { id: 'w2', name: 'Водовод → ОФ-2', layer: 'utility', kind: 'water', pts: [[water.x, water.y], [pl2.x, pl2.y]] },
     { id: 'pls', name: 'PLS: площадка → пруды → SX-EW', layer: 'process', kind: 'solution', pts: [[S.leach.x, S.leach.y + 150], [ponds.x, ponds.y], [sx.x, sx.y]] },
     { id: 'raff', name: 'Рафинат → орошение площадки', layer: 'process', kind: 'solution', pts: [[sx.x + 150, sx.y - 60], [S.leach.x - 150, S.leach.y + 150]] },
-    { id: 'p1', name: 'ЛЭП → ОФ-1, дробилка, SX-EW', layer: 'utility', kind: 'power', pts: [[pl.x, pl.y], [sub.x, sub.y], [cr.x, cr.y], [sx.x, sx.y]] },
-    { id: 'p2', name: 'ЛЭП → ОФ-2', layer: 'utility', kind: 'power', pts: [[sub.x, sub.y], [sub2.x, sub2.y], [pl2.x, pl2.y]] },
+    { id: 'p1', name: 'ЛЭП → ОФ-1, дробилка, SX-EW', layer: 'utility', kind: 'power', pts: S.powerLines[0] },
+    { id: 'p2', name: 'ЛЭП → ОФ-2', layer: 'utility', kind: 'power', pts: S.powerLines[1] },
     { id: 'rail', name: 'Железная дорога: станция → фабрики → промзона', layer: 'transport', kind: 'rail', pts: S.rail.map(([x, y]) => [x, y] as [number, number]) },
     { id: 'r1', name: 'Дорога карьер → фабрики → посёлок', layer: 'transport', kind: 'road', pts: [[cr.x, cr.y], [abk.x, abk.y], [sub.x, sub.y], [g.x, g.y], [kpp.x, kpp.y], [camp.x, camp.y]] },
     { id: 'r2', name: 'Дорога к ОФ-2 и складу концентрата', layer: 'transport', kind: 'road', pts: [[g.x, g.y], [conc.x, conc.y], [pl2.x, pl2.y]] },
