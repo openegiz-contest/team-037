@@ -40,8 +40,17 @@ export class FuelDepot {
   private lastCampL = Infinity;
   /** Расход сейчас, м³/ч (сглаженный). */
   flowM3h = 0;
+  /** Сценарий «перебои с топливом»: завоз остановлен ещё на столько секунд. */
+  supplyCutLeft = 0;
+  /** Самосвалов ждут топлива на АЗС (склад пуст): счётчик текущего шага и значение прошлого шага для показа. */
+  waiting = 0;
+  waitingNow = 0;
+  private emptyLogged = false;
 
   update(sim: Simulation, dt: number): void {
+    // Самосвалы, ждущие топлива, движок пересчитывает на каждом шаге после этого обновления.
+    this.waitingNow = this.waiting;
+    this.waiting = 0;
     // Отпуск: всё, что сожгли самосвалы сегмента (в масштабе парка) + заправка бака генератора посёлка.
     const used = Math.max(0, sim.stats.fuelL - this.lastTruckL);
     this.lastTruckL = sim.stats.fuelL;
@@ -53,10 +62,15 @@ export class FuelDepot {
     this.flowM3h = this.flowM3h * 0.98 + 0.02 * ((outM3 / dt) * 3600);
 
     const cap = FUEL_TANKS * FUEL_TANK_M3;
+    if (this.supplyCutLeft > 0) this.supplyCutLeft = Math.max(0, this.supplyCutLeft - dt);
+    if (this.stockM3 <= 0 && !this.emptyLogged) {
+      this.emptyLogged = true;
+      sim.addLog('Склад ГСМ пуст: самосвалы ждут топлива на АЗС', 'alarm');
+    } else if (this.stockM3 > 1) this.emptyLogged = false;
     if (this.stockM3 < REORDER_AT * cap) this.refilling = true;
     if (this.stockM3 >= STOP_AT * cap) this.refilling = false;
-    if (this.refilling) {
-      // В непогоду цистерны идут медленнее, у КПП в ручном режиме стоят в очереди.
+    if (this.refilling && this.supplyCutLeft <= 0 && sim.checkpoint.mode !== 'closed') {
+      // В непогоду цистерны идут медленнее, у КПП в ручном режиме стоят в очереди; закрытый КПП их не пускает.
       const slow = Math.max(0.3, sim.weather.speedFactor) / (1 + sim.checkpoint.waitMin / 12);
       this.nextTanker -= dt * slow;
       if (this.nextTanker <= 0) {
@@ -68,6 +82,11 @@ export class FuelDepot {
         this.tankers++;
       }
     }
+  }
+
+  /** Можно ли сейчас заправить самосвал: на складе есть топливо. */
+  get canDispense(): boolean {
+    return this.stockM3 > 0;
   }
 
   /** На сколько часов хватит запаса при текущем расходе. */
@@ -93,13 +112,24 @@ export class RepairShop {
   /** Запас на складе запчастей: комплектов и шин. */
   parts = PARTS_INITIAL;
   tyres = TYRES_INITIAL;
+  /** Сценарий «нет шин на складе»: поставка остановлена ещё на столько секунд. */
+  tyreCutLeft = 0;
+  /** Самосвалов ждут шину (ремонт затянулся). */
+  waitingTyre = 0;
   /** Занято механиков и боксов. */
   mechanicsBusy = 0;
   baysBusy = 0;
   private prev = new Map<number, TruckState>();
   private consumed = 0;
 
-  update(sim: Simulation): void {
+  update(sim: Simulation, dt = 1): void {
+    if (this.tyreCutLeft > 0) {
+      this.tyreCutLeft = Math.max(0, this.tyreCutLeft - dt);
+      if (this.tyreCutLeft === 0) {
+        this.tyres = Math.max(this.tyres, Math.round(TYRES_INITIAL / 2));
+        sim.addLog(`РМЦ: пришла поставка шин (${this.tyres} шт.)`, 'info');
+      }
+    }
     this.inService = 0;
     this.broken = 0;
     for (const t of sim.trucks) {

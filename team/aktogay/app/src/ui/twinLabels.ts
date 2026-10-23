@@ -50,6 +50,11 @@ export const FEATURE_LABEL: Record<string, string> = {
   crusher2_mw: 'ККД-2 и конвейеры',
   camp_mw: 'Вахтовый посёлок',
   // склад ГСМ
+  supply_cut: 'Завоз топлива остановлен: осталось',
+  trucks_waiting: 'Самосвалов ждут топлива',
+  tyre_cut: 'Поставка шин задерживается: осталось',
+  closed_left: 'КПП закрыт: осталось',
+  reagents_h: 'Запас реагентов на фабрике',
   stock_hours: 'Хватит топлива на',
   dispensed_m3: 'Отпущено за смену',
   received: 'Принято автоцистернами',

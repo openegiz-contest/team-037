@@ -18,6 +18,7 @@ import { FREEBOARD_MIN_M, TailingsDam } from './tailings';
 import { Camp } from './camp';
 import { Checkpoint } from './checkpoint';
 import { FuelDepot, RepairShop } from './depot';
+
 import { SecondChain } from './chain2';
 import { EnergyMeter } from './energy';
 import { Weather } from './weather';
@@ -42,6 +43,9 @@ import {
   type Truck,
   type TruckState,
 } from './types';
+
+/** Сколько ремонт шины ждёт поставку, если на складе РМЦ шин нет, с (оценка). */
+const TYRE_WAIT_SEC = 90 * 60;
 
 /** Хронология смены: строки по минутам (см. TRUCK_CODE, EX_CODE). */
 export interface ShiftTimeline {
@@ -515,6 +519,26 @@ export class Simulation {
     this.strategy.onDisruption?.(this);
   }
 
+  /** Сценарий: перебои с топливом — на складе ГСМ остаток, завоз остановлен. */
+  injectFuelShortage(sec: number, leftM3 = 12): void {
+    this.fuelDepot.stockM3 = Math.min(this.fuelDepot.stockM3, leftM3);
+    this.fuelDepot.supplyCutLeft = Math.max(this.fuelDepot.supplyCutLeft, sec);
+    this.addLog(`◈ Перебои с топливом: на складе ГСМ ${Math.round(this.fuelDepot.stockM3)} м³, завоза нет ~${Math.round(sec / 60)} мин`, 'alarm');
+  }
+
+  /** Сценарий: на складе РМЦ нет шин, поставка задерживается. */
+  injectNoTyres(sec: number): void {
+    this.repairShop.tyres = 0;
+    this.repairShop.tyreCutLeft = Math.max(this.repairShop.tyreCutLeft, sec);
+    this.addLog(`⚠ На складе РМЦ нет шин, поставка через ~${Math.round(sec / 60)} мин: ремонт шин затянется`, 'warn');
+  }
+
+  /** Сценарий: КПП закрыт — грузовики с реагентами и топливом не въезжают. */
+  injectCheckpointClosed(sec: number): void {
+    this.checkpoint.closedLeft = Math.max(this.checkpoint.closedLeft, sec);
+    this.addLog(`⊘ КПП закрыт на ~${Math.round(sec / 60)} мин: реагенты и топливо не завозят`, 'alarm');
+  }
+
   /** Сценарий: ливень или снеготаяние — приток воды в пруд хвостохранилища. */
   injectStormWater(m3PerH: number, sec: number): void {
     this.tailings.stormM3h = m3PerH;
@@ -774,7 +798,7 @@ export class Simulation {
     this.camp.update(this, dt);
     this.checkpoint.update(this, dt);
     this.fuelDepot.update(this, dt);
-    this.repairShop.update(this);
+    this.repairShop.update(this, dt);
     this.energy.update(this, dt);
     this.buildLaneOccupancy();
     for (const t of this.trucks) this.updateTruck(t, dt);
@@ -839,10 +863,10 @@ export class Simulation {
       case 'empty':
       case 'loaded': {
         if (t.breakdowns.length > 0 && this.now >= t.breakdowns[0].t) {
-          const { dur } = t.breakdowns.shift()!;
+          const { dur, type } = t.breakdowns.shift()!;
           t.resumeState = t.state;
           t.state = 'broken';
-          t.timer = dur;
+          t.timer = dur + (type === 'tyre' && this.repairShop.tyres <= 0 ? TYRE_WAIT_SEC : 0);
           this.stats.unplannedFailures++;
           resetHealth(t);
           this.addLog(`Поломка самосвала ${t.name} (ремонт ~${Math.round(dur / 60)} мин)`, 'alarm');
@@ -869,6 +893,12 @@ export class Simulation {
       case 'refuel':
       case 'service':
         t.timer -= dt;
+        // Склад ГСМ пуст — самосвал ждёт у колонки, пока не привезут топливо.
+        if (t.timer <= 0 && t.state === 'refuel' && !this.fuelDepot.canDispense) {
+          t.timer = 0;
+          this.fuelDepot.waiting++;
+          break;
+        }
         if (t.timer <= 0) {
           t.fuelL = this.cfg.truck.fuelTankL;
           if (t.state === 'service') {
@@ -1174,6 +1204,11 @@ export class Simulation {
       const hc = this.cfg.health;
       t.state = 'service';
       t.timer = Math.max(hc.plannedRepairMinMin * 60, f.dur * hc.plannedRepairShare);
+      // Шина на замену, а на складе РМЦ шин нет — ремонт ждёт поставку.
+      if (f.type === 'tyre' && this.repairShop.tyres <= 0) {
+        t.timer += TYRE_WAIT_SEC;
+        this.addLog(`Самосвал ${t.name}: нет шины на складе РМЦ — ремонт затянется на ~${Math.round(TYRE_WAIT_SEC / 60)} мин`, 'warn');
+      }
       t.serviceRequested = false;
       this.stats.preventedFailures++;
     } else {
@@ -1356,7 +1391,8 @@ export class Simulation {
       this.addLog(`Запас до гребня восстановлен откачкой (${free.toFixed(2)} м) — фабрика запускается`, 'info');
     }
     if (this.damStopped) return;
-    const need = (this.cfg.dumps.crusher.plantFeedTpm / 60) * dt;
+    // Реагентов мало (КПП был закрыт) — фабрика снижает переработку.
+    const need = ((this.cfg.dumps.crusher.plantFeedTpm * this.checkpoint.reagentFactor) / 60) * dt;
     const grade = this.feedGrade;
     const fed = Math.min(s.t, need);
     if (s.t >= need) s.t -= need;

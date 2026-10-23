@@ -13,9 +13,9 @@ import { fmtClock, fmtInt } from '../ui/format';
 import { MATERIAL_COLOR, STRATEGY_COLOR } from '../ui/theme';
 import { stateTone, TONE_COLOR, VALUE_LABEL } from '../ui/twinLabels';
 
-type Kind = 'breakdown' | 'close_road' | 'blast' | 'drill_down' | 'power_cut' | 'storm_water' | 'leach_stop' | 'weather' | 'reset';
+type Kind = 'breakdown' | 'close_road' | 'blast' | 'drill_down' | 'power_cut' | 'storm_water' | 'leach_stop' | 'weather' | 'fuel_shortage' | 'no_tyres' | 'kpp_closed' | 'reset';
 /** Сценарии с длительностью: для них показываем ползунок времени. */
-type TimedKind = 'breakdown' | 'close_road' | 'drill_down' | 'power_cut' | 'storm_water' | 'leach_stop' | 'weather';
+type TimedKind = 'breakdown' | 'close_road' | 'drill_down' | 'power_cut' | 'storm_water' | 'leach_stop' | 'weather' | 'fuel_shortage' | 'no_tyres' | 'kpp_closed';
 
 const KINDS: { kind: Kind; icon: string; title: string; text: string; tone: string }[] = [
   { kind: 'breakdown', icon: '⚠', title: 'Поломка экскаватора', text: 'Экскаватор встаёт на ремонт. Кто перевезёт его самосвалы?', tone: '#ef4444' },
@@ -26,6 +26,9 @@ const KINDS: { kind: Kind; icon: string; title: string; text: string; tone: stri
   { kind: 'storm_water', icon: '☔', title: 'Ливень на хвостохранилище', text: 'Пруд поднимается, запас до гребня дамбы падает. Ниже нормы — намыв и фабрику останавливают.', tone: '#38bdf8' },
   { kind: 'leach_stop', icon: '⬡', title: 'Остановка орошения', text: 'Карты выщелачивания не поливают: раствор на завод не идёт, катоды не растут.', tone: '#14b8a6' },
   { kind: 'weather', icon: '❄', title: 'Непогода', text: 'Метель, пыльная буря или туман: скорость возки падает, взрывать нельзя.', tone: '#60a5fa' },
+  { kind: 'fuel_shortage', icon: '◈', title: 'Перебои с топливом', text: 'Завоз дизеля остановлен, склад ГСМ пустеет — самосвалы ждут на АЗС, добыча падает.', tone: '#fb7185' },
+  { kind: 'no_tyres', icon: '◎', title: 'Нет шин на складе РМЦ', text: 'Поставка шин задерживается: ремонт шин затягивается, самосвалы дольше стоят.', tone: '#c084fc' },
+  { kind: 'kpp_closed', icon: '⊘', title: 'Закрыт КПП', text: 'Реагенты и топливо не завозят: через несколько часов фабрика снижает переработку.', tone: '#94a3b8' },
   { kind: 'reset', icon: '↺', title: 'Новая смена', text: 'Та же техника, другой сценарий случайных поломок и закрытий дорог.', tone: '#38bdf8' },
 ];
 
@@ -56,7 +59,7 @@ interface Props {
 export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun, seed, fleet, history, act }: Props) {
   const ref = sims[sims.length - 1];
   const [kind, setKind] = useState<Kind>('breakdown');
-  const [target, setTarget] = useState<Record<Kind, number>>({ breakdown: 0, close_road: 0, blast: 1, drill_down: 2, power_cut: 0, storm_water: 0, leach_stop: 0, weather: 0, reset: 0 });
+  const [target, setTarget] = useState<Record<Kind, number>>({ breakdown: 0, close_road: 0, blast: 1, drill_down: 2, power_cut: 0, storm_water: 0, leach_stop: 0, weather: 0, fuel_shortage: 0, no_tyres: 0, kpp_closed: 0, reset: 0 });
   const [dur, setDur] = useState<Record<TimedKind, number>>({ ...DEFAULT_DUR });
   const [newSeed, setNewSeed] = useState(seed);
   if (!ref) return null;
@@ -135,7 +138,7 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
                         ? 'Какая погода'
                         : kind === 'power_cut'
                           ? 'Что встанет'
-                          : kind === 'leach_stop'
+                          : kind === 'leach_stop' || kind === 'fuel_shortage' || kind === 'no_tyres' || kind === 'kpp_closed'
                             ? 'Что остановится'
                             : 'Какой экскаватор'
             }
@@ -184,9 +187,29 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
                 })}
               </div>
             )}
-            {(kind === 'power_cut' || kind === 'leach_stop') && (
+            {(kind === 'power_cut' || kind === 'leach_stop' || kind === 'fuel_shortage' || kind === 'no_tyres' || kind === 'kpp_closed') && (
               <ul className="space-y-1 text-[12.5px] text-ink-2">
-                {(kind === 'power_cut'
+                {(kind === 'fuel_shortage'
+                  ? [
+                      'На складе ГСМ остаётся ~12 м³, автоцистерны не приходят',
+                      'Склад расходует весь парк комбината — остаток уходит примерно за час',
+                      'Когда склад пуст, самосвалы стоят у колонки АЗС, пока не привезут топливо',
+                      'Видно, сколько машин ждёт и сколько руды не довезли',
+                    ]
+                  : kind === 'no_tyres'
+                    ? [
+                        'Шин на складе РМЦ — ноль, поставка задерживается',
+                        'Ремонт шины по прогнозу и после прокола ждёт поставку ~90 мин',
+                        'Самосвалы дольше стоят в ремонте — меньше машин на линии',
+                      ]
+                    : kind === 'kpp_closed'
+                      ? [
+                          'Грузовики с реагентами, кислотой и запчастями не въезжают — копится очередь',
+                          'Запас реагентов флотации на фабрике ~6 ч; ниже 2 ч фабрика снижает переработку',
+                          'Автоцистерны не доходят до склада ГСМ',
+                          'Вахтовые автобусы проходят — смена не страдает',
+                        ]
+                      : kind === 'power_cut'
                   ? [
                       'Обогатительная фабрика и дробилка — стоят, руда копится в бункере и на складе',
                       'Электролиз SX-EW — стоит, медь остаётся в электролите, катоды не растут',
@@ -281,7 +304,7 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
             )}
           </div>
 
-          {(kind === 'breakdown' || kind === 'close_road' || kind === 'drill_down') && (
+          {(kind === 'breakdown' || kind === 'close_road' || kind === 'drill_down' || kind === 'fuel_shortage' || kind === 'no_tyres' || kind === 'kpp_closed') && (
             <>
               <SectionTitle n="3" title="Длительность" />
               <div className="flex items-center gap-4 px-4 pb-4">
@@ -395,6 +418,7 @@ const DEV_STYLE: Record<ActiveDeviation['kind'], { icon: string; color: string }
   blast: { icon: '✸', color: '#f59e0b' },
   drill: { icon: '⚒', color: '#a855f7' },
   nostock: { icon: '⛏', color: '#ef4444' },
+  supply: { icon: '◈', color: '#fb7185' },
 };
 
 function DeviationCard({ d, onUndo }: { d: ActiveDeviation; onUndo?: () => void }) {

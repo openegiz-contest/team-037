@@ -24,8 +24,8 @@ export interface Command {
   month?: number;
 }
 
-export const DEFAULT_DUR = { breakdown: 50, close_road: 40, drill_down: 240, weather: 60, power_cut: 25, storm_water: 180, leach_stop: 180 } as const;
-export const DUR_RANGE = { breakdown: [10, 180], close_road: [10, 120], drill_down: [30, 600], weather: [15, 360], power_cut: [5, 120], storm_water: [15, 240], leach_stop: [30, 720] } as const;
+export const DEFAULT_DUR = { breakdown: 50, close_road: 40, drill_down: 240, weather: 60, power_cut: 25, storm_water: 180, leach_stop: 180, fuel_shortage: 240, no_tyres: 360, kpp_closed: 360 } as const;
+export const DUR_RANGE = { breakdown: [10, 180], close_road: [10, 120], drill_down: [30, 600], weather: [15, 360], power_cut: [5, 120], storm_water: [15, 240], leach_stop: [30, 720], fuel_shortage: [60, 600], no_tyres: [60, 720], kpp_closed: [60, 720] } as const;
 
 const clampDur = (kind: keyof typeof DUR_RANGE, v: number | undefined) => {
   const [lo, hi] = DUR_RANGE[kind];
@@ -69,6 +69,30 @@ export function applyScenario(sims: Simulation[], c: Command): string | null {
       for (const s of sims) s.injectPowerCut(dur * 60);
       return `отключение электроснабжения на ${dur} мин`;
     }
+    case 'fuel_shortage': {
+      const dur = clampDur('fuel_shortage', c.dur);
+      for (const s of sims) s.injectFuelShortage(dur * 60);
+      return `перебои с топливом: завоз остановлен на ${dur} мин`;
+    }
+    case 'fuel_restore':
+      for (const s of sims) s.fuelDepot.supplyCutLeft = 0;
+      return 'завоз топлива возобновлён';
+    case 'no_tyres': {
+      const dur = clampDur('no_tyres', c.dur);
+      for (const s of sims) s.injectNoTyres(dur * 60);
+      return `нет шин на складе РМЦ, поставка через ${dur} мин`;
+    }
+    case 'tyres_restore':
+      for (const s of sims) s.repairShop.tyreCutLeft = 1;
+      return 'шины поставлены';
+    case 'kpp_closed': {
+      const dur = clampDur('kpp_closed', c.dur);
+      for (const s of sims) s.injectCheckpointClosed(dur * 60);
+      return `КПП закрыт на ${dur} мин`;
+    }
+    case 'kpp_open':
+      for (const s of sims) s.checkpoint.closedLeft = Math.min(s.checkpoint.closedLeft, 1);
+      return 'КПП открыт';
     case 'storm_water': {
       const dur = clampDur('storm_water', c.dur);
       // arg: 0 — ливень, 1 — сильное снеготаяние; приток в пруд, м³/ч.
@@ -117,6 +141,9 @@ export function applyScenario(sims: Simulation[], c: Command): string | null {
         s.excavators.forEach((ex) => s.repairExcavator(ex.id));
         s.layout.closureGroups.forEach((_, g) => s.openRoad(g));
         s.blasts.filter((b) => b.phase === 'warning' || b.phase === 'active').forEach((b) => s.cancelBlast(b.id));
+        s.fuelDepot.supplyCutLeft = 0;
+        if (s.repairShop.tyreCutLeft > 0) s.repairShop.tyreCutLeft = 1;
+        if (s.checkpoint.closedLeft > 0) s.checkpoint.closedLeft = 1;
       }
       return 'все сценарии отменены';
     default:
@@ -126,7 +153,7 @@ export function applyScenario(sims: Simulation[], c: Command): string | null {
 
 /** Что сейчас нарушает нормальную работу рудника (по одной модели — события у всех общие). */
 export interface ActiveDeviation {
-  kind: 'breakdown' | 'closure' | 'blast' | 'drill' | 'nostock';
+  kind: 'breakdown' | 'closure' | 'blast' | 'drill' | 'nostock' | 'supply';
   /** Команда отмены и её аргумент (нет — отклонение снимается само). */
   undo: { value: string; arg: number } | null;
   title: string;
@@ -190,6 +217,30 @@ export function activeDeviations(sim: Simulation): ActiveDeviation[] {
       detail: b.phase === 'warning' ? `Предупреждение, техника выводится из зоны ${b.radius} м${names ? ` · ${names}` : ''}` : `Оцепление ${b.radius} м${names ? ` · стоят ${names}` : ''}`,
       leftSec: Math.max(0, b.phase === 'warning' ? b.t - sim.now : b.t + b.dur - sim.now),
       phase: b.phase,
+    });
+  }
+  const d = sim.fuelDepot;
+  if (d.supplyCutLeft > 0 || d.stockM3 <= 0) {
+    out.push({
+      kind: 'supply',
+      undo: d.supplyCutLeft > 0 ? { value: 'fuel_restore', arg: 0 } : null,
+      title: 'Перебои с топливом',
+      detail: d.stockM3 <= 0 ? `Склад ГСМ пуст: ждут топлива ${d.waitingNow} самосв.` : `На складе ГСМ ${Math.round(d.stockM3)} м³, завоза нет`,
+      leftSec: d.supplyCutLeft,
+    });
+  }
+  const r = sim.repairShop;
+  if (r.tyreCutLeft > 0) {
+    out.push({ kind: 'supply', undo: { value: 'tyres_restore', arg: 0 }, title: 'Нет шин на складе РМЦ', detail: 'Ремонт шин ждёт поставку', leftSec: r.tyreCutLeft });
+  }
+  const k = sim.checkpoint;
+  if (k.closedLeft > 0) {
+    out.push({
+      kind: 'supply',
+      undo: { value: 'kpp_open', arg: 0 },
+      title: 'КПП закрыт',
+      detail: `Реагентов на фабрике на ${k.reagentsH.toFixed(1)} ч${k.reagentFactor < 1 ? ` — переработка ${Math.round(k.reagentFactor * 100)} %` : ''}`,
+      leftSec: k.closedLeft,
     });
   }
   return out;

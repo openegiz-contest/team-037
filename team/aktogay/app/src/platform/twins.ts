@@ -883,6 +883,8 @@ export function serializeFuelDepot(sim: Simulation): Features {
     dispensed_m3: f(Math.round(d.dispensedM3), 'm3'),
     received: f(Math.round(d.receivedM3), 'm3'),
     tankers: f(d.tankers, 'pcs'),
+    supply_cut: f(Math.round(d.supplyCutLeft), 's'),
+    trucks_waiting: f(d.waitingNow, 'pcs'),
   };
 }
 
@@ -900,6 +902,7 @@ export function serializeRepairShop(sim: Simulation): Features {
     tyres: f(r.tyres, 'pcs'),
     mechanics_busy: f(r.mechanicsBusy, 'pcs'),
     bays_busy: f(r.baysBusy, 'pcs'),
+    tyre_cut: f(Math.round(r.tyreCutLeft), 's'),
   };
 }
 
@@ -907,7 +910,7 @@ export function serializeRepairShop(sim: Simulation): Features {
 export function serializeCheckpoint(sim: Simulation): Features {
   const k = sim.checkpoint;
   return {
-    state: f(k.mode === 'manual' ? 'manual' : k.queue > 8 ? 'queue' : 'auto'),
+    state: f(k.mode === 'closed' ? 'closed' : k.mode === 'manual' ? 'manual' : k.queue > 8 ? 'queue' : 'auto'),
     mode: f(k.mode),
     lanes_open: f(k.lanesOpen, 'pcs'),
     arrivals_ph: f(Math.round(k.arrivalsPh), 'pcs/h'),
@@ -919,6 +922,8 @@ export function serializeCheckpoint(sim: Simulation): Features {
     bus_passes: f(Math.round(k.busPasses), 'pcs'),
     cargo_vehicles: f(Math.round(k.cargoVehicles), 'pcs'),
     cargo_t: f(Math.round(k.cargoT), 't'),
+    closed_left: f(Math.round(k.closedLeft), 's'),
+    reagents_h: f(r1(k.reagentsH), 'h'),
   };
 }
 
@@ -1227,6 +1232,8 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     d.receivedM3 = num(gsf, 'received', d.receivedM3);
     d.tankers = num(gsf, 'tankers', d.tankers);
     d.flowM3h = num(gsf, 'flow', d.flowM3h);
+    d.supplyCutLeft = num(gsf, 'supply_cut', d.supplyCutLeft);
+    d.waitingNow = num(gsf, 'trucks_waiting', d.waitingNow);
     d.refilling = str(gsf, 'state') === 'refilling' || str(gsf, 'state') === 'low';
   }
   const rf = things.get(id.rmc);
@@ -1240,6 +1247,7 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     r.tyres = num(rf, 'tyres', r.tyres);
     r.mechanicsBusy = num(rf, 'mechanics_busy', r.mechanicsBusy);
     r.baysBusy = num(rf, 'bays_busy', r.baysBusy);
+    r.tyreCutLeft = num(rf, 'tyre_cut', r.tyreCutLeft);
   }
 
   // КПП и автовесы.
@@ -1255,7 +1263,10 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     k.arrivalsPh = num(kf, 'arrivals_ph', k.arrivalsPh);
     k.waitMin = num(kf, 'wait_min', k.waitMin);
     k.lanesOpen = num(kf, 'lanes_open', k.lanesOpen);
-    k.mode = str(kf, 'mode') === 'manual' ? 'manual' : 'auto';
+    const km = str(kf, 'mode');
+    k.mode = km === 'manual' || km === 'closed' ? km : 'auto';
+    k.closedLeft = num(kf, 'closed_left', k.closedLeft);
+    k.reagentsH = num(kf, 'reagents_h', k.reagentsH);
   }
 
   // Вахтовый посёлок.
