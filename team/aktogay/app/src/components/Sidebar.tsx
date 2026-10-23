@@ -4,9 +4,9 @@ import { currentLang, LANGS, onLangChange, setLang, type Lang } from '../ui/i18n
 import type { ThemeMode } from '../ui/themeMode';
 import type { Session } from '../platform/accounts';
 
-export type Route = 'mine' | 'effect' | 'twins' | 'scenarios' | 'fleet' | 'timeline' | 'drivers' | 'geology' | 'dispatch' | 'terminal' | 'login' | 'sitemap';
+export type Route = 'mine' | 'effect' | 'twins' | 'scenarios' | 'fleet' | 'timeline' | 'report' | 'drivers' | 'geology' | 'dispatch' | 'terminal' | 'login' | 'sitemap';
 
-export const ROUTE_HASH: Record<Route, string> = { mine: '#/', effect: '#/effect', twins: '#/twins', scenarios: '#/scenarios', fleet: '#/fleet', timeline: '#/timeline', drivers: '#/drivers', geology: '#/geology', dispatch: '#/dispatch', terminal: '#/terminal', login: '#/login', sitemap: '#/map' };
+export const ROUTE_HASH: Record<Route, string> = { mine: '#/', effect: '#/effect', twins: '#/twins', scenarios: '#/scenarios', fleet: '#/fleet', timeline: '#/timeline', report: '#/report', drivers: '#/drivers', geology: '#/geology', dispatch: '#/dispatch', terminal: '#/terminal', login: '#/login', sitemap: '#/map' };
 
 export function routeFromHash(h: string): Route {
   if (h.startsWith('#/twins')) return 'twins';
@@ -14,6 +14,7 @@ export function routeFromHash(h: string): Route {
   if (h.startsWith('#/effect')) return 'effect';
   if (h.startsWith('#/fleet')) return 'fleet';
   if (h.startsWith('#/timeline')) return 'timeline';
+  if (h.startsWith('#/report')) return 'report';
   if (h.startsWith('#/drivers')) return 'drivers';
   if (h.startsWith('#/geology')) return 'geology';
   if (h.startsWith('#/dispatch')) return 'dispatch';
@@ -117,6 +118,13 @@ const ICONS: Record<Route | 'grafana' | 'api' | 'collapse' | 'sun' | 'moon', Rea
     </Icon>
   ),
   // столбики роста и стрелка вверх
+  // лист отчёта со строками
+  report: (
+    <Icon>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5M9 13h6M9 17h4" />
+    </Icon>
+  ),
   effect: (
     <Icon>
       <path d="M4 20V14M9 20v-8M14 20v-5M19 20V9" />
@@ -165,6 +173,7 @@ const NAV: { route: Route; label: string; hint: string; group: 'ops' | 'shift' |
   { route: 'scenarios', label: 'Сценарии', hint: 'Запуск и отмена «что если»', group: 'analysis' },
   { route: 'timeline', label: 'Хронология', hint: 'Цепочки последствий и диаграмма Ганта смены', group: 'analysis' },
   { route: 'effect', label: 'Эффект', hint: 'Реальная работа против теневого расчёта без системы, ₸', group: 'analysis' },
+  { route: 'report', label: 'Сводка смены', hint: 'Итоги смены одной страницей: печать и выгрузка', group: 'analysis' },
 ];
 
 interface Props {
