@@ -9,9 +9,10 @@ import type { Fleet } from '../platform/fleet';
 import { activeDeviations, DEFAULT_DUR, DUR_RANGE, type ActiveDeviation, type Command } from '../platform/scenarios';
 import { CONTROL_ID } from '../platform/twins';
 import { MATERIAL_SHORT, type Kpis, type Simulation } from '../sim';
-import { fmtClock, fmtInt } from '../ui/format';
+import { fmtClock } from '../ui/format';
 import { MATERIAL_COLOR, STRATEGY_COLOR } from '../ui/theme';
 import { stateTone, TONE_COLOR, VALUE_LABEL } from '../ui/twinLabels';
+import { downloadCsv, getSnapshot, impactRows, printReport, takeSnapshot } from '../ui/scenarioReport';
 
 type Kind = 'breakdown' | 'close_road' | 'blast' | 'drill_down' | 'power_cut' | 'storm_water' | 'leach_stop' | 'weather' | 'fuel_shortage' | 'no_tyres' | 'kpp_closed' | 'reset';
 /** Сценарии с длительностью: для них показываем ползунок времени. */
@@ -334,6 +335,8 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
             </div>
             <button
               onClick={() => {
+                // Снимок показателей «до» — для отчёта по сценарию.
+                if (sims.length === 2 && kpis.length === 2 && kind !== 'reset') takeSnapshot(now, KINDS.find((k) => k.kind === kind)!.title, impactRows(sims, kpis));
                 act(cmd);
                 if (kind === 'close_road') pick('close_road', (target.close_road + 1) % ref.layout.closureGroups.length);
               }}
@@ -371,7 +374,28 @@ export function ScenariosPage({ sims, kpis, platform, now, running, onToggleRun,
               <div className="flex items-center border-b border-line px-4 py-3">
                 <h3 className="text-[14px] font-semibold">Что было бы без системы</h3>
                 <span className="ml-auto text-[12px] text-ink-3">с начала смены</span>
+                <div className="ml-3 flex gap-1">
+                  <button
+                    onClick={() => downloadCsv({ now, seed, rows: impactRows(sims, kpis), history })}
+                    className="rounded-md bg-panel-2 px-2 py-1 text-[12px] font-semibold text-ink-2 hover:text-ink"
+                    title="Таблица «до/после» сценария для Excel"
+                  >
+                    ⇩ CSV
+                  </button>
+                  <button
+                    onClick={() => printReport({ now, seed, rows: impactRows(sims, kpis), history })}
+                    className="rounded-md bg-panel-2 px-2 py-1 text-[12px] font-semibold text-ink-2 hover:text-ink"
+                    title="Отчёт для печати — в окне печати выберите «Сохранить как PDF»"
+                  >
+                    ⎙ PDF
+                  </button>
+                </div>
               </div>
+              {getSnapshot() && (
+                <div className="border-b border-line px-4 py-1.5 text-[11.5px] text-ink-3">
+                  Снимок «до» для отчёта: {fmtClock(getSnapshot()!.t)} · {getSnapshot()!.title}
+                </div>
+              )}
               <ImpactTable sims={sims} kpis={kpis} />
             </section>
           )}
@@ -449,15 +473,7 @@ function DeviationCard({ d, onUndo }: { d: ActiveDeviation; onUndo?: () => void 
 }
 
 function ImpactTable({ sims, kpis }: { sims: Simulation[]; kpis: Kpis[] }) {
-  const [f, s] = kpis;
-  const rows: { label: string; a: number; b: number; fmt: (v: number) => string; better: 'lower' | 'higher' }[] = [
-    { label: 'Добыто, т', a: f.minedTotal, b: s.minedTotal, fmt: fmtInt, better: 'higher' },
-    { label: 'Простой фабрики, мин', a: f.crusherIdleMin, b: s.crusherIdleMin, fmt: (v) => v.toFixed(1), better: 'lower' },
-    { label: 'Средняя очередь, мин', a: f.avgQueueMin, b: s.avgQueueMin, fmt: (v) => v.toFixed(2), better: 'lower' },
-    { label: 'Руда на складе и в бункере, т', a: sims[0].oreBufferT, b: sims[1].oreBufferT, fmt: fmtInt, better: 'higher' },
-    { label: 'Качество руды в норме, %', a: f.gradeInBandPct, b: s.gradeInBandPct, fmt: (v) => v.toFixed(1), better: 'higher' },
-    { label: 'Аварийные отказы', a: f.unplannedFailures, b: s.unplannedFailures, fmt: (v) => String(v), better: 'lower' },
-  ];
+  const rows = impactRows(sims, kpis);
   const head = (name: string, color: string): ReactNode => (
     <th className="px-2 py-2 text-right font-semibold" style={{ color }}>
       {name}
