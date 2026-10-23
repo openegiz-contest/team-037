@@ -68,11 +68,12 @@
 <section class="slide" style="justify-content:center; background: radial-gradient(1100px 700px at 85% 15%, rgba(217,89,38,.16), transparent 60%), radial-gradient(900px 600px at 0% 100%, rgba(57,135,229,.10), transparent 60%), var(--bg);">
   <div class="kicker">Конкурс «Цифровой рудник на OpenEgiz» · Команда 037</div>
   <h1 style="font-size:96px; margin-top:34px;">Цифровой двойник<br>карьера <span class="accent">Актогай</span></h1>
-  <div class="lead" style="font-size:32px; max-width:1400px;">Открытый медный карьер в реальном времени на платформе OpenEgiz: 106 двойников в Eclipse Ditto, умная диспетчеризация самосвалов, прогноз отказов по датчикам, сценарии «что если» и расчёт эффекта в тенге.</div>
+  <div class="lead" style="font-size:32px; max-width:1400px;">Медный карьер и весь горно-обогатительный комбинат в реальном времени на платформе OpenEgiz: 150 двойников в Eclipse Ditto, умная диспетчеризация самосвалов, прогноз отказов по датчикам, сценарии «что если», себестоимость меди и эффект в тенге. Интерфейс на русском, казахском и английском.</div>
   <div class="row" style="margin-top:56px; gap:16px; flex-wrap:wrap;">
     <span class="tag">make aktogay — одна команда</span>
     <span class="tag">Ditto · MQTT · InfluxDB · Grafana</span>
     <span class="tag">React + Three.js</span>
+    <span class="tag">РУ · ҚАЗ · EN</span>
     <span class="tag">MIT</span>
   </div>
   <div class="foot"><span>GitHub: <b>ItachiTore</b> · github.com/openegiz-contest/team-037</span><span>Модель построена по открытым данным, операционные данные смоделированы. Проект не связан с KAZ Minerals.</span></div>
@@ -103,7 +104,7 @@
       <p>Двигатель, гидравлика, шины ломаются без предупреждения: эвакуация, вторичные повреждения, ремонт втрое дольше планового.</p>
     </div>
   </div>
-  <div class="foot"><span>Среднее по 20 модельным сменам, 20 самосвалов (BENCHMARK.md)</span><span>2 / 14</span></div>
+  <div class="foot"><span>Среднее по 20 модельным сменам, 20 самосвалов (BENCHMARK.md)</span><span>2 / 17</span></div>
 </section>
 
 <!-- 3. Решение -->
@@ -132,32 +133,35 @@
       </ul>
     </div>
   </div>
-  <div class="foot"><span>Разделы интерфейса: Карьер · Оборудование · Двойники · Сценарии · Эффект</span><span>3 / 14</span></div>
+  <div class="foot"><span>Разделы интерфейса: Карьер · Оборудование · Двойники · Сценарии · Эффект</span><span>3 / 17</span></div>
 </section>
 
 <!-- 4. Модель рудника -->
 <section class="slide">
   <div class="kicker">Модель рудника <span class="crit">· критерий 25 баллов</span></div>
-  <h2>106 двойников в Eclipse Ditto, связанных в иерархию</h2>
+  <h2>150 двойников в Eclipse Ditto, связанных в иерархию</h2>
   <div class="body grid" style="grid-template-columns: 1.1fr 1fr;">
     <div class="card" style="padding:30px 34px;">
-<div class="tree"><b>org.aktogay:aktogay</b>              <i>площадка, Восточный Казахстан</i>
+<div class="tree" style="font-size:17.5px;"><b>org.aktogay:aktogay</b>              <i>площадка, Восточный Казахстан</i>
 ├─ <b>org.aktogay:control</b>           <i>команды «что если» и статус</i>
 ├─ <b>org.aktogay.smart:mine</b>        <i>реальный карьер: KPI, журнал</i>
 │  ├─ excavator-1 … excavator-5   <i>6 датчиков; 2 сульфид, 1 оксид, 2 вскр.</i>
 │  ├─ truck-101 … truck-120       <i>220 т, 7 датчиков, 32 признака</i>
 │  ├─ drill-1, drill-2            <i>буровые: блок, скважины, проходка</i>
 │  ├─ crusher → plant             <i>+ 13 агрегатов: мельницы, конвейеры…</i>
-│  ├─ heap-leach, waste-dump      <i>оксид, вскрыша</i>
-│  ├─ garage                      <i>стоянка, АЗС, ремонт</i>
-│  ├─ roads                       <i>граф дорог, закрытия</i>
-│  └─ blasting                    <i>график взрывов</i>
+│  ├─ heap-leach → sxew           <i>карты, PLS, катодная медь</i>
+│  ├─ tailings, concentrate       <i>дамба и пруд, ж/д отгрузка</i>
+│  ├─ crusher-2 → plant-2         <i>вторая цепочка + 8 агрегатов</i>
+│  ├─ substation-1, -2, energy    <i>подстанции, энергоучёт</i>
+│  ├─ weather, cost, geology      <i>климат ERA5, C1, блок. модель</i>
+│  ├─ camp, checkpoint            <i>посёлок, КПП и автовесы</i>
+│  ├─ fuel-depot, repair-shop     <i>склад ГСМ, РМЦ</i>
+│  └─ garage, roads, blasting     <i>стоянка, граф дорог, взрывы</i>
 └─ <b>org.aktogay.fixed:mine</b>        <i>теневой расчёт, те же объекты</i></div>
       <div style="margin-top:26px; padding-top:22px; border-top:1px solid var(--line);">
-        <div style="font: 600 17px/1 'JetBrains Mono', monospace; letter-spacing:.12em; text-transform:uppercase; color: var(--amber);">attributes.sensors — паспорт датчиков</div>
+        <div style="font: 600 17px/1 'JetBrains Mono', monospace; letter-spacing:.12em; text-transform:uppercase; color: var(--amber);">attributes.sensors — паспорт датчиков · 82 описания на 20 видов</div>
         <p style="margin-top:14px; font-size:19px; line-height:1.45; color:var(--ink2);"><b style="color:var(--ink)">Самосвал, 7:</b> GNSS ГЛОНАСС/GPS (RTK), бортовое взвешивание, уровень топлива, температура ОЖ через ЭБУ (CAN J1939), вибродатчик рамы (MEMS), давление шин TPMS, бортовой контроллер.</p>
-        <p style="margin-top:8px; font-size:19px; line-height:1.45; color:var(--ink2);"><b style="color:var(--ink)">Экскаватор, 6:</b> взвешивание ковша, XRF-анализатор руды в ковше, позиционирование ковша (GNSS + инклинометры), обнаружение самосвалов у забоя, диагностика привода, ЭБУ.</p>
-        <p style="margin-top:8px; font-size:19px; line-height:1.45; color:var(--ink2);"><b style="color:var(--ink)">Дробилка 5 · фабрика 4 · гараж 3 · выщелачивание и отвал по 2:</b> уровнемер бункера, конвейерные весы, привод, виртуальный датчик качества; весы питания, PGNAA, XRF пульпы, АСУ ТП; стояночные места, колонка АЗС, ремонтные боксы; учёт отсыпки.</p>
+        <p style="margin-top:8px; font-size:19px; line-height:1.45; color:var(--ink2);"><b style="color:var(--ink)">Объекты комбината:</b> уровнемеры и конвейерные весы, PGNAA и XRF пульпы, пьезометры дамбы, выпрямитель электролиза, метеостанция, счётчики подстанций, турникеты посёлка, автовесы и ANPR на КПП, уровнемеры склада ГСМ. Полный список — SENSORS.md.</p>
       </div>
     </div>
     <div class="grid" style="gap:22px;">
@@ -175,7 +179,23 @@
       </div>
     </div>
   </div>
-  <div class="foot"><span>Три выработки как на снимке Актогая (главная ~230 м), уступы по 15 м, спиральные съезды и бермы у каждой, граф дорог с маршрутизацией</span><span>4 / 14</span></div>
+  <div class="foot"><span>Три выработки как на снимке Актогая (главная ~230 м), уступы по 15 м, спиральные съезды и бермы у каждой, граф дорог с маршрутизацией</span><span>4 / 17</span></div>
+</section>
+
+<!-- Весь комбинат -->
+<section class="slide" style="padding-bottom:70px;">
+  <div class="kicker">Модель рудника · весь комбинат</div>
+  <h2 style="font-size:46px;">Не только карьер: весь горно-обогатительный комбинат</h2>
+  <div class="body grid" style="grid-template-columns: 1.45fr 1fr; margin-top:30px; align-items:start;">
+    <img class="shot" src="shot-map.png" alt="Карта ГОК">
+    <div class="grid" style="gap:16px;">
+      <div class="card" style="padding:22px 26px;"><p><b style="color:var(--ink)">Сульфид:</b> ККД → склад → ОФ-1, концентрат на склад и в вагоны. <b style="color:var(--ink)">Вторая цепочка</b> ККД-2 → склад → ОФ-2 считается так же (подвоз к ней условный).</p></div>
+      <div class="card" style="padding:22px 26px;"><p><b style="color:var(--ink)">Оксид:</b> карты кучного выщелачивания с графиком орошения → пруды PLS → завод SX-EW, катодная медь по закону Фарадея.</p></div>
+      <div class="card" style="padding:22px 26px;"><p><b style="color:var(--ink)">Хвостохранилище</b> по контуру из OpenStreetMap: намыв, пруд, запас до гребня, оборотная вода; ливень поднимает пруд.</p></div>
+      <div class="card" style="padding:22px 26px;"><p><b style="color:var(--ink)">Инфраструктура:</b> подстанции и ЛЭП, вахтовый посёлок с генератором, КПП с автовесами, склад ГСМ, РМЦ. Дороги к ним — из OpenStreetMap.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>http://localhost:8095/#/map · в 3D каждый объект кликается и открывает «что внутри»</span><span>5 / 17</span></div>
 </section>
 
 <!-- 5. Архитектура -->
@@ -188,7 +208,7 @@
       <div class="arrow">→</div>
       <div class="node"><div class="t">MQTT</div><div class="s">telemetry/&lt;thing&gt;<br>Ditto modify /features</div></div>
       <div class="arrow">→</div>
-      <div class="node hl"><div class="t">Eclipse Ditto</div><div class="s">106 двойников<br>policy basic_policy</div></div>
+      <div class="node hl"><div class="t">Eclipse Ditto</div><div class="s">150 двойников<br>policy basic_policy</div></div>
       <div class="arrow">→</div>
       <div class="node"><div class="t">Telegraf → InfluxDB</div><div class="s">mqtt_consumer<br>тег thingId</div></div>
       <div class="arrow">→</div>
@@ -207,7 +227,7 @@
       <div class="card"><h3>Сценарии — через двойник</h3><p>Команда — изменение признака в Ditto. Результат и история команд — в признаке <code>status</code>.</p></div>
     </div>
   </div>
-  <div class="foot"><span>Ни один сервис карьера не пишет в InfluxDB или Grafana напрямую</span><span>5 / 14</span></div>
+  <div class="foot"><span>Ни один сервис карьера не пишет в InfluxDB или Grafana напрямую</span><span>6 / 17</span></div>
 </section>
 
 <!-- 6. Поведение -->
@@ -235,7 +255,7 @@
       <div class="card"><h3>Взрывы и события</h3><p>Плановый взрыв в обед: предупреждение 15 мин, оцепление 30 мин, радиус 240 м. Случайные поломки и закрытия дорог генерируются из seed — одинаковый seed даёт бит-в-бит одинаковую смену (тест).</p></div>
     </div>
   </div>
-  <div class="foot"><span>Все параметры — в одном файле src/sim/config.ts с комментариями; 30 автотестов движка</span><span>6 / 14</span></div>
+  <div class="foot"><span>Все параметры — в одном файле src/sim/config.ts с комментариями; 91 автотест</span><span>7 / 17</span></div>
 </section>
 
 <!-- 7. Визуализация: Карьер -->
@@ -248,10 +268,25 @@
       <div class="card" style="padding:24px 28px;"><p><b style="color:var(--ink)">Three.js-сцена</b> по той же геометрии, что граф дорог: уступы, съезды, забои, дробилка с конвейером на фабрику, отвал, выщелачивание, стоянка.</p></div>
       <div class="card" style="padding:24px 28px;"><p>Кольцо под самосвалом — цвет состояния, кузов с грузом цвета материала, опрокидывание при разгрузке; экскаватор поворачивается и копает; уровень в силосе; закрытые участки и зоны взрывов.</p></div>
       <div class="card" style="padding:24px 28px;"><p>Клик по машине — карточка с датчиками и графиком «датчик против модели». Камеры: общий вид, дробилка, дно, разрез, облёт, следование.</p></div>
-      <div class="card" style="padding:24px 28px;"><p><b style="color:var(--ink)">Без видеокарты</b> «Графика: Авто» сама включает лёгкий режим; есть 2D-схема.</p></div>
+      <div class="card" style="padding:24px 28px;"><p><b style="color:var(--ink)">День и ночь, погода:</b> солнце идёт по небу Актогая, к вечеру зажигаются окна и мачты; метель и пыль видны на сцене (их можно скрыть кнопкой). Без видеокарты — лёгкий режим или 2D-схема.</p></div>
     </div>
   </div>
-  <div class="foot"><span>http://localhost:8095 — скриншот со стенда, headless Chrome</span><span>7 / 14</span></div>
+  <div class="foot"><span>http://localhost:8095 — скриншот со стенда, headless Chrome</span><span>8 / 17</span></div>
+</section>
+
+<!-- Что внутри -->
+<section class="slide" style="padding-bottom:70px;">
+  <div class="kicker">Визуализация · внутренние двойники</div>
+  <h2 style="font-size:46px;">Клик по зданию — что внутри и почему</h2>
+  <div class="body grid" style="grid-template-columns: 1.55fr 1fr; margin-top:30px; align-items:start;">
+    <img class="shot" src="shot-inside.png" alt="Фабрика внутри">
+    <div class="grid" style="gap:18px;">
+      <div class="card" style="padding:24px 28px;"><p><b style="color:var(--ink)">3D-цех</b> дробилки, фабрики и гаража: мельницы, флотация, конвейеры, ремонтные боксы — на живых данных агрегатов.</p></div>
+      <div class="card" style="padding:24px 28px;"><p><b style="color:var(--ink)">Мнемосхемы</b> у всех объектов: склад, выщелачивание и SX-EW, хвостохранилище, склад концентрата, подстанции (однолинейная схема), посёлок, КПП, склад ГСМ, РМЦ.</p></div>
+      <div class="card" style="padding:24px 28px;"><p>На схеме отмечено, какой датчик даёт каждую величину; у каждого агрегата — подшипники, вибрация и свой двойник в Ditto.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>Тот же экран открывается из 3D, из карты ГОК и из раздела «Двойники»</span><span>9 / 17</span></div>
 </section>
 
 <!-- 8. Двойники -->
@@ -267,7 +302,7 @@
       <div class="card" style="padding:24px 28px;"><p><b style="color:var(--ink)">Датчики самосвала</b>: GNSS, взвешивание, топливо, температура ОЖ, вибрация рамы, TPMS, ЭБУ — что стоит, где, как часто и какие признаки заполняет. Живые значения ~60 изменений/с.</p></div>
     </div>
   </div>
-  <div class="foot"><span>http://localhost:8095/#/twins</span><span>8 / 14</span></div>
+  <div class="foot"><span>http://localhost:8095/#/twins</span><span>10 / 17</span></div>
 </section>
 
 <!-- 9. Сценарии -->
@@ -282,13 +317,14 @@
         <tr><td><b style="color:var(--ink)">Поломка экскаватора</b><br>Э-1…Э-5, 10–180 мин</td><td><code>repair</code></td></tr>
         <tr><td><b style="color:var(--ink)">Перекрытие съезда</b><br>6 участков, 10–120 мин, объезд</td><td><code>open_road</code></td></tr>
         <tr><td><b style="color:var(--ink)">Внеплановый взрыв</b><br>15 мин предупреждение + 30 мин оцепление</td><td><code>cancel_blast</code></td></tr>
+        <tr><td><b style="color:var(--ink)">Отключение энергии</b><br>фабрики, дробилки, электролиз, посёлок на генераторе, КПП вручную</td><td><code>power_cut</code></td></tr>
+        <tr><td><b style="color:var(--ink)">Непогода, ливень, стоп орошения</b><br>метель/пыль/туман, приток в хвостохранилище</td><td><code>weather</code> …</td></tr>
         <tr><td><b style="color:var(--ink)">Парк техники</b><br>добавить и вывести самосвалы и экскаваторы</td><td><code>reset {fleet}</code></td></tr>
-        <tr><td><b style="color:var(--ink)">Скорость, пауза</b></td><td><code>speed</code>, <code>resume</code></td></tr>
-      </table>
+              </table>
       <p style="margin-top:20px; font-size:20px; color:var(--ink2); line-height:1.5;">Плюс «Отменить всё» и сам срок окончания. Запуск — из раздела «Сценарии», с кнопок на 3D, из панели Grafana или одним <code>PUT</code> в Ditto. Справа на экране видно, что было бы без системы.</p>
     </div>
   </div>
-  <div class="foot"><span>http://localhost:8095/#/scenarios · история команд хранится в двойнике управления</span><span>9 / 14</span></div>
+  <div class="foot"><span>http://localhost:8095/#/scenarios · история команд хранится в двойнике управления</span><span>11 / 17</span></div>
 </section>
 
 <!-- 10. Модули -->
@@ -324,7 +360,26 @@
       <p>График взрывов известен заранее — к забою под оцепление машины не отправляются. KPI смены и эффект в ₸ с формулой: простои, дробилка, топливо, ремонты, потери меди × 670 смен в год.</p>
     </div>
   </div>
-  <div class="foot"><span>src/sim/dispatch.ts · health.ts · ore.ts · kpi.ts</span><span>10 / 14</span></div>
+  <div class="foot"><span>src/sim/dispatch.ts · health.ts · ore.ts · kpi.ts</span><span>12 / 17</span></div>
+</section>
+
+<!-- Модули комбината -->
+<section class="slide" style="padding-bottom:70px;">
+  <div class="kicker">Модули поверх двойника · комбинат</div>
+  <h2 style="font-size:46px;">Погода, энергия, себестоимость — и на трёх языках</h2>
+  <div class="body grid" style="grid-template-columns: 1fr 1fr; margin-top:30px; align-items:start;">
+    <div class="grid" style="gap:16px;">
+      <div class="card" style="padding:22px 26px;"><h3>Погода и сезон</h3><p>Климатические нормы Актогая 2015–2024 (ERA5): метель снижает скорость возки и запрещает взрывы, мороз — дробилку и выщелачивание. Январь ≈ 8,7 млрд ₸/год эффекта, июль ≈ 6,8.</p></div>
+      <div class="card" style="padding:22px 26px;"><h3>Энергия по участкам</h3><p>Фабрики, электролиз (по току серии), насосные по расходу и напору; ~21 кВт·ч на тонну руды, энергия холостого хода фабрики при простое.</p></div>
+      <div class="card" style="padding:22px 26px;"><h3>Себестоимость меди C1</h3><p>Топливо по рейсам, энергия, ремонты, простои, кислота: <b class="accent">$1,12 за фунт против $1,16</b> без системы.</p></div>
+      <div class="card" style="padding:22px 26px;"><h3>Посёлок, КПП, ГСМ, РМЦ</h3><p>Пересменка и автобусы, генератор при отключении; очередь на автовесах; завоз дизеля автоцистернами через КПП; заявки на ремонт, шины и запчасти.</p></div>
+    </div>
+    <div>
+      <img class="shot" src="shot-kk.png" alt="Интерфейс на казахском">
+      <p style="margin-top:18px; font-size:21px; color:var(--ink2); line-height:1.45;">Переключатель <b style="color:var(--ink)">РУ / ҚАЗ / EN</b>: переводится весь интерфейс, включая 3D-подписи, схемы и журнал событий.</p>
+    </div>
+  </div>
+  <div class="foot"><span>src/sim/weather.ts · energy.ts · cost.ts · camp.ts · checkpoint.ts · depot.ts · src/i18n</span><span>13 / 17</span></div>
 </section>
 
 <!-- 11. Эффект (скрин) -->
@@ -339,7 +394,7 @@
       <div class="card" style="padding:24px 28px;"><p>Справа — разница KPI в реальном времени и экономический эффект с раскрываемой формулой. Оценка появляется после первого часа смены.</p></div>
     </div>
   </div>
-  <div class="foot"><span>http://localhost:8095/#/effect</span><span>11 / 14</span></div>
+  <div class="foot"><span>http://localhost:8095/#/effect</span><span>14 / 17</span></div>
 </section>
 
 <!-- 12. Результаты -->
@@ -351,11 +406,12 @@
       <table>
         <tr><th>Показатель за смену</th><th class="n">Без системы</th><th class="n">С системой</th><th class="n">Δ</th></tr>
         <tr><td>Простой фабрики без руды, мин</td><td class="n">4,6</td><td class="n">0,0</td><td class="n"><span class="pill g">−100%</span></td></tr>
-        <tr><td>Аварийные отказы самосвалов</td><td class="n">4,4</td><td class="n">1,2</td><td class="n"><span class="pill g">−73%</span></td></tr>
+        <tr><td>Аварийные отказы самосвалов</td><td class="n">4,4</td><td class="n">1,1</td><td class="n"><span class="pill g">−74%</span></td></tr>
         <tr><td>Средняя очередь, мин</td><td class="n">2,4</td><td class="n">1,7</td><td class="n"><span class="pill g">−30%</span></td></tr>
         <tr><td>Руда на ОФ в коридоре качества, % времени</td><td class="n">90,8</td><td class="n">96,7</td><td class="n"><span class="pill g">+5,9 п.п.</span></td></tr>
         <tr><td>Оксид на выщелачивание, т</td><td class="n">15 891</td><td class="n">17 345</td><td class="n"><span class="pill g">+9,1%</span></td></tr>
         <tr><td>Добыто всего, т</td><td class="n">100 104</td><td class="n">105 124</td><td class="n"><span class="pill g">+5,0%</span></td></tr>
+        <tr><td>Себестоимость меди C1, $/фунт</td><td class="n">1,16</td><td class="n">1,12</td><td class="n"><span class="pill g">−3,0%</span></td></tr>
       </table>
       <p style="margin-top:20px; font-size:20px; color:var(--ink3);">Seed 1–20, 20 самосвалов, 12-часовые смены, реальная геометрия Актогая (три выработки, три отвала, дороги по снимку), смена в октябре по реальному климату Актогая. Система добыла не меньше во всех 20 сменах.</p>
     </div>
@@ -371,7 +427,7 @@
       </div>
     </div>
   </div>
-  <div class="foot"><span>team/aktogay/app/BENCHMARK.md · npm run bench</span><span>12 / 14</span></div>
+  <div class="foot"><span>team/aktogay/app/BENCHMARK.md · npm run bench</span><span>15 / 17</span></div>
 </section>
 
 <!-- 13. Запуск -->
@@ -392,16 +448,16 @@
     <div class="card">
       <h3>Проверено</h3>
       <ul>
-        <li>Чистая копия ветки <code>main</code> в Ubuntu 24.04 (WSL2 + Docker): <span class="good">106 двойников</span>, время смены растёт, данные в InfluxDB, интерфейс и Grafana открываются</li>
+        <li>Чистая копия ветки <code>main</code> в Ubuntu 24.04 (WSL2 + Docker): двойники создаются, время смены растёт, данные в InfluxDB, интерфейс и Grafana открываются. Сейчас на стенде <span class="good">150 двойников</span></li>
         <li>Сценарий через Ditto: поломка → <code>broken</code>, отмена → снова в работе</li>
         <li>Headless Chrome <b>без видеокарты</b> (SwiftShader): «Графика: Авто» → лёгкий режим, ошибок нет</li>
-        <li>30 автотестов движка, в т.ч. детерминизм по seed</li>
+        <li>91 автотест: детерминизм по seed, балансы руды, меди, воды и топлива, планировка зданий и дорог, словари переводов</li>
         <li>Без WebGL открывается 2D-схема; иконки — из стандартных Linux-шрифтов</li>
       </ul>
       <p style="margin-top:18px; color:var(--ink3); font-size:20px;">Не замерено отдельно: сборка без кэша Docker на 8 vCPU (ожидаем с запасом в лимит 75 мин).</p>
     </div>
   </div>
-  <div class="foot"><span>README.md · SUBMISSION.md</span><span>13 / 14</span></div>
+  <div class="foot"><span>README.md · SUBMISSION.md</span><span>16 / 17</span></div>
 </section>
 
 <!-- 14. Данные и развитие -->
@@ -422,8 +478,8 @@
       <h3>Ограничения</h3>
       <ul>
         <li>Сегмент парка: 5 экскаваторов, 5–30 самосвалов</li>
-        <li>Геометрия карьера сгенерирована, это не топосъёмка</li>
-        <li>Фабрика и выщелачивание — упрощённо</li>
+        <li>Геометрия карьера сгенерирована по снимку и контуру OSM, это не топосъёмка</li>
+        <li>Вторая цепочка — с условным подвозом руды; хвосты ОФ-2 в хвостохранилище не считаются</li>
         <li>3D-панель Grafana открывает localhost:8095 — браузер на той же машине</li>
       </ul>
     </div>
@@ -432,12 +488,12 @@
       <ul>
         <li>Реальная телеметрия: тот же MQTT-контракт, симулятор заменяется шлюзом FMS</li>
         <li>Калибровка ставок и скоростей по данным предприятия</li>
-        <li>Энергия и вентиляция / пыль как новые модули на тех же двойниках</li>
+        <li>Настоящая развозка руды на ККД-2 и погода в реальном времени из метеосервиса</li>
         <li>Плановый ремонт по прогнозу — в график ТОиР</li>
       </ul>
     </div>
   </div>
-  <div class="foot"><span>Модель построена по открытым данным, операционные данные смоделированы. Проект не связан с KAZ Minerals.</span><span>14 / 14</span></div>
+  <div class="foot"><span>Модель построена по открытым данным, операционные данные смоделированы. Проект не связан с KAZ Minerals.</span><span>17 / 17</span></div>
 </section>
 
 </body>

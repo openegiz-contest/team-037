@@ -18,6 +18,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       value,
       arg,
     );
+  const click = (re) =>
+    p.evaluate((s) => {
+      const x = [...document.querySelectorAll('button')].find((e) => new RegExp(s).test(e.textContent || ''));
+      if (x) x.click();
+      return !!x;
+    }, re);
   const shot = async (hash, file, wait) => {
     await p.evaluate((h) => (window.location.hash = h), hash);
     await sleep(wait);
@@ -25,10 +31,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     console.log('saved', file);
   };
 
-  await p.goto(`${BASE}?quality=high#/`, { waitUntil: 'domcontentloaded' });
+  await p.goto(`${BASE}?quality=high&lang=ru#/`, { waitUntil: 'domcontentloaded' });
   await sleep(15000);
   await p.screenshot({ path: '/out/shot-mine.png' });
   console.log('saved shot-mine.png');
+
+  // Карта всего комбината (схема) и «что внутри» фабрики в 3D.
+  await shot('#/map', 'shot-map.png', 9000);
+  await p.evaluate(() => (window.location.hash = '#/twins/' + encodeURIComponent('org.aktogay.smart:plant')));
+  await sleep(6000);
+  await click('Что внутри');
+  await sleep(9000);
+  await p.screenshot({ path: '/out/shot-inside.png' });
+  console.log('saved shot-inside.png');
 
   console.log('breakdown', await send('breakdown', 0));
   await sleep(45000);
@@ -36,6 +51,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await shot('#/scenarios', 'shot-scenarios.png', 4000);
   await shot('#/twins/org.aktogay.smart%3Atruck-105', 'shot-twins.png', 8000);
   console.log('cancel_all', await send('cancel_all'));
+
+  // Тот же интерфейс по-казахски — для слайда о языках.
+  await p.goto(`${BASE}?quality=high&lang=kk#/twins/${encodeURIComponent('org.aktogay.smart:camp')}`, { waitUntil: 'domcontentloaded' });
+  await sleep(9000);
+  await click('Ішінде');
+  await sleep(5000);
+  await p.screenshot({ path: '/out/shot-kk.png' });
+  console.log('saved shot-kk.png');
   await b.close();
 })().catch((e) => {
   console.error(e);
