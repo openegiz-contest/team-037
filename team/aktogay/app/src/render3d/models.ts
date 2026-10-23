@@ -948,3 +948,104 @@ export function makeRepairShop(): { root: THREE.Group; bays: THREE.MeshStandardM
   }
   return { root, bays, tyres };
 }
+
+/** Резервуары технической воды: водоём (уровень меняет сцена), два резервуара, насосная с лампой. */
+export function makeWaterTanks(): { root: THREE.Group; water: THREE.Mesh; lamp: THREE.Mesh } {
+  const root = new THREE.Group();
+  root.add(box(190, 1.4, 160, MAT.concreteDark, 0, 0.7, 0));
+  // Водоём в обваловании.
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(66, 70, 6, 40, 1, true), std('#8f8a7c', { roughness: 0.95, side: THREE.DoubleSide }));
+  rim.position.set(-30, 3, 0);
+  root.add(rim);
+  const water = new THREE.Mesh(new THREE.CylinderGeometry(64, 64, 1, 40), new THREE.MeshStandardMaterial({ color: '#2f6f8f', roughness: 0.15, metalness: 0.3 }));
+  water.position.set(-30, 1.5, 0);
+  root.add(water);
+  for (const z of [-34, 34]) {
+    const t = cyl(15, 15, 16, std('#c9d3db', { roughness: 0.4, metalness: 0.4 }), 28);
+    t.position.set(62, 9, z);
+    root.add(t);
+    const cap = cyl(1, 15.4, 3, std('#8a9099', { roughness: 0.5, metalness: 0.5 }), 28);
+    cap.position.set(62, 18.5, z);
+    root.add(cap);
+  }
+  const ph = shed(22, 9, 14);
+  ph.position.set(62, 1.4, 0);
+  root.add(ph);
+  root.add(box(60, 1.6, 1.6, MAT.steel, 22, 3, 0));
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(1.6, 10, 8), new THREE.MeshStandardMaterial({ color: '#22c55e', emissive: '#22c55e', emissiveIntensity: 2.2 }));
+  lamp.position.set(74, 14, 7);
+  root.add(lamp);
+  return { root, water, lamp };
+}
+
+/**
+ * АБК с горной диспетчерской: трёхэтажный корпус с лентами окон, стеклянный вход, мачта связи на крыше
+ * (лампа тревоги мигает, когда на пульте есть тревоги) и стоянка легковых машин.
+ */
+export function makeAdminBuilding(): { root: THREE.Group; alarm: THREE.Mesh } {
+  const root = new THREE.Group();
+  root.add(box(150, 1.4, 90, MAT.concreteDark, 0, 0.7, 0));
+  const wall = std('#d8d4ca', { roughness: 0.75 });
+  root.add(box(96, 15, 30, wall, -10, 8.9, -14));
+  root.add(box(98, 1.2, 32, std('#46586a', { roughness: 0.7 }), -10, 17, -14));
+  for (let fl = 0; fl < 3; fl++) {
+    root.add(box(88, 2.2, 0.4, MAT.window, -10, 4.4 + fl * 4.6, 1.3));
+    root.add(box(88, 2.2, 0.4, MAT.window, -10, 4.4 + fl * 4.6, -29.3));
+  }
+  // Диспетчерская: остеклённый верхний этаж на торце.
+  root.add(box(26, 5, 24, std('#1c3a52', { metalness: 0.6, roughness: 0.2, emissive: '#0d2233', emissiveIntensity: 0.6 }), 30, 20, -14));
+  root.add(box(10, 6, 2, MAT.glass, -10, 4.4, 1.6));
+  root.add(box(1, 22, 1, MAT.steel, -40, 28, -20));
+  const alarm = new THREE.Mesh(new THREE.SphereGeometry(1.4, 10, 8), new THREE.MeshStandardMaterial({ color: '#22c55e', emissive: '#22c55e', emissiveIntensity: 2.2 }));
+  alarm.position.set(-40, 39.5, -20);
+  root.add(alarm);
+  // Стоянка легковых машин.
+  const colors = ['#e5e7eb', '#9ca3af', '#1f2937', '#b91c1c', '#e5e7eb', '#374151'];
+  colors.forEach((c, i) => {
+    root.add(box(4.6, 1.8, 2.2, std(c, { roughness: 0.4, metalness: 0.4 }), -50 + i * 8, 1.6, 26));
+  });
+  return { root, alarm };
+}
+
+/** Химическая лаборатория: корпус с вытяжными трубами на крыше и рампой приёмки проб. */
+export function makeLab(): THREE.Group {
+  const root = new THREE.Group();
+  root.add(box(84, 1.4, 54, MAT.concreteDark, 0, 0.7, 0));
+  const hall = shed(52, 10, 24);
+  hall.position.set(-6, 1.4, -6);
+  root.add(hall);
+  for (const x of [-22, -10, 2, 14]) {
+    const s = cyl(1.1, 1.3, 7, MAT.steel, 10);
+    s.position.set(x, 16.5, -10);
+    root.add(s);
+  }
+  root.add(box(14, 2, 8, MAT.concrete, 26, 1.4, 4));
+  root.add(box(6, 2.6, 3, std('#e8b92f', { roughness: 0.55 }), 26, 3.6, 4));
+  return root;
+}
+
+/** Склад ВМ: ограждённая площадка, три хранилища в земляном обваловании, вышка охраны и КПП склада. */
+export function makeMagazine(): THREE.Group {
+  const root = new THREE.Group();
+  root.add(box(210, 1, 150, std('#8f866f', { roughness: 1 }), 0, 0.5, 0));
+  const fence = std('#8d949b', { roughness: 0.7, metalness: 0.4 });
+  root.add(box(212, 5, 0.6, fence, 0, 3.5, 75));
+  root.add(box(212, 5, 0.6, fence, 0, 3.5, -75));
+  root.add(box(0.6, 5, 150, fence, 106, 3.5, 0));
+  root.add(box(0.6, 5, 150, fence, -106, 3.5, 0));
+  const berm = std('#9c8a62', { roughness: 1 });
+  for (const x of [-60, 0, 60]) {
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(14, 14, 34, 18, 1, false, 0, Math.PI), berm);
+    b.rotation.z = Math.PI / 2;
+    b.rotation.y = Math.PI / 2;
+    b.position.set(x, 1, -20);
+    b.castShadow = true;
+    root.add(b);
+    root.add(box(8, 6, 1, MAT.darker, x, 4, -2.5));
+  }
+  // Вышка охраны и будка на въезде.
+  for (const dx of [-2.5, 2.5]) for (const dz of [-2.5, 2.5]) root.add(box(0.5, 16, 0.5, MAT.steel, 88 + dx, 8.5, 58 + dz));
+  root.add(box(7, 4, 7, std('#cfc7b8', { roughness: 0.7 }), 88, 18, 58));
+  root.add(box(8, 4, 6, std('#cfc7b8', { roughness: 0.7 }), -92, 3, 66));
+  return root;
+}

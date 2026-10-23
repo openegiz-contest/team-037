@@ -18,6 +18,7 @@ import { FREEBOARD_MIN_M, TailingsDam } from './tailings';
 import { Camp } from './camp';
 import { Checkpoint } from './checkpoint';
 import { FuelDepot, RepairShop } from './depot';
+import { ControlRoom, ExplosivesMagazine, Laboratory, WaterTanks } from './site';
 
 import { SecondChain } from './chain2';
 import { EnergyMeter } from './energy';
@@ -136,6 +137,11 @@ export class Simulation {
   /** Склад ГСМ (дизель для парка) и ремонтно-механический цех. */
   readonly fuelDepot = new FuelDepot();
   readonly repairShop = new RepairShop();
+  /** Резервуары воды, АБК с диспетчерской, лаборатория, склад ВМ. */
+  readonly water = new WaterTanks();
+  readonly controlRoom = new ControlRoom();
+  readonly lab = new Laboratory();
+  readonly magazine = new ExplosivesMagazine();
   private readonly windWarned = new Set<number>();
   /** Сценарий «отключение энергии»: сколько ещё стоит фабрика, дробилка и электролиз, с. */
   powerCutLeft = 0;
@@ -799,6 +805,10 @@ export class Simulation {
     this.checkpoint.update(this, dt);
     this.fuelDepot.update(this, dt);
     this.repairShop.update(this, dt);
+    this.water.update(this, dt);
+    this.controlRoom.update(this);
+    this.lab.update(this);
+    this.magazine.update(this);
     this.energy.update(this, dt);
     this.buildLaneOccupancy();
     for (const t of this.trucks) this.updateTruck(t, dt);

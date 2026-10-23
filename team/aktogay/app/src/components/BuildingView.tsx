@@ -17,6 +17,8 @@ import { MATERIAL_COLOR, TRUCK_COLOR } from '../ui/theme';
 import { thingIds } from '../platform/twins';
 import { campAt, CAMP_BEDS, CAMP_DORMS, CAMP_RESIDENTS, FUEL_TANK_L, GEN_MW } from '../sim/camp';
 import { cargoPerHour } from '../sim/checkpoint';
+import { CHARGE_PER_HOLE_T, DISPATCHERS, EXPLOSIVES_INITIAL_T, FRESH_PUMP_M3H, WATER_CAP_M3 } from '../sim/site';
+import { activeDeviations } from '../platform/scenarios';
 import { FLEET_SCALE, FUEL_TANKS, FUEL_TANK_M3, MECHANICS, PARTS_INITIAL, SHOP_BAYS, TANKER_M3, TYRES_INITIAL } from '../sim/depot';
 import { SHIFT_START_HOUR } from '../sim/weather';
 import { UNIT_STATE_RU } from '../sim/equipment';
@@ -41,8 +43,12 @@ const TITLE: Record<BuildingKind, string> = {
   kpp: 'КПП и автовесы',
   gsm: 'Склад ГСМ',
   rmc: 'Ремонтно-механический цех',
+  water: 'Резервуары технической воды',
+  abk: 'АБК и горная диспетчерская',
+  lab: 'Химическая лаборатория',
+  magazine: 'Склад взрывчатых материалов',
 };
-const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile', sxew: 'sxew-plant', tsf: 'tailings-dam', conc: 'concentrate-store', crusher2: 'crusher-2', plant2: 'concentrator-2', stockpile2: 'stockpile-2', sub: 'substation', sub2: 'substation', camp: 'camp', kpp: 'checkpoint', gsm: 'fuel-depot', rmc: 'repair-shop' };
+const TWIN_KIND: Record<BuildingKind, string> = { crusher: 'crusher', plant: 'concentrator', garage: 'garage', leach: 'heap-leach', waste: 'waste-dump', stockpile: 'stockpile', sxew: 'sxew-plant', tsf: 'tailings-dam', conc: 'concentrate-store', crusher2: 'crusher-2', plant2: 'concentrator-2', stockpile2: 'stockpile-2', sub: 'substation', sub2: 'substation', camp: 'camp', kpp: 'checkpoint', gsm: 'fuel-depot', rmc: 'repair-shop', water: 'water-tanks', abk: 'control-room', lab: 'laboratory', magazine: 'explosives-magazine' };
 
 // Цвета схемы (тёмный «экран»).
 const C = {
@@ -119,6 +125,10 @@ export function BuildingView({ sim, kind, onClose, onTruck, light = false }: Pro
         {kind === 'kpp' && <KppView sim={sim} />}
         {kind === 'gsm' && <FuelDepotView sim={sim} />}
         {kind === 'rmc' && <RepairShopView sim={sim} />}
+        {kind === 'water' && <WaterView sim={sim} />}
+        {kind === 'abk' && <ControlRoomView sim={sim} />}
+        {kind === 'lab' && <LabView sim={sim} />}
+        {kind === 'magazine' && <MagazineView sim={sim} />}
         {kind === 'sxew' && <SxEw sim={sim} />}
         {kind === 'tsf' && <Tailings sim={sim} />}
         {kind === 'conc' && <ConcStore sim={sim} />}
@@ -1359,6 +1369,126 @@ function RepairShopView({ sim }: { sim: Simulation }) {
       </Stats>
       <div className="mt-2 text-[11.5px] text-ink-3">
         Заявки приходят от гаража: плановый ремонт по прогнозу отказов и поломки на трассе. После каждого ремонта расходуется комплект запчастей, каждый третий раз — шина. Запасы и численность цеха — оценки.
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────── резервуары, АБК, лаборатория, склад ВМ ─────────────────────────────
+
+function Bar({ label, value, max, text, tone }: { label: string; value: number; max: number; text: string; tone: string }) {
+  return (
+    <div className="rounded-lg bg-panel-2 p-3">
+      <div className="mb-1.5 flex justify-between text-[12px]">
+        <span className="font-semibold text-ink-2">{label}</span>
+        <span className="font-mono text-ink">{text}</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-black/30">
+        <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, (value / max) * 100))}%`, background: tone }} />
+      </div>
+    </div>
+  );
+}
+
+/** Резервуары воды: запас, подача насосов водовода, отбор фабрике и посёлку. */
+function WaterView({ sim }: { sim: Simulation }) {
+  const w = sim.water;
+  return (
+    <div>
+      <div className="grid gap-2 md:grid-cols-2">
+        <Bar label="Запас воды в резервуарах" value={w.stockM3} max={WATER_CAP_M3} text={`${Math.round(w.stockM3).toLocaleString('ru-RU')} м³ (${Math.round(w.fillPct)} %)`} tone={w.fillPct < 30 ? C.bad : C.ok} />
+        <Bar label="Подача насосов водовода" value={w.inM3h} max={FRESH_PUMP_M3H} text={w.pumping ? `${Math.round(w.inM3h)} м³/ч` : 'насосы стоят'} tone="#38bdf8" />
+      </div>
+      <Stats>
+        <Stat label="Отбор воды сейчас" value={`${Math.round(w.outM3h)} м³/ч`} />
+        <Stat label="Подано фабрике за смену" value={`${Math.round(w.toPlantM3).toLocaleString('ru-RU')} м³`} />
+        <Stat label="Подано посёлку за смену" value={`${Math.round(w.toCampM3).toLocaleString('ru-RU')} м³`} />
+        <Stat label="Оборотная вода с хвостохранилища" value={`${Math.round(sim.tailings.reclaimM3h)} м³/ч`} />
+      </Stats>
+      <div className="mt-2 text-[11.5px] text-ink-3">
+        Фабрика берёт отсюда добавочную воду — то, что не вернулось с хвостохранилища; посёлок — питьевую и хозяйственную. Насосы водовода включаются по уровню и без энергии стоят. Ёмкость и подача — оценки; место — водоём по OpenStreetMap.
+      </div>
+    </div>
+  );
+}
+
+/** АБК и диспетчерская: что сейчас на пульте у горного диспетчера. */
+function ControlRoomView({ sim }: { sim: Simulation }) {
+  const c = sim.controlRoom;
+  const devs = activeDeviations(sim);
+  const recent = sim.log.slice(-6).reverse();
+  return (
+    <div>
+      <Stats>
+        <Stat label="Тревог на пульте" value={`${c.alarms}`} tone={c.alarms > 0 ? C.warn : undefined} />
+        <Stat label="Тревожных событий за час" value={`${c.alarmsHour}`} />
+        <Stat label="Событий за час" value={`${c.eventsHour}`} />
+        <Stat label="Самосвалов на линии" value={`${c.trucksOnLine} из ${sim.trucks.length}`} />
+        <Stat label="Диспетчеров в смене" value={`${DISPATCHERS}`} />
+        <Stat label="Людей в АБК" value={`${c.staff}`} />
+      </Stats>
+      <div className="mt-3 grid gap-2 md:grid-cols-2">
+        <div className="rounded-lg bg-panel-2 p-3">
+          <div className="mb-1.5 text-[12px] font-semibold text-ink-2">На пульте сейчас</div>
+          {devs.length === 0 ? (
+            <div className="text-[12.5px] text-ink-3">отклонений нет — рудник работает штатно</div>
+          ) : (
+            <ul className="space-y-1 text-[12.5px]">
+              {devs.slice(0, 6).map((d, i) => (
+                <li key={i} className="text-ink">
+                  ⚠ {d.title} <span className="text-ink-3">· {d.detail}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="rounded-lg bg-panel-2 p-3">
+          <div className="mb-1.5 text-[12px] font-semibold text-ink-2">Журнал смены</div>
+          <ul className="space-y-1 text-[12px]">
+            {recent.map((e, i) => (
+              <li key={i} className={e.level === 'alarm' ? 'text-red-300' : e.level === 'warn' ? 'text-amber-200' : 'text-ink-2'}>
+                {e.text}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Лаборатория: пробы шлама скважин и пробы фабрики, очередь анализа, последние результаты. */
+function LabView({ sim }: { sim: Simulation }) {
+  const l = sim.lab;
+  return (
+    <div>
+      <Stats>
+        <Stat label="Проб шлама скважин за смену" value={`${l.holeSamples}`} />
+        <Stat label="Проб фабрики за смену" value={`${l.plantSamples}`} />
+        <Stat label="Проб в работе" value={`${l.inWork}`} tone={l.inWork > 20 ? C.warn : undefined} />
+        <Stat label="Медь в питании (последняя проба)" value={`${l.lastFeedCu.toFixed(3)} %`} />
+        <Stat label="Медь в концентрате (последняя проба)" value={`${l.lastConcCu.toFixed(1)} %`} />
+      </Stats>
+      <div className="mt-2 text-[11.5px] text-ink-3">
+        Шлам каждой пробуренной скважины идёт на XRF — так строится рудный контроль (раздел «Геология»); пробы питания, концентрата и хвостов фабрики берут каждые 2 часа и сверяют с поточными анализаторами. Анализ пробы ~25 мин.
+      </div>
+    </div>
+  );
+}
+
+/** Склад ВМ: запас взрывчатки и выдача на взрывы. */
+function MagazineView({ sim }: { sim: Simulation }) {
+  const m = sim.magazine;
+  return (
+    <div>
+      <Bar label="Взрывчатка на складе" value={m.stockT} max={EXPLOSIVES_INITIAL_T} text={`${Math.round(m.stockT)} т · хватит на ${m.blastsLeft} взрывов`} tone={m.blastsLeft < 3 ? C.bad : C.ok} />
+      <Stats>
+        <Stat label="Выдано на взрывы за смену" value={`${m.issuedT.toFixed(1)} т`} />
+        <Stat label="Взрывов за смену" value={`${m.blasts}`} />
+        <Stat label="Заряд на скважину" value={`${CHARGE_PER_HOLE_T} т`} />
+      </Stats>
+      <div className="mt-2 text-[11.5px] text-ink-3">
+        На каждый взрыв со склада выдаётся взрывчатка по числу заряженных скважин блока. Место склада и запас — условные: на карте склад не отмечен, поэтому он вынесен за отвалы, а дорога к нему проведена условно.
       </div>
     </div>
   );

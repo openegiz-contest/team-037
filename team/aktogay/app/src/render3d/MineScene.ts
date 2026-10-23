@@ -14,6 +14,7 @@ import { BLOCK_PAD } from '../sim/drilling';
 import { CAMP_BEDS } from '../sim/camp';
 import { kppDirection } from '../sim/checkpoint';
 import { FUEL_TANKS, FUEL_TANK_M3, TYRES_INITIAL } from '../sim/depot';
+import { WATER_CAP_M3 } from '../sim/site';
 import { TRAIN_WAGONS } from '../sim/concentrate';
 import { SHIFT_START_HOUR } from '../sim/weather';
 import { daylight } from './daylight';
@@ -34,6 +35,10 @@ import {
   makeCamp,
   makeCheckpoint,
   makeFuelDepot,
+  makeWaterTanks,
+  makeAdminBuilding,
+  makeLab,
+  makeMagazine,
   makeRepairShop,
   makeSubstation,
   PYLON_ARM,
@@ -96,7 +101,7 @@ export type FocusTarget = { kind: 'truck' | 'excavator' | 'drill'; id: number } 
 
 export type LabelMode = 'all' | 'hover';
 
-export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew' | 'tsf' | 'conc' | 'crusher2' | 'plant2' | 'stockpile2' | 'sub' | 'sub2' | 'camp' | 'kpp' | 'gsm' | 'rmc';
+export type BuildingKind = 'crusher' | 'plant' | 'garage' | 'leach' | 'waste' | 'stockpile' | 'sxew' | 'tsf' | 'conc' | 'crusher2' | 'plant2' | 'stockpile2' | 'sub' | 'sub2' | 'camp' | 'kpp' | 'gsm' | 'rmc' | 'water' | 'abk' | 'lab' | 'magazine';
 
 const BG = '#0a1526';
 /** Оттенки погодной дымки: снежная и пыльная. */
@@ -237,6 +242,10 @@ export class MineScene {
       pads.push({ x: S.crusher2.x, y: S.crusher2.y, ...dir(S.crusher2, S.stockpile2), halfAlong: 150, halfAcross: 120 });
       pads.push({ x: S.stockpile2.x, y: S.stockpile2.y, ux: 1, uy: 0, halfAlong: 105, halfAcross: 105 });
       pads.push({ x: S.camp.x, y: S.camp.y, ux: 1, uy: 0, halfAlong: 200, halfAcross: 130 });
+      pads.push({ x: S.water.x, y: S.water.y, ux: 1, uy: 0, halfAlong: 100, halfAcross: 85 });
+      pads.push({ x: S.abk.x, y: S.abk.y, ux: 1, uy: 0, halfAlong: 80, halfAcross: 50 });
+      pads.push({ x: S.lab.x, y: S.lab.y, ux: 1, uy: 0, halfAlong: 45, halfAcross: 30 });
+      pads.push({ x: S.magazine.x, y: S.magazine.y, ux: 1, uy: 0, halfAlong: 110, halfAcross: 80 });
       pads.push({ x: S.rmc.x, y: S.rmc.y, ux: RMC_DIR.ux, uy: RMC_DIR.uy, halfAlong: 100, halfAcross: 70 });
       pads.push({ x: S.gsm.x, y: S.gsm.y, ux: RMC_DIR.ux, uy: RMC_DIR.uy, halfAlong: 70, halfAcross: 50 });
       pads.push({ x: S.kpp.x, y: S.kpp.y, ux: KPP_DIR.ux, uy: KPP_DIR.uy, halfAlong: 160, halfAcross: 50 });
@@ -466,6 +475,23 @@ export class MineScene {
     this.buildings.push(gsmModel.root);
     this.gsm3d = gsmModel;
 
+    // Резервуары воды, АБК с диспетчерской, лаборатория и склад ВМ.
+    const placeSite = (root: THREE.Object3D, at: { x: number; y: number }, key: BuildingKind) => {
+      root.position.set(at.x, this.heightAt(at.x, at.y) - 0.6, at.y);
+      this.scene.add(root);
+      root.userData = { building: key };
+      this.buildings.push(root);
+    };
+    const waterModel = makeWaterTanks();
+    placeSite(waterModel.root, S2.water, 'water');
+    const abkModel = makeAdminBuilding();
+    placeSite(abkModel.root, S2.abk, 'abk');
+    const labRoot = makeLab();
+    placeSite(labRoot, S2.lab, 'lab');
+    const magRoot = makeMagazine();
+    placeSite(magRoot, S2.magazine, 'magazine');
+    this.site3d = { water: waterModel, abk: abkModel };
+
     // Оксидная ветка после площадки выщелачивания: пруды растворов и завод SX-EW.
     // К ним ничего не ездит — раствор идёт по трубам, поэтому в графе дорог их нет.
     const faceLeach = (p: { x: number; y: number }) => -Math.atan2(cfg.sites.leach.y - p.y, cfg.sites.leach.x - p.x);
@@ -531,6 +557,10 @@ export class MineScene {
       { x: S2.camp.x, y: S2.camp.y, r: 260 },
       { x: S2.kpp.x, y: S2.kpp.y, r: 200 },
       { x: S2.rmc.x, y: S2.rmc.y, r: 170 },
+      { x: S2.water.x, y: S2.water.y, r: 150 },
+      { x: S2.abk.x, y: S2.abk.y, r: 110 },
+      { x: S2.lab.x, y: S2.lab.y, r: 70 },
+      { x: S2.magazine.x, y: S2.magazine.y, r: 160 },
       { x: S2.gsm.x, y: S2.gsm.y, r: 120 },
       { x: leach.position.x, y: leach.position.z, r: 320 },
       { x: cfg.sites.ponds.x, y: cfg.sites.ponds.y, r: 330 },
@@ -784,6 +814,22 @@ export class MineScene {
       const mode = k.mode === 'manual' ? '<span class="bad">РУЧНОЕ ВЗВЕШИВАНИЕ</span> · 1 полоса' : '<span class="ok">автовесы</span> · 2 полосы';
       return `<b>КПП И АВТОВЕСЫ</b><br>${mode}<br>Очередь: <span class="${k.queue > 8 ? 'bad' : 'v'}">${Math.round(k.queue)}</span> · ожидание <span class="v">${k.waitMin.toFixed(1)} мин</span><br>Принято грузовиков: <span class="v">${fmtInt(k.cargoVehicles)}</span>`;
     }, kppModel.root);
+    panel(new THREE.Vector3(waterModel.root.position.x, waterModel.root.position.y + 45, waterModel.root.position.z), () => {
+      const w = sim.water;
+      return `<b>РЕЗЕРВУАРЫ ВОДЫ</b><br>Запас: <span class="${w.fillPct < 30 ? 'bad' : 'v'}">${fmtInt(w.stockM3)} м³ (${Math.round(w.fillPct)}%)</span><br>Отбор: <span class="v">${fmtInt(w.outM3h)} м³/ч</span>${w.pumping ? ' · <span class="ok">насосы работают</span>' : ''}`;
+    }, waterModel.root);
+    panel(new THREE.Vector3(abkModel.root.position.x, abkModel.root.position.y + 55, abkModel.root.position.z), () => {
+      const c = sim.controlRoom;
+      return `<b>АБК И ДИСПЕТЧЕРСКАЯ</b><br>Тревог на пульте: <span class="${c.alarms ? 'bad' : 'v'}">${c.alarms}</span><br>Самосвалов на линии: <span class="v">${c.trucksOnLine}</span>`;
+    }, abkModel.root);
+    panel(new THREE.Vector3(labRoot.position.x, labRoot.position.y + 35, labRoot.position.z), () => {
+      const l = sim.lab;
+      return `<b>ЛАБОРАТОРИЯ</b><br>Проб за смену: <span class="v">${l.total}</span><br>В работе: <span class="v">${l.inWork}</span>`;
+    }, labRoot);
+    panel(new THREE.Vector3(magRoot.position.x, magRoot.position.y + 40, magRoot.position.z), () => {
+      const m = sim.magazine;
+      return `<b>СКЛАД ВМ</b><br>Взрывчатка: <span class="${m.blastsLeft < 3 ? 'bad' : 'v'}">${fmtInt(m.stockT)} т</span><br>Хватит на <span class="v">${m.blastsLeft} взрывов</span>`;
+    }, magRoot);
     panel(new THREE.Vector3(rmcModel.root.position.x, rmcModel.root.position.y + 55, rmcModel.root.position.z), () => {
       const r = sim.repairShop;
       return `<b>РЕМОНТНО-МЕХАНИЧЕСКИЙ ЦЕХ</b><br>Заявок: <span class="${r.broken ? 'warn' : 'v'}">${r.open}</span> · боксов занято <span class="v">${r.baysBusy}/4</span><br>Механиков: <span class="v">${r.mechanicsBusy}</span> · шин на складе <span class="${r.tyres < 4 ? 'bad' : 'v'}">${r.tyres}</span>`;
@@ -986,6 +1032,19 @@ export class MineScene {
       const col = level < 0.3 ? (blink ? '#ef4444' : '#3b1010') : d.refilling ? '#f59e0b' : '#22c55e';
       m.color.set(col);
       m.emissive.set(col);
+    }
+    const st = this.site3d;
+    if (st) {
+      const level = Math.min(1, sim.water.stockM3 / WATER_CAP_M3);
+      st.water.water.position.y = 1 + level * 4.5;
+      const lm = st.water.lamp.material as THREE.MeshStandardMaterial;
+      const lc = sim.water.fillPct < 30 ? '#ef4444' : sim.water.pumping ? '#38bdf8' : '#22c55e';
+      lm.color.set(lc);
+      lm.emissive.set(lc);
+      const am = st.abk.alarm.material as THREE.MeshStandardMaterial;
+      const ac = sim.controlRoom.alarms > 0 ? (blink ? '#ef4444' : '#3b1010') : '#22c55e';
+      am.color.set(ac);
+      am.emissive.set(ac);
     }
     const r = this.rmc3d;
     if (r) {
@@ -1354,6 +1413,7 @@ export class MineScene {
   private kpp3d: ReturnType<typeof makeCheckpoint> | null = null;
   private rmc3d: ReturnType<typeof makeRepairShop> | null = null;
   private gsm3d: ReturnType<typeof makeFuelDepot> | null = null;
+  private site3d: { water: ReturnType<typeof makeWaterTanks>; abk: ReturnType<typeof makeAdminBuilding> } | null = null;
   /** Точки входа и выхода конвейеров второй цепочки. */
   private chain2!: { crusherTop: THREE.Vector3; pileTop: THREE.Vector3; pileGround: number; plantIn: THREE.Vector3 };
   private concRoot!: THREE.Object3D;

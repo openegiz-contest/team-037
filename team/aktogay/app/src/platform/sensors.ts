@@ -853,6 +853,28 @@ export const REPAIR_SHOP_SENSORS: SensorSpec[] = [
   },
 ];
 
+export const WATER_SENSORS: SensorSpec[] = [
+  { id: 'level', name: 'Уровнемеры резервуаров', hardware: 'гидростатические уровнемеры в резервуарах и водоёме', location: 'резервуары технической воды', measures: 'запас воды, м³, заполнение', features: ['stock', 'fill'], periodS: 60, purpose: 'хватит ли воды фабрике и посёлку' },
+  { id: 'flow', name: 'Расходомеры подачи и отбора', hardware: 'электромагнитные расходомеры на водоводе и на линиях к фабрике и посёлку', location: 'насосная резервуаров', measures: 'подача насосов, отбор, м³/ч', features: ['in_m3h', 'out_m3h', 'to_plant', 'to_camp'], periodS: 30, purpose: 'водный баланс: сколько добавочной воды берёт фабрика' },
+  { id: 'pumps', name: 'Контроллер насосов водовода', hardware: 'частотные преобразователи и контроллер включения по уровню', location: 'насосная резервуаров', measures: 'насосы работают или стоят', features: ['pumping'], periodS: 10, purpose: 'автоматическая подкачка по уровню, остановка без энергии' },
+];
+
+export const CONTROL_ROOM_SENSORS: SensorSpec[] = [
+  { id: 'scada', name: 'Пульт горного диспетчера', hardware: 'система диспетчеризации: карта рудника, тревоги, связь с кабинами', location: 'диспетчерская в АБК', measures: 'открытые тревоги, тревожные события и все события за час', features: ['alarms', 'alarms_hour', 'events_hour'], periodS: 10, purpose: 'что сейчас мешает работе и как быстро реагирует смена' },
+  { id: 'fleet', name: 'Учёт техники на линии', hardware: 'данные бортовых терминалов самосвалов', location: 'диспетчерская в АБК', measures: 'самосвалов на линии', features: ['trucks_on_line'], periodS: 30, purpose: 'сколько машин реально работает' },
+  { id: 'access', name: 'СКУД административного корпуса', hardware: 'турникеты и карты доступа', location: 'вход в АБК', measures: 'людей в здании', features: ['staff'], periodS: 60, purpose: 'наличие людей на случай эвакуации' },
+];
+
+export const LAB_SENSORS: SensorSpec[] = [
+  { id: 'lims', name: 'Лабораторная информационная система (LIMS)', hardware: 'регистрация проб по штрихкодам, очередь анализа', location: 'приёмка проб лаборатории', measures: 'проб шлама скважин и проб фабрики за смену, проб в работе', features: ['hole_samples', 'plant_samples', 'in_work'], periodS: 60, purpose: 'сколько проб пришло и когда будет результат' },
+  { id: 'xrf', name: 'Рентгенофлуоресцентный спектрометр', hardware: 'стационарный XRF-спектрометр и пробоподготовка', location: 'аналитический зал', measures: 'медь в питании и концентрате, %', features: ['last_feed_cu', 'last_conc_cu'], periodS: 0, purpose: 'сверка поточных анализаторов фабрики и данных для блочной модели' },
+];
+
+export const MAGAZINE_SENSORS: SensorSpec[] = [
+  { id: 'stock', name: 'Учёт выдачи взрывчатых материалов', hardware: 'весы и журнал выдачи с RFID-метками партий', location: 'хранилища склада ВМ', measures: 'запас и выдача взрывчатки, т, число взрывов', features: ['stock', 'issued', 'blasts', 'blasts_left'], periodS: 300, purpose: 'хватит ли взрывчатки на график взрывов и учёт по партиям' },
+  { id: 'security', name: 'Охранная сигнализация и видеонаблюдение', hardware: 'периметральная сигнализация, тепловизионные камеры, вышка охраны', location: 'ограждение склада ВМ', measures: 'состояние охраны периметра', features: ['state'], periodS: 10, purpose: 'охрана опасного объекта' },
+];
+
 export const GEOLOGY_SENSORS: SensorSpec[] = [
   {
     id: 'core',
@@ -922,6 +944,10 @@ export const SENSORS_BY_KIND: Record<string, SensorSpec[]> = {
   checkpoint: CHECKPOINT_SENSORS,
   'fuel-depot': FUEL_DEPOT_SENSORS,
   'repair-shop': REPAIR_SHOP_SENSORS,
+  'water-tanks': WATER_SENSORS,
+  'control-room': CONTROL_ROOM_SENSORS,
+  laboratory: LAB_SENSORS,
+  'explosives-magazine': MAGAZINE_SENSORS,
 };
 
 /** Компактная запись для attributes.sensors двойника в Ditto. */
@@ -942,6 +968,10 @@ export const sxewSensorAttributes = () => sensorAttributes(SXEW_SENSORS);
 export const tailingsSensorAttributes = () => sensorAttributes(TAILINGS_SENSORS);
 export const weatherSensorAttributes = () => sensorAttributes(WEATHER_SENSORS);
 export const energySensorAttributes = () => sensorAttributes(ENERGY_SENSORS);
+export const waterSensorAttributes = () => sensorAttributes(WATER_SENSORS);
+export const controlRoomSensorAttributes = () => sensorAttributes(CONTROL_ROOM_SENSORS);
+export const labSensorAttributes = () => sensorAttributes(LAB_SENSORS);
+export const magazineSensorAttributes = () => sensorAttributes(MAGAZINE_SENSORS);
 export const fuelDepotSensorAttributes = () => sensorAttributes(FUEL_DEPOT_SENSORS);
 export const repairShopSensorAttributes = () => sensorAttributes(REPAIR_SHOP_SENSORS);
 export const checkpointSensorAttributes = () => sensorAttributes(CHECKPOINT_SENSORS);

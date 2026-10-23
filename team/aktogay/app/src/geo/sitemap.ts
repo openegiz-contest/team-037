@@ -90,12 +90,12 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
   const conc = S.conc; // склад концентрата у ж/д путей между фабриками
   const sub = S.sub; // подстанция фабрики №1 (OSM: power=substation)
   const sub2 = S.sub2; // подстанция фабрики №2 (OSM)
-  const water = { x: 1345, y: 3025 }; // резервуар (OSM: water=reservoir)
-  const magazine = { x: -900, y: -2600 }; // условно: вынесен за отвалы, к северу
+  const water = S.water; // резервуар (OSM: водоём)
+  const magazine = S.magazine; // условно: вынесен за отвалы, к северу
   const g = S.garage;
   const rmc = S.rmc; // промплощадка (OSM: building=industrial)
-  const abk = { x: 960, y: 1450 }; // промплощадка у дороги от карьера к фабрикам (OSM)
-  const lab = { x: 580, y: 1325 }; // промплощадка (OSM)
+  const abk = S.abk; // промплощадка у карьера (OSM)
+  const lab = S.lab; // промплощадка у карьера (OSM)
   const gsm = S.gsm; // промплощадка у проезда (OSM)
   const camp = S.camp; // жилой посёлок (OSM: landuse=residential)
   const kpp = S.kpp; // КПП — на главной дороге с юго-запада (OSM)
@@ -411,7 +411,14 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       layer: 'infra',
       shape: { kind: 'rect', x: abk.x, y: abk.y, w: 200, h: 120, rot: 0 },
       fill: '#1d4ed8',
-      live: false,
+      live: true,
+      metrics: (s) => [
+        ['Тревог на пульте', String(s.controlRoom.alarms)],
+        ['Событий за час', String(s.controlRoom.eventsHour)],
+        ['Людей в АБК', String(s.controlRoom.staff)],
+      ],
+      building: 'abk',
+      twin: 'abk',
       about: 'Управление рудником, горная диспетчерская (система диспетчеризации, пульт смены), медпункт для предсменного осмотра.',
       facts: ['на реальном Актогае — диспетчерская система Hexagon (открытые источники)', 'около 3500 сотрудников, более 500 человек в смену (открытые источники)'],
       label: 'АБК и диспетчерская',
@@ -422,7 +429,13 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       layer: 'infra',
       shape: { kind: 'rect', x: lab.x, y: lab.y, w: 140, h: 90, rot: 0 },
       fill: '#2563eb',
-      live: false,
+      live: true,
+      metrics: (s) => [
+        ['Проб за смену', String(s.lab.total)],
+        ['В работе', String(s.lab.inWork)],
+      ],
+      building: 'lab',
+      twin: 'lab',
       about: 'Пробоподготовка и анализ проб: керн разведочных скважин, шлам взрывных скважин, руда и концентрат.',
       facts: ['источник данных для блочной модели и рудного контроля (раздел «Геология»)'],
       label: 'Лаборатория',
@@ -452,7 +465,13 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       layer: 'infra',
       shape: { kind: 'rect', x: magazine.x, y: magazine.y, w: 140, h: 90, rot: 0 },
       fill: '#7f1d1d',
-      live: false,
+      live: true,
+      metrics: (s) => [
+        ['Взрывчатки на складе', `${Math.round(s.magazine.stockT)} т`],
+        ['Хватит на', `${s.magazine.blastsLeft} взрывов`],
+      ],
+      building: 'magazine',
+      twin: 'magazine',
       about: 'Хранение ВВ и средств взрывания для буровзрывных работ; вынесен далеко от объектов, вокруг — охранная зона.',
       facts: ['охранная зона и место на схеме — условные'],
       label: 'Склад ВМ',
@@ -538,7 +557,14 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
       layer: 'utility',
       shape: { kind: 'circle', x: water.x, y: water.y, r: 90 },
       fill: '#0369a1',
-      live: false,
+      live: true,
+      metrics: (s) => [
+        ['Запас воды', `${Math.round(s.water.stockM3).toLocaleString('ru-RU')} м³`],
+        ['Отбор', `${Math.round(s.water.outM3h)} м³/ч`],
+        ['Насосы водовода', s.water.pumping ? 'работают' : 'стоят'],
+      ],
+      building: 'water',
+      twin: 'water',
       about: 'Подпитка фабрик свежей водой; основная часть воды — оборотная из хвостохранилища.',
       facts: ['оборотное водоснабжение снижает забор свежей воды'],
       label: 'Вода',
@@ -562,10 +588,6 @@ export function buildSiteMap(sim: Simulation): { objects: SiteObject[]; lines: S
     { id: 'p1', name: 'ЛЭП → ОФ-1, дробилка, SX-EW', layer: 'utility', kind: 'power', pts: S.powerLines[0] },
     { id: 'p2', name: 'ЛЭП → ОФ-2', layer: 'utility', kind: 'power', pts: S.powerLines[1] },
     { id: 'rail', name: 'Железная дорога: станция → фабрики → промзона', layer: 'transport', kind: 'rail', pts: S.rail.map(([x, y]) => [x, y] as [number, number]) },
-    { id: 'r1', name: 'Дорога карьер → фабрики → гараж', layer: 'transport', kind: 'road', pts: [[cr.x, cr.y], [abk.x, abk.y], [sub.x, sub.y], [g.x, g.y]] },
-    { id: 'r2', name: 'Дорога к ОФ-2 и складу концентрата', layer: 'transport', kind: 'road', pts: [[g.x, g.y], [conc.x, conc.y], [pl2.x, pl2.y]] },
-    { id: 'r3', name: 'Дорога к складу ВМ (условно)', layer: 'transport', kind: 'road', pts: [[S.waste.x + 300, S.waste.y - 500], [magazine.x, magazine.y]] },
-    { id: 'r4', name: 'Дорога к заводу SX-EW', layer: 'transport', kind: 'road', pts: [[S.leach.x, S.leach.y], [sx.x, sx.y], [abk.x, abk.y]] },
   ];
   return { objects, lines };
 }

@@ -20,6 +20,7 @@ import { costBreakdown, GROUP_RU, type CostGroup } from '../sim/cost';
 import { BLAST_WIND_MS, LEACH_FROST_C, MONTH_RU, SEASON_RU, SKY, type Sky } from '../sim/weather';
 import { CAPACITY_MT, CREST_ABOVE_BEACH_M, CREST_FINAL_M, FREEBOARD_MIN_M, POND_AREA_M2, RECYCLE_PCT, SOLIDS_PCT } from '../sim/tailings';
 import { CELL_CAP_T, EW_CELLS, IRRIGATION_GROUPS, IRRIGATION_WINDOW_H, LEACH_DAYS, OXIDE_GRADE_PCT, REC_MAX, SX_EFFICIENCY, type CellStage } from '../sim/leach';
+import { CHARGE_PER_HOLE_T, DISPATCHERS, FRESH_PUMP_M3H, WATER_CAP_M3 } from '../sim/site';
 import { FLEET_SCALE, FUEL_TANKS, FUEL_TANK_M3, MECHANICS, SHOP_BAYS, TANKER_M3 } from '../sim/depot';
 import { KPP_LANES, WEIGH_AUTO_SEC, WEIGH_MANUAL_SEC } from '../sim/checkpoint';
 import { CAMP_BEDS, CAMP_DORMS, CAMP_RESIDENTS, FUEL_TANK_L, GEN_MW } from '../sim/camp';
@@ -27,7 +28,7 @@ import { CONC_GRADE, TRAIN_WAGONS, WAGON_LOAD_SEC, WAGON_T } from '../sim/concen
 import { BENCH_M, BLOCK_M, blockSummary, buildOreModel, CUTOFF, DENSITY, holeAssays, pitResources, type OreModel } from '../geo/orebody';
 import { PIT_DEPTH } from '../geo/relief';
 import { UNIT_DEFS, type UnitState } from '../sim/equipment';
-import { fuelDepotSensorAttributes, repairShopSensorAttributes, checkpointSensorAttributes, campSensorAttributes, substationSensorAttributes, energySensorAttributes, weatherSensorAttributes, tailingsSensorAttributes, sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
+import { waterSensorAttributes, controlRoomSensorAttributes, labSensorAttributes, magazineSensorAttributes, fuelDepotSensorAttributes, repairShopSensorAttributes, checkpointSensorAttributes, campSensorAttributes, substationSensorAttributes, energySensorAttributes, weatherSensorAttributes, tailingsSensorAttributes, sxewSensorAttributes, concentrateSensorAttributes, drillSensorAttributes, geologySensorAttributes, stockpileSensorAttributes, crusherSensorAttributes, excavatorSensorAttributes, garageSensorAttributes, leachSensorAttributes, plantSensorAttributes, truckSensorAttributes, wasteSensorAttributes } from './sensors';
 
 export const SITE_NS = 'org.aktogay';
 export const SITE_ID = `${SITE_NS}:aktogay`;
@@ -66,6 +67,10 @@ export const thingIds = (v: StrategyName) => {
     kpp: `${ns}:checkpoint`,
     gsm: `${ns}:fuel-depot`,
     rmc: `${ns}:repair-shop`,
+    water: `${ns}:water-tanks`,
+    abk: `${ns}:control-room`,
+    lab: `${ns}:laboratory`,
+    magazine: `${ns}:explosives-magazine`,
     unit2: (key: string) => `${ns}:${key}-2`,
     unit: (key: string) => `${ns}:${key}`,
     drill: (i: number) => `${ns}:drill-${i + 1}`,
@@ -319,6 +324,15 @@ export function thingDefinitions(sim: Simulation, v: StrategyName): Record<strin
     },
     features: serializeRepairShop(sim),
   };
+  const siteTwins: [string, string, string, Record<string, unknown>, unknown, Features][] = [
+    [id.water, 'Резервуары технической воды', 'water-tanks', { capacity_m3: WATER_CAP_M3, pump_m3h: FRESH_PUMP_M3H, note: 'ёмкость и подача — оценки; место — водоём по OpenStreetMap' }, waterSensorAttributes(), serializeWater(sim)],
+    [id.abk, 'АБК и горная диспетчерская', 'control-room', { dispatchers: DISPATCHERS, note: 'численность — оценка; тревоги собираются по всему руднику' }, controlRoomSensorAttributes(), serializeControlRoom(sim)],
+    [id.lab, 'Химическая лаборатория', 'laboratory', { note: 'пробы шлама взрывных скважин и пробы фабрики каждые 2 ч' }, labSensorAttributes(), serializeLab(sim)],
+    [id.magazine, 'Склад взрывчатых материалов', 'explosives-magazine', { charge_per_hole_t: CHARGE_PER_HOLE_T, note: 'место и запас — условные; расход по числу заряженных скважин' }, magazineSensorAttributes(), serializeMagazine(sim)],
+  ];
+  for (const [tid, name, kind, extra, sensors, features] of siteTwins) {
+    out[tid] = { policyId: POLICY, attributes: { name, kind, _isType: false, _parents: parent, ...extra, sensors }, features };
+  }
   out[id.cost] = {
     policyId: POLICY,
     attributes: {
@@ -870,6 +884,59 @@ export function serializeConcentrate(sim: Simulation): Features {
   };
 }
 
+/** Признаки резервуаров технической воды. */
+export function serializeWater(sim: Simulation): Features {
+  const w = sim.water;
+  return {
+    state: f(w.fillPct < 30 ? 'low' : w.pumping ? 'filling' : 'ok'),
+    stock: f(Math.round(w.stockM3), 'm3'),
+    fill: f(r1(w.fillPct), '%'),
+    in_m3h: f(Math.round(w.inM3h), 'm3/h'),
+    out_m3h: f(Math.round(w.outM3h), 'm3/h'),
+    to_plant: f(Math.round(w.toPlantM3), 'm3'),
+    to_camp: f(Math.round(w.toCampM3), 'm3'),
+    pumping: f(w.pumping ? 1 : 0),
+  };
+}
+
+/** Признаки АБК и диспетчерской. */
+export function serializeControlRoom(sim: Simulation): Features {
+  const c = sim.controlRoom;
+  return {
+    state: f(c.alarms > 0 ? 'alarm' : 'ok'),
+    alarms: f(c.alarms, 'pcs'),
+    alarms_hour: f(c.alarmsHour, 'pcs'),
+    events_hour: f(c.eventsHour, 'pcs'),
+    trucks_on_line: f(c.trucksOnLine, 'pcs'),
+    staff: f(c.staff, 'pcs'),
+  };
+}
+
+/** Признаки лаборатории. */
+export function serializeLab(sim: Simulation): Features {
+  const l = sim.lab;
+  return {
+    state: f(l.inWork > 0 ? 'busy' : 'ok'),
+    hole_samples: f(l.holeSamples, 'pcs'),
+    plant_samples: f(l.plantSamples, 'pcs'),
+    in_work: f(l.inWork, 'pcs'),
+    last_feed_cu: f(r3(l.lastFeedCu), '% Cu'),
+    last_conc_cu: f(r1(l.lastConcCu), '% Cu'),
+  };
+}
+
+/** Признаки склада ВМ. */
+export function serializeMagazine(sim: Simulation): Features {
+  const m = sim.magazine;
+  return {
+    state: f(m.blastsLeft < 3 ? 'low' : 'ok'),
+    stock: f(Math.round(m.stockT), 't'),
+    issued: f(r1(m.issuedT), 't'),
+    blasts: f(m.blasts, 'pcs'),
+    blasts_left: f(m.blastsLeft, 'pcs'),
+  };
+}
+
 /** Признаки склада ГСМ. */
 export function serializeFuelDepot(sim: Simulation): Features {
   const d = sim.fuelDepot;
@@ -1056,6 +1123,10 @@ export function serializeAll(sim: Simulation, v: StrategyName, k: Kpis): Record<
   out[id.camp] = serializeCamp(sim);
   out[id.kpp] = serializeCheckpoint(sim);
   out[id.gsm] = serializeFuelDepot(sim);
+  out[id.water] = serializeWater(sim);
+  out[id.abk] = serializeControlRoom(sim);
+  out[id.lab] = serializeLab(sim);
+  out[id.magazine] = serializeMagazine(sim);
   out[id.rmc] = serializeRepairShop(sim);
   out[id.waste] = serializeWaste(sim);
   out[id.garage] = serializeGarage(sim);
@@ -1222,6 +1293,43 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     g.opStats.jams = num(fs, 'op_jams');
     g.opStats.expectedM = num(fs, 'op_expected_m');
   });
+
+  // Резервуары воды, АБК, лаборатория, склад ВМ.
+  const wf = things.get(id.water);
+  if (wf) {
+    const w = sim.water;
+    w.stockM3 = num(wf, 'stock', w.stockM3);
+    w.inM3h = num(wf, 'in_m3h', w.inM3h);
+    w.outM3h = num(wf, 'out_m3h', w.outM3h);
+    w.toPlantM3 = num(wf, 'to_plant', w.toPlantM3);
+    w.toCampM3 = num(wf, 'to_camp', w.toCampM3);
+    w.pumping = num(wf, 'pumping') === 1;
+  }
+  const af = things.get(id.abk);
+  if (af) {
+    const c = sim.controlRoom;
+    c.alarms = num(af, 'alarms', c.alarms);
+    c.alarmsHour = num(af, 'alarms_hour', c.alarmsHour);
+    c.eventsHour = num(af, 'events_hour', c.eventsHour);
+    c.trucksOnLine = num(af, 'trucks_on_line', c.trucksOnLine);
+    c.staff = num(af, 'staff', c.staff);
+  }
+  const lf = things.get(id.lab);
+  if (lf) {
+    const l = sim.lab;
+    l.holeSamples = num(lf, 'hole_samples', l.holeSamples);
+    l.plantSamples = num(lf, 'plant_samples', l.plantSamples);
+    l.inWork = num(lf, 'in_work', l.inWork);
+    l.lastFeedCu = num(lf, 'last_feed_cu', l.lastFeedCu);
+    l.lastConcCu = num(lf, 'last_conc_cu', l.lastConcCu);
+  }
+  const mf = things.get(id.magazine);
+  if (mf) {
+    const m = sim.magazine;
+    m.stockT = num(mf, 'stock', m.stockT);
+    m.issuedT = num(mf, 'issued', m.issuedT);
+    m.blasts = num(mf, 'blasts', m.blasts);
+  }
 
   // Склад ГСМ и РМЦ.
   const gsf = things.get(id.gsm);

@@ -32,6 +32,10 @@ export const KIND_LABEL: Record<string, string> = {
   checkpoint: 'КПП и автовесы',
   'fuel-depot': 'Склад ГСМ',
   'repair-shop': 'Ремонтно-механический цех',
+  'water-tanks': 'Резервуары воды',
+  'control-room': 'АБК и диспетчерская',
+  laboratory: 'Лаборатория',
+  'explosives-magazine': 'Склад ВМ',
 };
 
 export const FEATURE_LABEL: Record<string, string> = {
@@ -49,6 +53,24 @@ export const FEATURE_LABEL: Record<string, string> = {
   plant2_mw: 'Обогатительная фабрика №2',
   crusher2_mw: 'ККД-2 и конвейеры',
   camp_mw: 'Вахтовый посёлок',
+  // резервуары, АБК, лаборатория, склад ВМ
+  in_m3h: 'Подача насосов водовода',
+  out_m3h: 'Отбор воды',
+  to_plant: 'Подано фабрике за смену',
+  to_camp: 'Подано посёлку за смену',
+  pumping: 'Насосы водовода работают',
+  alarms: 'Тревог на пульте',
+  alarms_hour: 'Тревожных событий за час',
+  events_hour: 'Событий за час',
+  trucks_on_line: 'Самосвалов на линии',
+  staff: 'Людей в здании',
+  hole_samples: 'Проб шлама скважин за смену',
+  plant_samples: 'Проб фабрики за смену',
+  in_work: 'Проб в работе',
+  last_feed_cu: 'Медь в питании (последняя проба)',
+  last_conc_cu: 'Медь в концентрате (последняя проба)',
+  issued: 'Выдано на взрывы за смену',
+  blasts_left: 'Хватит на взрывов',
   // склад ГСМ
   supply_cut: 'Завоз топлива остановлен: осталось',
   trucks_waiting: 'Самосвалов ждут топлива',

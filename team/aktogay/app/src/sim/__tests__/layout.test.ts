@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '..';
 import { kppDirection } from '../checkpoint';
+import { roadSegments, roadWidth } from '../../render3d/terrain';
+import { buildSiteMap } from '../../geo/sitemap';
 
 type Obb = { x: number; y: number; ux: number; uy: number; ha: number; hc: number };
 const corners = (o: Obb, grow = 0): [number, number][] => {
@@ -26,7 +28,7 @@ const overlap = (a: Obb, b: Obb, gap: number) => {
   }
   return true;
 };
-const distToRoads = (o: Obb, roads: { pts: [number, number][] }[]) => {
+const distToRoads = (o: Obb, roads: { pts: [number, number][]; half?: number }[]) => {
   const samples: [number, number][] = [];
   const C = corners(o);
   for (let i = 0; i < 4; i++) for (let k = 0; k <= 10; k++) samples.push([C[i][0] + ((C[(i + 1) % 4][0] - C[i][0]) * k) / 10, C[i][1] + ((C[(i + 1) % 4][1] - C[i][1]) * k) / 10]);
@@ -41,7 +43,7 @@ const distToRoads = (o: Obb, roads: { pts: [number, number][] }[]) => {
       const l2 = vx * vx + vy * vy || 1;
       for (const [px, py] of samples) {
         const t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / l2));
-        best = Math.min(best, Math.hypot(px - ax - t * vx, py - ay - t * vy));
+        best = Math.min(best, Math.hypot(px - ax - t * vx, py - ay - t * vy) - (r.half ?? 0));
       }
     }
   }
@@ -60,6 +62,13 @@ describe('планировка промплощадки: здания не на�
   const across = (zMin + zMax) / 2;
   const park: Obb = { x: f.cx + f.ox * along - f.oy * across, y: f.cy + f.oy * along + f.ox * across, ux: f.ox, uy: f.oy, ha: (xMax + 10) / 2 + 8, hc: (zMax - zMin) / 2 + 8 };
   const roads = sim.cfg.serviceRoads;
+  // Всё, что лежит на земле или над ней: дороги с их шириной, конвейерные галереи, трубы на эстакадах, ЛЭП.
+  const obstacles: { pts: [number, number][]; half: number }[] = [
+    ...roadSegments(sim).map((g) => ({ pts: [[g.ax, g.ay], [g.bx, g.by]] as [number, number][], half: roadWidth(g.kind) / 2 })),
+    ...buildSiteMap(sim)
+      .lines.filter((l) => l.kind === 'conveyor' || l.kind === 'pipe')
+      .map((l) => ({ pts: l.pts, half: 8 })),
+  ];
   const S = sim.cfg.sites;
   const dir = kppDirection(S.rmc, roads);
   // площадки: размеры совпадают с теми, что заданы в сцене (MineScene)
@@ -75,8 +84,28 @@ describe('планировка промплощадки: здания не на�
     expect(overlap(gsm, garage, 20)).toBe(false);
   });
 
+  // Резервуары, АБК, лаборатория, склад ВМ: размеры — как ровные площадки в сцене.
+  const box = (p: { x: number; y: number }, ha: number, hc: number): Obb => ({ x: p.x, y: p.y, ux: 1, uy: 0, ha, hc });
+  const site = { water: box(S.water, 100, 85), abk: box(S.abk, 80, 50), lab: box(S.lab, 45, 30), magazine: box(S.magazine, 110, 80), camp: box(S.camp, 200, 130) };
+
+  it('резервуары, АБК, лаборатория и склад ВМ не пересекаются друг с другом и с соседями', () => {
+    const all: [string, Obb][] = [...Object.entries(site), ['rmc', rmc], ['gsm', gsm], ['park', park], ['garage', garage]];
+    for (let i = 0; i < all.length; i++)
+      for (let j = i + 1; j < all.length; j++) expect(overlap(all[i][1], all[j][1], 10), `${all[i][0]} × ${all[j][0]}`).toBe(false);
+  });
+
+  it('дороги подходят к резервуарам, АБК, лаборатории и складу ВМ, но не проходят сквозь них', () => {
+    // Подъезд к посёлку заканчивается у его ворот — его не считаем препятствием для самого посёлка.
+    const own = sim.cfg.serviceRoads.find((r) => r.name.startsWith('Подъезд к вахтовому'))!.pts;
+    const onOwn = (q: [number, number]) => own.some(([x, y]) => x === q[0] && y === q[1]);
+    for (const [name, o] of Object.entries(site)) {
+      const obs = name === 'camp' ? obstacles.filter((r) => !(r.pts.length === 2 && onOwn(r.pts[0]) && onOwn(r.pts[1]))) : obstacles;
+      expect(distToRoads(o, obs), name).toBeGreaterThan(2); // расстояние до края дороги, галереи или эстакады
+    }
+  });
+
   it('дороги не проходят через РМЦ и склад ГСМ', () => {
-    expect(distToRoads(rmc, roads)).toBeGreaterThan(25);
-    expect(distToRoads(gsm, roads)).toBeGreaterThan(25);
+    expect(distToRoads(rmc, obstacles), 'РМЦ').toBeGreaterThan(2);
+    expect(distToRoads(gsm, obstacles), 'ГСМ').toBeGreaterThan(2);
   });
 });

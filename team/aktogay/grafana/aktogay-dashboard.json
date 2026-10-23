@@ -3633,6 +3633,405 @@
     },
     {
       "type": "row",
+      "title": "Вода, диспетчерская, лаборатория, склад ВМ",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 258,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "datasource": null,
+      "id": 58
+    },
+    {
+      "type": "timeseries",
+      "title": "Запас воды в резервуарах, м³",
+      "gridPos": {
+        "x": 0,
+        "y": 259,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Реальная работа"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Без системы (расчёт)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "opentwins-influxdb"
+          },
+          "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId == \"org.aktogay.smart:water-tanks\" and (r._field == \"value_stock_properties_value\"))\n  |> map(fn: (r) => ({r with _field: if r._field == \"value_stock_properties_value\" then \"запас, м³\" else r._field}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
+        }
+      ],
+      "id": 59,
+      "datasource": {
+        "type": "influxdb",
+        "uid": "opentwins-influxdb"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Подача насосов и отбор воды, м³/ч",
+      "gridPos": {
+        "x": 8,
+        "y": 259,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Реальная работа"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Без системы (расчёт)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "opentwins-influxdb"
+          },
+          "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId == \"org.aktogay.smart:water-tanks\" and (r._field == \"value_in_m3h_properties_value\" or r._field == \"value_out_m3h_properties_value\"))\n  |> map(fn: (r) => ({r with _field: if r._field == \"value_in_m3h_properties_value\" then \"подача, м³/ч\" else if r._field == \"value_out_m3h_properties_value\" then \"отбор, м³/ч\" else r._field}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
+        }
+      ],
+      "id": 60,
+      "datasource": {
+        "type": "influxdb",
+        "uid": "opentwins-influxdb"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Тревоги на пульте диспетчера и события за час",
+      "gridPos": {
+        "x": 16,
+        "y": 259,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Реальная работа"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Без системы (расчёт)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "opentwins-influxdb"
+          },
+          "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId == \"org.aktogay.smart:control-room\" and (r._field == \"value_alarms_properties_value\" or r._field == \"value_events_hour_properties_value\"))\n  |> map(fn: (r) => ({r with _field: if r._field == \"value_alarms_properties_value\" then \"тревог\" else if r._field == \"value_events_hour_properties_value\" then \"событий за час\" else r._field}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
+        }
+      ],
+      "id": 61,
+      "datasource": {
+        "type": "influxdb",
+        "uid": "opentwins-influxdb"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Лаборатория: проб за смену и в работе",
+      "gridPos": {
+        "x": 0,
+        "y": 267,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Реальная работа"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Без системы (расчёт)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "opentwins-influxdb"
+          },
+          "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId == \"org.aktogay.smart:laboratory\" and (r._field == \"value_hole_samples_properties_value\" or r._field == \"value_plant_samples_properties_value\" or r._field == \"value_in_work_properties_value\"))\n  |> map(fn: (r) => ({r with _field: if r._field == \"value_hole_samples_properties_value\" then \"шлам скважин\" else if r._field == \"value_plant_samples_properties_value\" then \"пробы фабрики\" else if r._field == \"value_in_work_properties_value\" then \"в работе\" else r._field}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
+        }
+      ],
+      "id": 62,
+      "datasource": {
+        "type": "influxdb",
+        "uid": "opentwins-influxdb"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Склад ВМ: взрывчатка на складе, т",
+      "gridPos": {
+        "x": 12,
+        "y": 267,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Реальная работа"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d95926"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Без системы (расчёт)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3987e5"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "opentwins-influxdb"
+          },
+          "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId == \"org.aktogay.smart:explosives-magazine\" and (r._field == \"value_stock_properties_value\"))\n  |> map(fn: (r) => ({r with _field: if r._field == \"value_stock_properties_value\" then \"на складе, т\" else r._field}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
+        }
+      ],
+      "id": 63,
+      "datasource": {
+        "type": "influxdb",
+        "uid": "opentwins-influxdb"
+      }
+    },
+    {
+      "type": "row",
       "title": "КПП и автовесы",
       "collapsed": false,
       "gridPos": {
@@ -3643,7 +4042,7 @@
       },
       "panels": [],
       "datasource": null,
-      "id": 58
+      "id": 64
     },
     {
       "type": "timeseries",
@@ -3716,7 +4115,7 @@
           "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId == \"org.aktogay.smart:checkpoint\" and (r._field == \"value_queue_properties_value\" or r._field == \"value_wait_min_properties_value\"))\n  |> map(fn: (r) => ({r with _field: if r._field == \"value_queue_properties_value\" then \"очередь, машин\" else if r._field == \"value_wait_min_properties_value\" then \"ожидание, мин\" else r._field}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 59,
+      "id": 65,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -3793,7 +4192,7 @@
           "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId == \"org.aktogay.smart:checkpoint\" and (r._field == \"value_arrivals_ph_properties_value\" or r._field == \"value_capacity_ph_properties_value\"))\n  |> map(fn: (r) => ({r with _field: if r._field == \"value_arrivals_ph_properties_value\" then \"поток, маш./ч\" else if r._field == \"value_capacity_ph_properties_value\" then \"пропускная способность, маш./ч\" else r._field}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 60,
+      "id": 66,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -3870,7 +4269,7 @@
           "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId == \"org.aktogay.smart:checkpoint\" and (r._field == \"value_cargo_vehicles_properties_value\" or r._field == \"value_weighings_properties_value\"))\n  |> map(fn: (r) => ({r with _field: if r._field == \"value_cargo_vehicles_properties_value\" then \"грузовиков\" else if r._field == \"value_weighings_properties_value\" then \"взвешиваний\" else r._field}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 61,
+      "id": 67,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -3888,7 +4287,7 @@
       },
       "panels": [],
       "datasource": null,
-      "id": 62
+      "id": 68
     },
     {
       "type": "timeseries",
@@ -3961,7 +4360,7 @@
           "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and (r.thingId == \"org.aktogay.smart:concentrate\" or r.thingId == \"org.aktogay.fixed:concentrate\") and r._field == \"value_stock_properties_value\")\n  |> map(fn: (r) => ({r with _field: if r.thingId == \"org.aktogay.smart:concentrate\" then \"Реальная работа\" else \"Без системы (расчёт)\"}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 63,
+      "id": 69,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -4038,7 +4437,7 @@
           "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and (r.thingId == \"org.aktogay.smart:concentrate\" or r.thingId == \"org.aktogay.fixed:concentrate\") and r._field == \"value_wagons_loaded_properties_value\")\n  |> map(fn: (r) => ({r with _field: if r.thingId == \"org.aktogay.smart:concentrate\" then \"Реальная работа\" else \"Без системы (расчёт)\"}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 64,
+      "id": 70,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -4115,7 +4514,7 @@
           "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and (r.thingId == \"org.aktogay.smart:concentrate\" or r.thingId == \"org.aktogay.fixed:concentrate\") and r._field == \"value_shipped_total_properties_value\")\n  |> map(fn: (r) => ({r with _field: if r.thingId == \"org.aktogay.smart:concentrate\" then \"Реальная работа\" else \"Без системы (расчёт)\"}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 65,
+      "id": 71,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -4133,7 +4532,7 @@
       },
       "panels": [],
       "datasource": null,
-      "id": 66
+      "id": 72
     },
     {
       "type": "timeseries",
@@ -4206,7 +4605,7 @@
           "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and (r.thingId == \"org.aktogay.smart:cost\" or r.thingId == \"org.aktogay.fixed:cost\") and r._field == \"value_usd_per_lb_properties_value\")\n  |> map(fn: (r) => ({r with _field: if r.thingId == \"org.aktogay.smart:cost\" then \"Реальная работа\" else \"Без системы (расчёт)\"}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 67,
+      "id": 73,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -4283,7 +4682,7 @@
           "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and (r.thingId == \"org.aktogay.smart:cost\" or r.thingId == \"org.aktogay.fixed:cost\") and r._field == \"value_total_kzt_properties_value\")\n  |> map(fn: (r) => ({r with _field: if r.thingId == \"org.aktogay.smart:cost\" then \"Реальная работа\" else \"Без системы (расчёт)\"}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 68,
+      "id": 74,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -4301,7 +4700,7 @@
       },
       "panels": [],
       "datasource": null,
-      "id": 69
+      "id": 75
     },
     {
       "type": "timeseries",
@@ -4374,7 +4773,7 @@
           "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId == \"org.aktogay.smart:energy\" and (r._field == \"value_plant_mw_properties_value\" or r._field == \"value_crusher_mw_properties_value\" or r._field == \"value_sxew_mw_properties_value\" or r._field == \"value_tailings_mw_properties_value\" or r._field == \"value_pit_mw_properties_value\"))\n  |> map(fn: (r) => ({r with _field: if r._field == \"value_plant_mw_properties_value\" then \"фабрика\" else if r._field == \"value_crusher_mw_properties_value\" then \"дробилка и конвейеры\" else if r._field == \"value_sxew_mw_properties_value\" then \"SX-EW\" else if r._field == \"value_tailings_mw_properties_value\" then \"насосные хвостов\" else if r._field == \"value_pit_mw_properties_value\" then \"карьер\" else r._field}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 70,
+      "id": 76,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -4451,7 +4850,7 @@
           "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId == \"org.aktogay.smart:energy\" and (r._field == \"value_kwh_per_t_ore_properties_value\"))\n  |> map(fn: (r) => ({r with _field: if r._field == \"value_kwh_per_t_ore_properties_value\" then \"кВт·ч/т руды\" else r._field}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 71,
+      "id": 77,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -4469,7 +4868,7 @@
       },
       "panels": [],
       "datasource": null,
-      "id": 72
+      "id": 78
     },
     {
       "type": "timeseries",
@@ -4542,7 +4941,7 @@
           "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId == \"org.aktogay.smart:weather\" and (r._field == \"value_temp_properties_value\" or r._field == \"value_wind_properties_value\"))\n  |> map(fn: (r) => ({r with _field: if r._field == \"value_temp_properties_value\" then \"температура, °C\" else if r._field == \"value_wind_properties_value\" then \"ветер, м/с\" else r._field}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 73,
+      "id": 79,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -4619,7 +5018,7 @@
           "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId == \"org.aktogay.smart:weather\" and (r._field == \"value_visibility_properties_value\"))\n  |> map(fn: (r) => ({r with _field: if r._field == \"value_visibility_properties_value\" then \"видимость, м\" else r._field}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 74,
+      "id": 80,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -4696,7 +5095,7 @@
           "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId == \"org.aktogay.smart:weather\" and (r._field == \"value_speed_factor_properties_value\" or r._field == \"value_crusher_factor_properties_value\" or r._field == \"value_leach_factor_properties_value\"))\n  |> map(fn: (r) => ({r with _field: if r._field == \"value_speed_factor_properties_value\" then \"скорость возки\" else if r._field == \"value_crusher_factor_properties_value\" then \"дробилка\" else if r._field == \"value_leach_factor_properties_value\" then \"выщелачивание\" else r._field}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 75,
+      "id": 81,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -4714,7 +5113,7 @@
       },
       "panels": [],
       "datasource": null,
-      "id": 76
+      "id": 82
     },
     {
       "type": "timeseries",
@@ -4787,7 +5186,7 @@
           "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId == \"org.aktogay.smart:tailings\" and (r._field == \"value_pulp_flow_properties_value\" or r._field == \"value_reclaim_flow_properties_value\"))\n  |> map(fn: (r) => ({r with _field: if r._field == \"value_pulp_flow_properties_value\" then \"пульпа, м³/ч\" else if r._field == \"value_reclaim_flow_properties_value\" then \"оборотная вода, м³/ч\" else r._field}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 77,
+      "id": 83,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -4864,7 +5263,7 @@
           "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId == \"org.aktogay.smart:tailings\" and (r._field == \"value_freeboard_properties_value\" or r._field == \"value_pond_level_properties_value\"))\n  |> map(fn: (r) => ({r with _field: if r._field == \"value_freeboard_properties_value\" then \"запас до гребня, м\" else if r._field == \"value_pond_level_properties_value\" then \"уровень пруда, м\" else r._field}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 78,
+      "id": 84,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -4941,7 +5340,7 @@
           "query": "from(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId == \"org.aktogay.smart:tailings\" and (r._field == \"value_piezo_properties_value\" or r._field == \"value_seepage_properties_value\"))\n  |> map(fn: (r) => ({r with _field: if r._field == \"value_piezo_properties_value\" then \"пьезометры, %\" else if r._field == \"value_seepage_properties_value\" then \"фильтрация, л/мин\" else r._field}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 79,
+      "id": 85,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -4959,7 +5358,7 @@
       },
       "panels": [],
       "datasource": null,
-      "id": 80
+      "id": 86
     },
     {
       "type": "bargauge",
@@ -5002,7 +5401,7 @@
           "query": "import \"strings\"\nfrom(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId =~ /^org\\.aktogay\\.smart:truck-/ and r._field == \"value_drv_harsh_properties_value\")\n  |> map(fn: (r) => ({r with _field: strings.trimPrefix(v: r.thingId, prefix: \"org.aktogay.smart:\")}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 81,
+      "id": 87,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -5049,7 +5448,7 @@
           "query": "import \"strings\"\nfrom(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId =~ /^org\\.aktogay\\.smart:truck-/ and r._field == \"value_drv_dist_properties_value\")\n  |> map(fn: (r) => ({r with _field: strings.trimPrefix(v: r.thingId, prefix: \"org.aktogay.smart:\")}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 82,
+      "id": 88,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -5096,7 +5495,7 @@
           "query": "import \"strings\"\nfrom(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId =~ /^org\\.aktogay\\.smart:truck-/ and r._field == \"value_drv_fatigue_properties_value\")\n  |> map(fn: (r) => ({r with _field: strings.trimPrefix(v: r.thingId, prefix: \"org.aktogay.smart:\")}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 83,
+      "id": 89,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
@@ -5143,7 +5542,7 @@
           "query": "import \"strings\"\nfrom(bucket: \"default\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\" and r.thingId =~ /^org\\.aktogay\\.smart:truck-/ and r._field == \"value_cas_alerts_properties_value\")\n  |> map(fn: (r) => ({r with _field: strings.trimPrefix(v: r.thingId, prefix: \"org.aktogay.smart:\")}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\"])\n  |> group(columns: [\"_field\"])\n  |> sort(columns: [\"_time\"])"
         }
       ],
-      "id": 84,
+      "id": 90,
       "datasource": {
         "type": "influxdb",
         "uid": "opentwins-influxdb"
