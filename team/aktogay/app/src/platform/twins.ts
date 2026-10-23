@@ -491,7 +491,7 @@ export function serializeMine(sim: Simulation, k: Kpis | null): Features {
     sim_time: f(Math.round(sim.now), 's'),
     finished: f(sim.finished),
     seed: f(sim.seed),
-    trucks: f(sim.trucks.length),
+    truck_count: f(sim.trucks.length),
     strategy: f(sim.strategyName),
     events: f(JSON.stringify(sim.log.slice(-10).map((l) => [l.t, l.level, l.text]))),
   };
@@ -932,7 +932,7 @@ export function serializeMagazine(sim: Simulation): Features {
     state: f(m.blastsLeft < 3 ? 'low' : 'ok'),
     stock: f(Math.round(m.stockT), 't'),
     issued: f(r1(m.issuedT), 't'),
-    blasts: f(m.blasts, 'pcs'),
+    blasts_shift: f(m.blasts, 'pcs'),
     blasts_left: f(m.blastsLeft, 'pcs'),
   };
 }
@@ -1092,7 +1092,7 @@ export function serializeShift(sim: Simulation): Features {
   const tl = sim.timeline;
   return {
     minutes: f(tl.minutes, 'min'),
-    trucks: f(tl.trucks.join('|')),
+    trucks_line: f(tl.trucks.join('|')),
     excavators: f(tl.excavators.join('|')),
     crusher: f(tl.crusher),
     closures: f(tl.closures),
@@ -1328,7 +1328,7 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
     const m = sim.magazine;
     m.stockT = num(mf, 'stock', m.stockT);
     m.issuedT = num(mf, 'issued', m.issuedT);
-    m.blasts = num(mf, 'blasts', m.blasts);
+    m.blasts = num(mf, 'blasts_shift', m.blasts);
   }
 
   // Склад ГСМ и РМЦ.
@@ -1438,7 +1438,7 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
   const sh = things.get(id.shift);
   if (sh) {
     const tl = sim.timeline;
-    const tr = str(sh, 'trucks').split('|');
+    const tr = str(sh, 'trucks_line').split('|');
     const ex = str(sh, 'excavators').split('|');
     tl.trucks = sim.trucks.map((_, i) => tr[i] ?? '');
     tl.excavators = sim.excavators.map((_, i) => ex[i] ?? '');

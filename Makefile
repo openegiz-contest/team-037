@@ -1,4 +1,4 @@
-.PHONY: up down ps logs smoke clean aktogay aktogay-stop example-mine example-mine-stop install uninstall status endpoints upgrade upload-build generate-data copy-build unity-demo check-secrets check-public-host
+.PHONY: up down ps logs smoke clean aktogay aktogay-stop aktogay-check example-mine example-mine-stop install uninstall status endpoints upgrade upload-build generate-data copy-build unity-demo check-secrets check-public-host
 
 # ---------------------------------------------------------------------------
 # Docker Compose deployment (laptops, CI, contest judges): deploy/compose/
@@ -50,7 +50,12 @@ aktogay: up
 	@echo "  Aktogay digital mine:"
 	@echo "    3D mine + KPI + what-if scenarios   http://localhost:$${AKTOGAY_UI_PORT:-8095}"
 	@echo "    Grafana dashboard                   Dashboards -> OpenEgiz Examples -> Aktogay"
+	@echo "    Check that everything works         make aktogay-check"
 	@echo ""
+
+## Check the running Aktogay stand: containers, UI, twins, shift time, InfluxDB, Grafana (read-only)
+aktogay-check:
+	@bash scripts/aktogay-check.sh
 
 ## Stop the Aktogay simulator (twins and data stay)
 aktogay-stop:

@@ -134,7 +134,7 @@ function publishStatus(): void {
         finished: s.finished,
         active_scenarios: active,
         last_scenario: lastScenario,
-        history,
+        history_log: history.map(([t, text]) => `${t}|${text}`),
       },
     },
   };

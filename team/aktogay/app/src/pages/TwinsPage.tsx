@@ -33,7 +33,7 @@ interface Row {
 type Variant = StrategyName;
 
 const BOOL_KEYS = new Set(['finished', 'failure_alert', 'service_requested', 'alarm', 'belt_misalign']);
-const NO_SPARK = new Set(['x', 'y', 'edge_from', 'edge_to', 'node', 'seg_pos', 'dest_id', 'home_excavator', 'fixed_excavator', 'park_slot', 'loading', 'seed', 'trucks', 'timer']);
+const NO_SPARK = new Set(['x', 'y', 'edge_from', 'edge_to', 'node', 'seg_pos', 'dest_id', 'home_excavator', 'fixed_excavator', 'park_slot', 'loading', 'seed', 'trucks', 'truck_count', 'timer']);
 
 const KEY_METRICS: Record<string, string[]> = {
   'open-pit': ['mined_total', 'tph', 'crusher_idle_min', 'avg_queue_min', 'grade_in_band_pct'],

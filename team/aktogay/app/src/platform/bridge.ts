@@ -23,6 +23,8 @@ export interface ControlStatus {
   last_scenario: string;
   /** Последние команды: [время модели, с; описание]. */
   history?: [number, string][];
+  /** Те же команды строками «время|текст»: в InfluxDB у поля один тип (массив пар смешивал бы числа и строки). */
+  history_log?: string[];
   /** Текущий парк техники на стенде. */
   fleet?: Fleet;
 }
@@ -142,7 +144,14 @@ export class PlatformBridge {
 
   private readStatus(): ControlStatus | null {
     const ctl = this.things.get(CONTROL_ID) as { status?: { properties?: ControlStatus } } | undefined;
-    return ctl?.status?.properties ?? null;
+    const st = ctl?.status?.properties ?? null;
+    if (st && !st.history && Array.isArray(st.history_log)) {
+      st.history = st.history_log.map((h) => {
+        const i = h.indexOf('|');
+        return [Number(h.slice(0, i)), h.slice(i + 1)] as [number, string];
+      });
+    }
+    return st;
   }
 
   /**

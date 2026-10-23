@@ -871,7 +871,7 @@ export const LAB_SENSORS: SensorSpec[] = [
 ];
 
 export const MAGAZINE_SENSORS: SensorSpec[] = [
-  { id: 'stock', name: 'Учёт выдачи взрывчатых материалов', hardware: 'весы и журнал выдачи с RFID-метками партий', location: 'хранилища склада ВМ', measures: 'запас и выдача взрывчатки, т, число взрывов', features: ['stock', 'issued', 'blasts', 'blasts_left'], periodS: 300, purpose: 'хватит ли взрывчатки на график взрывов и учёт по партиям' },
+  { id: 'stock', name: 'Учёт выдачи взрывчатых материалов', hardware: 'весы и журнал выдачи с RFID-метками партий', location: 'хранилища склада ВМ', measures: 'запас и выдача взрывчатки, т, число взрывов', features: ['stock', 'issued', 'blasts_shift', 'blasts_left'], periodS: 300, purpose: 'хватит ли взрывчатки на график взрывов и учёт по партиям' },
   { id: 'security', name: 'Охранная сигнализация и видеонаблюдение', hardware: 'периметральная сигнализация, тепловизионные камеры, вышка охраны', location: 'ограждение склада ВМ', measures: 'состояние охраны периметра', features: ['state'], periodS: 10, purpose: 'охрана опасного объекта' },
 ];
 

@@ -311,6 +311,9 @@ export const FEATURE_LABEL: Record<string, string> = {
   active: 'Идёт оцепление',
   announced: 'Объявлено',
   blasts: 'Взрывы смены',
+  blasts_shift: 'Взрывов за смену',
+  truck_count: 'Самосвалов в смене',
+  trucks_line: 'Самосвалы по минутам',
   // склад дроблёной руды
   level: 'Руда на складе',
   fill: 'Заполнение склада',
