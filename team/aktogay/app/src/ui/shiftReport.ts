@@ -3,7 +3,7 @@
  * данных, что показывает интерфейс (KPI, себестоимость, эффект, происшествия смены), поэтому
  * цифры в сводке и на экранах всегда совпадают. Отсюда же строятся печать (PDF) и выгрузка CSV.
  */
-import { computeEffect, computeKpis, costBreakdown, MATERIAL_SHORT, type Simulation } from '../sim';
+import { computeEffect, computeKpis, costBreakdown, MATERIAL_SHORT, type Kpis, type Simulation } from '../sim';
 import { analyzeShift } from '../sim/causality';
 import { CHARGE_PER_HOLE_T } from '../sim/site';
 import { fmtClock, fmtInt, fmtKzt } from './format';
@@ -44,16 +44,17 @@ const t1 = (v: number) => `${v.toFixed(1)} т`;
 
 /**
  * Собрать сводку. `smart` — реальная работа, `fixed` — теневой расчёт без системы (если он есть,
- * в сводку попадает эффект системы и сравнение).
+ * в сводку попадает эффект системы и сравнение). На стенде KPI приходят из двойников, поэтому их
+ * можно передать готовыми: иначе доли времени самосвалов пришлось бы считать по неполным данным.
  */
-export function buildShiftReport(smart: Simulation, fixed?: Simulation): ShiftReport {
-  const k = computeKpis(smart);
+export function buildShiftReport(smart: Simulation, fixed?: Simulation, kpis?: { smart: Kpis; fixed?: Kpis }): ShiftReport {
+  const k = kpis?.smart ?? computeKpis(smart);
   const cost = costBreakdown(smart, k);
   const w = smart.weather;
   const chains = analyzeShift(smart, fixed);
   // Эффект считается по разнице с теневым расчётом; в первый час смены разброс велик, поэтому ждём.
   const effectReady = !!fixed && smart.now >= EFFECT_AFTER_SEC;
-  const effect = effectReady && fixed ? computeEffect(computeKpis(fixed), k, smart) : null;
+  const effect = effectReady && fixed ? computeEffect(kpis?.fixed ?? computeKpis(fixed), k, smart) : null;
   const shiftH = smart.cfg.shift.durationSec / 3600;
 
   const sections: ReportSection[] = [

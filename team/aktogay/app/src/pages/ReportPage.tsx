@@ -5,12 +5,14 @@
  * Отсюда сводка печатается в PDF или выгружается в CSV.
  */
 import { PageHeader } from '../components/PageHeader';
-import type { Simulation } from '../sim';
+import type { Kpis, Simulation } from '../sim';
 import { fmtKzt } from '../ui/format';
 import { buildShiftReport, downloadCsv, printReport, type ReportRow } from '../ui/shiftReport';
 
 interface Props {
   sims: Simulation[];
+  /** KPI в том же порядке, что sims (на стенде — из двойников). */
+  kpis: Kpis[];
   now: number;
   running: boolean;
   onToggleRun: () => void;
@@ -18,11 +20,13 @@ interface Props {
 
 const TONE: Record<NonNullable<ReportRow['tone']>, string> = { good: 'text-emerald-300', bad: 'text-red-300', warn: 'text-amber-300' };
 
-export function ReportPage({ sims, now, running, onToggleRun }: Props) {
+export function ReportPage({ sims, kpis, now, running, onToggleRun }: Props) {
   const smart = sims.find((s) => s.strategyName === 'smart') ?? sims[sims.length - 1];
   const fixed = sims.find((s) => s.strategyName === 'fixed');
   if (!smart) return null;
-  const r = buildShiftReport(smart, fixed);
+  const kpiOf = (s: Simulation | undefined) => (s ? kpis[sims.indexOf(s)] : undefined);
+  const smartK = kpiOf(smart);
+  const r = buildShiftReport(smart, fixed, smartK ? { smart: smartK, fixed: kpiOf(fixed) } : undefined);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-5">

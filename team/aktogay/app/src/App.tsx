@@ -770,7 +770,7 @@ WebGL: ${glRenderer() || 'нет'}${softwareGL() ? ' (программный)' :
             <LoginPage truckCount={main.trucks.length} want="driver" onLogin={doLogin} />
           ))}
         {route === 'timeline' && <TimelinePage sims={allSims} now={pageNow} running={isRunning} onToggleRun={toggleRun} onLocate={locate} />}
-        {route === 'report' && <ReportPage sims={allSims} now={pageNow} running={isRunning} onToggleRun={toggleRun} />}
+        {route === 'report' && <ReportPage sims={allSims} kpis={kpisAll} now={pageNow} running={isRunning} onToggleRun={toggleRun} />}
         {route === 'fleet' && (
           <FleetPage
             fleet={currentFleet}
