@@ -1,5 +1,6 @@
 /** Боковое меню разделов: Карьер · Двойники · Сценарии + ссылки на платформу. */
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { currentLang, LANGS, onLangChange, setLang, type Lang } from '../ui/i18n';
 import type { ThemeMode } from '../ui/themeMode';
 import type { Session } from '../platform/accounts';
 
@@ -181,6 +182,8 @@ interface Props {
 }
 
 export function Sidebar({ route, collapsed, onToggle, platform, connected, twinCount, activeCount, theme, onToggleTheme, session }: Props) {
+  const [lang, setLangState] = useState<Lang>(currentLang);
+  useEffect(() => onLangChange(setLangState), []);
   const grafana = `${window.location.protocol}//${window.location.hostname}:3000/d/aktogay-digital-mine`;
   const item = (active: boolean) =>
     `group relative flex items-center gap-3 rounded-lg px-2.5 py-2 text-[13.5px] transition-colors ${
@@ -249,6 +252,18 @@ export function Sidebar({ route, collapsed, onToggle, platform, connected, twinC
               <span className="block text-ink-3">{platform ? (connected ? 'поток данных активен' : 'переподключение…') : 'без платформы'}</span>
             </span>
           )}
+        </div>
+        <div className={`flex gap-1 ${collapsed ? 'flex-col' : ''}`} translate="no">
+          {LANGS.map((l) => (
+            <button
+              key={l.id}
+              onClick={() => setLang(l.id)}
+              title={l.title}
+              className={`flex-1 rounded-md py-1 text-[11.5px] font-semibold ${lang === l.id ? 'bg-amber-500 text-black' : 'bg-panel-2 text-ink-2 hover:text-ink'}`}
+            >
+              {l.label}
+            </button>
+          ))}
         </div>
         <button
           onClick={onToggleTheme}

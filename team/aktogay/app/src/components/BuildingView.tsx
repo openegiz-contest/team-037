@@ -1128,7 +1128,7 @@ function CampView({ sim }: { sim: Simulation }) {
         <text x={L - 6} y={y(CAMP_BEDS) + 4} textAnchor="end" fontSize={11} fill={C.dim}>{CAMP_BEDS}</text>
         <text x={L - 6} y={y(0) + 4} textAnchor="end" fontSize={11} fill={C.dim}>0</text>
         <text x={W - R} y={10} textAnchor="end" fontSize={11} fill="#f59e0b">▮ приёмы пищи</text>
-        <SensorDot x={W - 250} y={7} label="турникеты на входе в общежития, GPS автобусов" />
+        <SensorDot x={560} y={7} label="турникеты на входе в общежития, GPS автобусов" />
       </svg>
       <Stats>
         <Stat label="В посёлке" value={`${c.inCamp.toLocaleString('ru-RU')} чел.`} />
