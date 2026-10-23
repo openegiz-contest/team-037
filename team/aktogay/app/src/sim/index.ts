@@ -19,3 +19,4 @@ export * from './checkpoint';
 export * from './depot';
 export * from './site';
 export * from './liveWeather';
+export * from './forecast';

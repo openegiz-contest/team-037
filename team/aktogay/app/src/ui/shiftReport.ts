@@ -3,7 +3,7 @@
  * данных, что показывает интерфейс (KPI, себестоимость, эффект, происшествия смены), поэтому
  * цифры в сводке и на экранах всегда совпадают. Отсюда же строятся печать (PDF) и выгрузка CSV.
  */
-import { computeEffect, computeKpis, costBreakdown, MATERIAL_SHORT, type Kpis, type Simulation } from '../sim';
+import { computeEffect, computeKpis, costBreakdown, forecastShift, MATERIAL_SHORT, type Kpis, type ShiftForecast, type Simulation } from '../sim';
 import { analyzeShift } from '../sim/causality';
 import { CHARGE_PER_HOLE_T } from '../sim/site';
 import { fmtClock, fmtInt, fmtKzt } from './format';
@@ -33,6 +33,8 @@ export interface ShiftReport {
   sections: ReportSection[];
   /** Происшествия смены: что случилось и чего это стоило. */
   incidents: { title: string; detail: string; kzt: number }[];
+  /** Чем смена закончится, если дальше будет как в последний час. */
+  forecast: ShiftForecast;
   /** Итог: эффект системы за смену и в год. Пока смена короче часа — оценка не готова (`effectReady`). */
   effectReady: boolean;
   effectShiftKzt: number;
@@ -115,7 +117,7 @@ export function buildShiftReport(smart: Simulation, fixed?: Simulation, kpis?: {
     {
       title: 'Условия смены',
       rows: [
-        { label: 'Погода', value: `${w.ru}, ${w.tempC.toFixed(0)} °C, ветер ${w.windMs.toFixed(0)} м/с`, note: w.observed ? `факт, наблюдение ${w.observed.at} UTC` : 'климатические нормы' },
+        { label: 'Погода', value: w.ru, note: `${w.tempC.toFixed(0)} °C, ветер ${w.windMs.toFixed(0)} м/с · ${w.observed ? `факт, наблюдение ${w.observed.at} UTC` : 'климатические нормы'}` },
         { label: 'Скорость возки от нормы', value: `${Math.round(w.speedFactor * 100)} %`, note: w.blastOk ? 'взрывные работы разрешены' : 'взрывные работы запрещены' },
         { label: 'Людей в посёлке / на смене', value: `${fmtInt(smart.camp.inCamp)} / ${fmtInt(smart.camp.onShift)}` },
         { label: 'Принято грузовиков на КПП', value: String(Math.round(smart.checkpoint.cargoVehicles)), note: `груза ${fmtInt(smart.checkpoint.cargoT)} т` },
@@ -134,6 +136,7 @@ export function buildShiftReport(smart: Simulation, fixed?: Simulation, kpis?: {
       kzt: c.severity === 'good' ? -c.impact.kzt : c.impact.kzt,
     }));
 
+  const forecast = forecastShift(smart, k);
   const donePct = (smart.now / smart.cfg.shift.durationSec) * 100;
   return {
     nowSec: smart.now,
@@ -141,6 +144,7 @@ export function buildShiftReport(smart: Simulation, fixed?: Simulation, kpis?: {
     subtitle: `смена ${fmtClock(smart.now)} из ${shiftH.toFixed(0)}:00 · seed ${smart.seed} · ${smart.trucks.length} самосвалов, ${smart.excavators.length} экскаваторов`,
     sections,
     incidents,
+    forecast,
     effectReady,
     effectShiftKzt: effect?.perShiftKzt ?? 0,
     effectYearKzt: effect?.perYearKzt ?? 0,
@@ -158,6 +162,11 @@ export function reportCsv(r: ShiftReport): string {
     [],
     [tr('Раздел'), tr('Показатель'), tr('Значение'), tr('Примечание')],
     ...r.sections.flatMap((s) => s.rows.map((row) => [tr(s.title), tr(row.label), tr(row.value), tr(row.note ?? '')])),
+    [],
+    r.forecast.ready
+      ? [tr('Прогноз до конца смены'), tr('Сейчас'), tr('К концу смены'), tr('План или предел'), tr('На чём основан')]
+      : [tr('Прогноз до конца смены'), tr('рано: темп ещё не устоялся')],
+    ...(r.forecast.ready ? r.forecast.rows.map((f) => [tr(f.label), tr(f.now), tr(f.end) + (f.spread ? ' ' + tr(f.spread) : ''), tr(f.target ?? ''), tr(f.basis)]) : []),
     [],
     [tr('Происшествия смены'), tr('Подробности'), tr('Ущерб, ₸')],
     ...r.incidents.map((i) => [tr(i.title), tr(i.detail), csvNum(i.kzt)]),
@@ -192,6 +201,16 @@ export function printReport(r: ShiftReport): void {
           .join('')}</table></section>`,
     )
     .join('');
+  const fc = r.forecast.ready
+    ? `<table><tr><th class="l">${tr('Показатель')}</th><th class="l">${tr('Сейчас')}</th><th class="l">${tr('К концу смены')}</th><th class="l">${tr('План или предел')}</th></tr>${r.forecast.rows
+        .map(
+          (f) =>
+            `<tr><td class="l">${tr(f.label)}</td><td class="l">${tr(f.now)}</td><td class="l ${f.status === 'ok' ? 'good' : f.status === 'miss' ? 'bad' : f.status === 'risk' ? 'warn' : ''}">${tr(f.end)}${
+              f.spread ? ` <span style="color:#777">${tr(f.spread)}</span>` : ''
+            }</td><td class="n">${tr(f.target ?? '')}</td></tr>`,
+        )
+        .join('')}</table><p class="note">${tr('Прогноз: темп последнего часа продолжен до конца смены. Взрыв, поломка или непогода его изменят.')}</p>`
+    : `<p class="note">${tr('Рано: темп ещё не устоялся — прогноз появится через полчаса смены.')}</p>`;
   const inc = r.incidents.length
     ? `<table>${r.incidents.map((i) => `<tr><td class="l">${tr(i.title)}</td><td class="n">${tr(i.detail)}</td><td class="v ${i.kzt < 0 ? 'good' : 'bad'}">${fmtKzt(Math.abs(i.kzt))}</td></tr>`).join('')}</table>`
     : `<p class="note">${tr('Происшествий нет.')}</p>`;
@@ -213,6 +232,7 @@ export function printReport(r: ShiftReport): void {
 <h1>${tr('Сводка смены')}</h1>
 <div class="sub">${tr('Цифровой двойник карьера Актогай')} · ${tr(r.subtitle)}</div>
 <div class="cols">${sec}</div>
+<h2 style="margin-top:8px">${tr('Прогноз до конца смены')}</h2>${fc}
 <h2 style="margin-top:8px">${tr('Происшествия смены')}</h2>${inc}
 <div class="total">${tr('Эффект системы диспетчеризации')}: ${
     r.effectReady ? `<b>${fmtKzt(r.effectShiftKzt)}</b> ${tr('за смену')} · ${tr('в год')} ${fmtKzt(r.effectYearKzt)}` : tr('Накапливаем статистику — оценка появится после первого часа смены…')

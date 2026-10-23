@@ -60,6 +60,8 @@ export class TailingsDam {
   stormLeft = 0;
   /** Откачано аварийно, когда запас до гребня ушёл ниже нормы, м³ за смену. */
   emergencyM3 = 0;
+  /** Чистый приход воды в пруд, м³/ч (приход минус возврат, испарение и откачка) — по нему виден тренд уровня. */
+  netM3h = 0;
   /** Текущие расходы: пульпа, м³/ч; твёрдое, т/ч; оборотная вода, м³/ч. */
   pulpM3h = 0;
   solidsTph = 0;
@@ -108,6 +110,7 @@ export class TailingsDam {
     const waterTph = (water / dt) * 3600;
     this.pulpM3h = this.solidsTph / SOLIDS_SG + waterTph;
     this.reclaimM3h = (reclaim / dt) * 3600;
+    this.netM3h = ((toPond + melt + storm - reclaim - evap - emergency) / dt) * 3600;
   }
 
   /** Заполнение чаши, %. */

@@ -19,6 +19,8 @@ interface Props {
 }
 
 const TONE: Record<NonNullable<ReportRow['tone']>, string> = { good: 'text-emerald-300', bad: 'text-red-300', warn: 'text-amber-300' };
+/** Цвет прогноза: выполняем план — зелёный, под вопросом — янтарный, не успеваем — красный. */
+const FC_TONE: Record<'ok' | 'risk' | 'miss' | 'none', string> = { ok: 'text-emerald-300', risk: 'text-amber-300', miss: 'text-red-300', none: '' };
 
 export function ReportPage({ sims, kpis, now, running, onToggleRun }: Props) {
   const smart = sims.find((s) => s.strategyName === 'smart') ?? sims[sims.length - 1];
@@ -67,6 +69,47 @@ export function ReportPage({ sims, kpis, now, running, onToggleRun }: Props) {
           </section>
         ))}
       </div>
+
+      <section className="panel">
+        <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2.5">
+          <h3 className="text-[14px] font-semibold">Прогноз до конца смены</h3>
+          <span className="text-[12px] text-ink-3">осталось {r.forecast.leftH.toFixed(1)} ч · если дальше будет как в последний час</span>
+        </div>
+        {r.forecast.ready ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="text-[11px] uppercase tracking-wider text-ink-3">
+                  <th className="px-4 py-2 text-left font-medium">Показатель</th>
+                  <th className="px-2 py-2 text-right font-medium">Сейчас</th>
+                  <th className="px-2 py-2 text-right font-medium">К концу смены</th>
+                  <th className="whitespace-nowrap px-2 py-2 text-right font-medium">План или предел</th>
+                  <th className="hidden px-4 py-2 text-left font-medium xl:table-cell">На чём основан</th>
+                </tr>
+              </thead>
+              <tbody>
+                {r.forecast.rows.map((f) => (
+                  <tr key={f.label} className="border-t border-line/50">
+                    <td className="px-4 py-1.5 text-ink-2">{f.label}</td>
+                    <td className="num px-2 py-1.5 text-right">{f.now}</td>
+                    <td className={`num px-2 py-1.5 text-right font-bold ${f.status === 'none' ? '' : FC_TONE[f.status]}`}>
+                      {f.end}
+                      {f.spread && <span className="ml-1 font-normal text-ink-3">{f.spread}</span>}
+                    </td>
+                    <td className="num whitespace-nowrap px-2 py-1.5 text-right text-[11.5px] text-ink-3">{f.target ?? '—'}</td>
+                    <td className="hidden px-4 py-1.5 text-[11.5px] text-ink-3 xl:table-cell">{f.basis}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="px-4 py-2 text-[11.5px] text-ink-3">
+              Прогноз: темп последнего часа продолжен до конца смены. Взрыв, поломка или непогода его изменят — прогноз пересчитается.
+            </div>
+          </div>
+        ) : (
+          <div className="px-4 py-3 text-[13px] text-ink-3">Рано: темп ещё не устоялся — прогноз появится через полчаса смены.</div>
+        )}
+      </section>
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <section className="panel">

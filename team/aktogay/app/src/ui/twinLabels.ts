@@ -125,6 +125,12 @@ export const FEATURE_LABEL: Record<string, string> = {
   oxide_kzt: 'Оксидная линия',
   logistics_kzt: 'Логистика и плавка',
   overhead_kzt: 'Содержание площадки',
+  // прогноз до конца смены
+  forecast_ready: 'Прогноз готов (темп устоялся)',
+  forecast_mined: 'Прогноз добычи к концу смены',
+  forecast_plan_pct: 'Прогноз выполнения плана',
+  forecast_fuel_h: 'Дизеля на складе ГСМ хватит на',
+  forecast_freeboard: 'Прогноз запаса до гребня дамбы',
   // погода
   source: 'Источник погоды',
   observed_at: 'Последнее наблюдение (UTC)',

@@ -14,6 +14,7 @@ import type { Kpis } from '../sim/kpi';
 import type { Simulation } from '../sim/engine';
 import { MATERIALS, TRUCK_STATES, type Blast, type Destination, type FailureType, type Material, type StrategyName, type TruckState } from '../sim/types';
 import { gradeAt } from '../sim/ore';
+import { forecastShift, type ForecastRow } from '../sim/forecast';
 import { CHAIN2_FEED_TPH } from '../sim/chain2';
 import { EW_CELL_VOLTS } from '../sim/energy';
 import { costBreakdown, GROUP_RU, type CostGroup } from '../sim/cost';
@@ -487,11 +488,22 @@ export function siteDefinitions(): Record<string, ThingBody> {
 // ───────────────────────────── сериализация (симулятор → двойники) ─────────────────────────────
 
 export function serializeMine(sim: Simulation, k: Kpis | null): Features {
+  const fc = forecastShift(sim, k ?? undefined);
+  const numOf = (label: string, pick: 'end' | 'now') => Number((fc.rows.find((r: ForecastRow) => r.label === label)?.[pick] ?? '0').replace(/[^\d,.-]/g, '').replace(/\s/g, '').replace(',', '.')) || 0;
+  const fcMined = numOf('Добыча за смену', 'end');
+  const fcPlan = MATERIALS.reduce((n, m) => n + sim.cfg.planT[m], 0);
+  const fcFree = numOf('Запас до гребня дамбы', 'end');
   const out: Features = {
     sim_time: f(Math.round(sim.now), 's'),
     finished: f(sim.finished),
     seed: f(sim.seed),
     truck_count: f(sim.trucks.length),
+    // Прогноз до конца смены: выполнение плана и запасы — чтобы их было видно и в Ditto, и в Grafana.
+    forecast_ready: f(fc.ready ? 1 : 0),
+    forecast_mined: f(Math.round(fcMined), 't'),
+    forecast_plan_pct: f(r1((fcMined / fcPlan) * 100), '%'),
+    forecast_fuel_h: f(r1(Math.min(99, sim.fuelDepot.hoursLeft)), 'h'),
+    forecast_freeboard: f(r1(fcFree), 'm'),
     strategy: f(sim.strategyName),
     events: f(JSON.stringify(sim.log.slice(-10).map((l) => [l.t, l.level, l.text]))),
   };
