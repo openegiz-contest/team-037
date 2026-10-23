@@ -21,6 +21,9 @@ services:
       SIM_TRUCKS: ${AKTOGAY_TRUCKS:-20}
       # Месяц года для погоды и сезона (1…12): влияет на скорость возки, дробилку, выщелачивание и пруд.
       SIM_MONTH: ${AKTOGAY_MONTH:-10}
+      # Живая погода: 1 — брать фактическую погоду в точке карьера (Open-Meteo, нужен интернет),
+      # 0 (по умолчанию) — климатические нормы ERA5 2015–2024.
+      SIM_LIVE_WEATHER: ${AKTOGAY_LIVE_WEATHER:-0}
     depends_on:
       init:
         condition: service_completed_successfully

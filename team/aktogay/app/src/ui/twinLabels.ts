@@ -125,6 +125,9 @@ export const FEATURE_LABEL: Record<string, string> = {
   oxide_kzt: 'Оксидная линия',
   logistics_kzt: 'Логистика и плавка',
   overhead_kzt: 'Содержание площадки',
+  // погода
+  source: 'Источник погоды',
+  observed_at: 'Последнее наблюдение (UTC)',
   // энергоучёт
   total_mw: 'Потребляемая мощность',
   peak_mw: 'Пиковая мощность за смену',

@@ -750,6 +750,8 @@ export function serializeEnergy(sim: Simulation): Features {
 export function serializeWeather(sim: Simulation): Features {
   const w = sim.weather;
   return {
+    source: f(w.observed ? 'station' : 'normals'),
+    observed_at: f(w.observed?.at ?? ''),
     sky: f(w.ru),
     temp: f(Math.round(w.tempC * 10) / 10, 'C'),
     wind: f(Math.round(w.windMs * 10) / 10, 'm/s'),
@@ -1552,6 +1554,8 @@ export function hydrate(sim: Simulation, v: StrategyName, things: Map<string, Pr
       if (sky) w.sky = sky;
       w.tempC = num(wf, 'temp', w.tempC);
       w.windMs = num(wf, 'wind', w.windMs);
+      // Живая погода: интерфейс показывает её источник и время наблюдения так же, как на стенде.
+      w.observed = str(wf, 'source') === 'station' ? { sky: w.sky, tempC: w.tempC, windMs: w.windMs, at: str(wf, 'observed_at') } : null;
     }
     const tl = things.get(id.tailings);
     if (tl) {

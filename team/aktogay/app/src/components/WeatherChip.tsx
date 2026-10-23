@@ -25,13 +25,20 @@ export function WeatherChip({ sim }: { sim: Simulation }) {
     ` Скорость возки ${Math.round(w.speedFactor * 100)} % от нормы, дробилка ${Math.round(w.crusherFactor * 100)} %,` +
     ` выщелачивание ${Math.round(w.leachFactor * 100)} %. Взрывные работы: ${w.blastOk ? 'разрешены' : 'запрещены'}.` +
     ` Местное время ${clockRu(hour)}, ${night ? 'темно' : 'светло'}.` +
-    ' Климатические нормы — оценки по открытым данным.';
+    (w.observed
+      ? ` Погода — фактическая, с метеостанции рудника (наблюдение ${w.observed.at} UTC, Open-Meteo).`
+      : ' Климатические нормы — оценки по открытым данным.');
   return (
     <span
       className={`flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-[12.5px] ${slow ? 'bg-sky-500/15 ring-1 ring-sky-400/40' : 'bg-panel-2'}`}
       title={title}
     >
       <span aria-hidden>{night ? '☽' : ICON[w.sky]}</span>
+      {w.observed && (
+        <span className="rounded bg-emerald-500/20 px-1 text-[10.5px] font-semibold uppercase tracking-wider text-emerald-300" title="Фактическая погода с метеостанции рудника">
+          факт
+        </span>
+      )}
       <span className="num text-ink-2">{clockRu(hour)}</span>
       <span className="font-semibold">{w.ru}</span>
       <span className="num text-ink-2">{w.tempC.toFixed(0)} °C</span>

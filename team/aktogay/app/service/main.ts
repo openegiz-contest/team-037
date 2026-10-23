@@ -10,7 +10,7 @@
  *   или отменяют сценарии «что если» в обеих моделях.
  */
 import mqtt from 'mqtt';
-import { computeKpis, Simulation, type StrategyName } from '../src/sim';
+import { computeKpis, fetchObservation, LIVE_EVERY_MS, Simulation, type Observation, type StrategyName } from '../src/sim';
 import { activeScenarioLabels, applyScenario, type Command } from '../src/platform/scenarios';
 import { defaultFleet, fleetConfig, sanitizeFleet, type Fleet } from '../src/platform/fleet';
 import { applyDispatch, DISPATCH_COMMANDS, emptyDispatch, type DispatchCommand } from '../src/platform/dispatch';
@@ -26,6 +26,12 @@ let speed = Number(env('SIM_SPEEDUP', '10'));
 let seed = Number(env('SIM_SEED', '42'));
 /** Месяц года для погоды и сезона (1…12). */
 let month = Number(env('SIM_MONTH', '10'));
+/**
+ * Живая погода: при SIM_LIVE_WEATHER=1 двойник раз в 10 минут берёт фактическую погоду в точке
+ * карьера (Open-Meteo) и работает по ней. Выключено — остаются климатические нормы, интернет не нужен.
+ */
+const LIVE_WEATHER = env('SIM_LIVE_WEATHER', '0') === '1';
+let observation: Observation | null = null;
 /** Парк техники: самосвалы и состав экскаваторов (меняется командой reset { fleet }). */
 let fleet: Fleet = defaultFleet(Math.max(5, Math.min(30, Number(env('SIM_TRUCKS', '20')))));
 /** Как часто публиковать состояние двойников, мс реального времени. */
@@ -44,10 +50,13 @@ let lastScenario = 'нет';
 const history: [number, string][] = [];
 
 function makeSims(): Record<StrategyName, Simulation> {
-  return {
+  const made = {
     fixed: new Simulation({ seed, truckCount: fleet.trucks, strategy: 'fixed', config: fleetConfig(fleet), month }),
     smart: new Simulation({ seed, truckCount: fleet.trucks, strategy: 'smart', config: fleetConfig(fleet), month }),
   };
+  // Фактическая погода действует и после новой смены или смены парка.
+  if (observation) for (const v of VARIANTS) made[v].weather.observe(made[v], observation);
+  return made;
 }
 
 // ───────────────────────────── Ditto: создание двойников ─────────────────────────────
@@ -253,9 +262,28 @@ async function restoreState(): Promise<void> {
   }
 }
 
+/** Запросить фактическую погоду и отдать её обеим моделям. Неудача — молча остаёмся на нормах. */
+async function pollWeather(): Promise<void> {
+  const obs = await fetchObservation();
+  if (!obs) {
+    if (observation) log('фактическая погода недоступна — остаёмся на последнем наблюдении');
+    else log('фактическая погода недоступна — работаем по климатическим нормам');
+    return;
+  }
+  const first = !observation;
+  observation = obs;
+  for (const v of VARIANTS) sims[v].weather.observe(sims[v], obs);
+  if (first) log(`погода с метеостанции: ${obs.sky}, ${obs.tempC} °C, ветер ${obs.windMs} м/с (наблюдение ${obs.at} UTC)`);
+}
+
 async function main(): Promise<void> {
   log(`Ditto: ${DITTO_URL}, MQTT: ${MQTT_URL}, скорость x${speed / 10} (${speed} с модели/с), seed ${seed}, самосвалов ${fleet.trucks}, экскаваторов ${fleet.excavators.length}`);
   await restoreState();
+  if (LIVE_WEATHER) {
+    log('живая погода включена: фактическая погода в точке карьера, опрос раз в 10 мин');
+    await pollWeather();
+    setInterval(() => void pollWeather(), LIVE_EVERY_MS);
+  }
   await setupTwins();
   let last = Date.now();
   let lastPublish = 0;

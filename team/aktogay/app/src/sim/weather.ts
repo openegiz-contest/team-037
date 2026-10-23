@@ -14,6 +14,7 @@
  * модуля не сдвинуло остальные потоки модели.
  */
 import type { Simulation } from './engine';
+import type { Observation } from './liveWeather';
 import { Rng, subSeed } from './rng';
 
 export type Sky = 'clear' | 'cloudy' | 'rain' | 'snow' | 'blizzard' | 'fog' | 'dust' | 'heat';
@@ -79,6 +80,8 @@ export class Weather {
   windMs = 0;
   /** Сценарий «вызвать погоду»: сколько ещё держать принудительную погоду, с. */
   forcedLeft = 0;
+  /** Наблюдение метеостанции (живая погода). Пока оно есть, погода берётся из него, а не из норм. */
+  observed: Observation | null = null;
   private until = 0;
   private readonly rng: Rng;
 
@@ -104,6 +107,12 @@ export class Weather {
 
   /** Температура и ветер на момент времени смены. */
   private refresh(now: number): void {
+    // Живая погода — снимок наблюдения: суточный ход к нему не добавляем.
+    if (this.observed && this.forcedLeft <= 0) {
+      this.tempC = this.observed.tempC;
+      this.windMs = this.observed.windMs;
+      return;
+    }
     const hour = (SHIFT_START_HOUR + now / 3600) % 24;
     const norm = MONTH[this.month - 1];
     // Максимум около 15:00, минимум под утро.
@@ -119,9 +128,11 @@ export class Weather {
       this.forcedLeft -= dt;
       if (this.forcedLeft <= 0) {
         this.forcedLeft = 0;
-        this.set(sim, this.roll());
+        this.set(sim, this.observed ? this.observed.sky : this.roll());
         this.until = sim.now + SPELL_MIN;
       }
+    } else if (this.observed) {
+      // Погода приходит с метеостанции — своя не разыгрывается.
     } else if (sim.now >= this.until) {
       const next = this.roll();
       this.until = sim.now + SPELL_MIN + this.rng.next() * (SPELL_MAX - SPELL_MIN);
@@ -136,6 +147,23 @@ export class Weather {
     this.refresh(sim.now);
     const bad = sky === 'blizzard' || sky === 'dust' || sky === 'fog';
     sim.addLog(`Погода: ${SKY[sky].ru}, ${Math.round(this.tempC) || 0} °C, ветер ${Math.round(this.windMs)} м/с${bad ? ' — ограничение скорости' : ''}`, bad ? 'warn' : 'info');
+  }
+
+  /**
+   * Наблюдение метеостанции: состояние неба, температура и ветер берутся из него до следующего
+   * наблюдения. Сценарий «вызвать погоду» имеет приоритет: пока он действует, наблюдение ждёт.
+   */
+  observe(sim: Simulation, obs: Observation): void {
+    const first = !this.observed;
+    this.observed = obs;
+    if (this.forcedLeft > 0) return;
+    const changed = obs.sky !== this.sky;
+    this.sky = obs.sky;
+    this.refresh(sim.now);
+    if (first || changed) {
+      const bad = obs.sky === 'blizzard' || obs.sky === 'dust' || obs.sky === 'fog';
+      sim.addLog(`Метеостанция: ${SKY[obs.sky].ru}, ${Math.round(this.tempC) || 0} °C, ветер ${Math.round(this.windMs)} м/с${bad ? ' — ограничение скорости' : ''}`, bad ? 'warn' : 'info');
+    }
   }
 
   /** Принудительная погода — сценарий «что если» из интерфейса. */
